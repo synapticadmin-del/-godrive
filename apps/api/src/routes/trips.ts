@@ -600,20 +600,20 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
     const idemKey = `trip_debit:${tripId}`;
     const finalFarePiastres = Math.round(finalFare * 100);
 
-    const ins = await c.env.DB.prepare(
-      `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
-       VALUES (?, ?, 'trip_payment', 'debit', ?, ?, ?, ?, 'رحلة مكتملة', 'settled', datetime('now'))`,
+    const debitRes = await c.env.DB.prepare(
+      `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) - ?, wallet_updated_at = ? WHERE id = ? AND wallet_balance >= ?`,
     )
-      .bind(id("wt"), trip.rider_id, finalFare, finalFarePiastres, tripId, idemKey)
+      .bind(finalFare, finalFarePiastres, nowIso(), trip.rider_id, finalFare)
       .run();
 
-    if (!ins.meta || ins.meta.changes > 0) {
-      await c.env.DB.prepare(
-        `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) - ?, wallet_updated_at = ? WHERE id = ? AND wallet_balance >= ?`,
-      )
-        .bind(finalFare, finalFarePiastres, nowIso(), trip.rider_id, finalFare)
-        .run();
-    }
+    const txnStatus = (debitRes.meta && debitRes.meta.changes === 1) ? 'settled' : 'failed';
+
+    await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
+       VALUES (?, ?, 'trip_payment', 'debit', ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    )
+      .bind(id("wt"), trip.rider_id, finalFare, finalFarePiastres, tripId, idemKey, txnStatus === 'settled' ? 'رحلة مكتملة' : 'فشل الخصم - رصيد غير كافٍ', txnStatus)
+      .run();
   }
   if (trip.captain_id) {
     await c.env.DB.prepare(

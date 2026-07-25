@@ -427,8 +427,9 @@ authRoutes.post("/admin/setup", rateLimit({ prefix: "admin-setup", limit: 3, win
 
   const setupSecretHeader = c.req.header("x-setup-secret");
   const providedSecret = setupSecretHeader ?? body.setupSecret;
-  if (c.env.ADMIN_SETUP_SECRET && providedSecret !== c.env.ADMIN_SETUP_SECRET) {
-    return c.json({ error: "Invalid setup secret", code: "FORBIDDEN" }, 403);
+  const adminSecret = c.env.ADMIN_SETUP_SECRET;
+  if (!adminSecret || providedSecret !== adminSecret) {
+    return c.json({ error: "Invalid or unconfigured setup secret", code: "FORBIDDEN" }, 403);
   }
 
   if (!body.email || !body.password) {
