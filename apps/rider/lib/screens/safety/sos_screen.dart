@@ -39,15 +39,37 @@ class _SosScreenState extends State<SosScreen> {
 
     setState(() => _loading = true);
     try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('فعّل خدمة الموقع لإرسال نداء الطوارئ');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('اسمح للتطبيق بالوصول إلى موقعك لإرسال نداء الطوارئ');
+      }
+
       Position? pos;
       try {
-        pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 3));
-      } catch (_) {}
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          timeLimit: const Duration(seconds: 8),
+        );
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
+      if (pos == null) {
+        throw Exception('تعذّر تحديد موقعك. حاول مجددًا في مكان مفتوح');
+      }
 
       await context.read<AppState>().apiPost('/safety/sos', {
         'tripId': widget.tripId,
-        if (pos != null) 'lat': pos.latitude,
-        if (pos != null) 'lng': pos.longitude,
+        'lat': pos.latitude,
+        'lng': pos.longitude,
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك')));
