@@ -39,6 +39,22 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    if (_isSignUp) {
+      final name = _nameCtrl.text.trim();
+      final phone = _phoneCtrl.text.trim();
+      if (name.length < 2 || phone.length < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('أدخل الاسم ورقم هاتف صحيح لإنشاء الحساب')),
+        );
+        return;
+      }
+      if (!_acceptTerms) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('يجب الموافقة على اتفاقية الاستخدام وسياسة الخصوصية')),
+        );
+        return;
+      }
+    }
 
     setState(() => _isLoading = true);
     try {
