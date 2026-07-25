@@ -93,11 +93,13 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.lightBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.lightPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.lightText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.lightMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.lightBorder : AppTokens.lightBorder;
+    // Every branch previously resolved to the light tokens, leaving this
+    // screen unreadable in dark mode.
+    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
+    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     final docTypes = [
       {'type': 'license', 'title': 'رخصة القيادة', 'icon': Icons.card_membership},
