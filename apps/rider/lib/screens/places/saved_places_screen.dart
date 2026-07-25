@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../services/app_state.dart';
+import '../../services/location_service.dart';
 
 /// Saved places screen — lets the rider add Home/Work/custom places by
 /// picking a real location on the map (or using current GPS location).
@@ -84,21 +85,23 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final go = GoTheme.of(context);
+    final panel = go.panel;
+    final text = go.text;
+    final muted = go.muted;
 
     return Scaffold(
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text('الأماكن المحفوظة', style: GoogleFonts.ibmPlexSansArabic()),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTokens.primary,
+        backgroundColor: go.action,
+        foregroundColor: go.onAction,
         onPressed: _showAddDialog,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.add),
       ),
       body: _loading
           ? const SkeletonList(count: 4)
@@ -147,9 +150,13 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
   }
 }
 
-/// Map-based location picker — opens a full-screen map, lets the user pan
-/// to a location, tap to confirm, then returns lat/lng + reverse-geocoded
-/// address. Falls back to "موقع محدد" if geocoding fails.
+/// Map-based location picker.
+///
+/// Uses the same fixed centre-pin interaction as the home screen: the pin
+/// stays anchored to the middle of the viewport and the map moves beneath it.
+/// Tapping to place a pin was replaced because a fingertip covers roughly 40
+/// logical pixels — at street zoom that is most of a block, so riders were
+/// saving a point near, but not at, the doorway they meant.
 class _PickLocationScreen extends StatefulWidget {
   final TextEditingController nameController;
   final void Function(double lat, double lng, String address) onConfirm;
@@ -162,69 +169,99 @@ class _PickLocationScreen extends StatefulWidget {
 
 class _PickLocationScreenState extends State<_PickLocationScreen> {
   final MapController _mapController = MapController();
-  LatLng? _picked;
+  final Debouncer _debouncer = Debouncer(milliseconds: 450);
+
+  /// The map centre is the chosen point, so this is only used to seed the
+  /// initial camera position.
+  LatLng? _initialCentre;
   String _address = '';
   bool _geocoding = false;
+  bool _ready = false;
+
+  late final LocationService _locations;
 
   @override
   void initState() {
     super.initState();
+    _locations = LocationService(context.read<AppState>());
     _initToCurrentLocation();
+  }
+
+  @override
+  void dispose() {
+    _debouncer.dispose();
+    super.dispose();
   }
 
   Future<void> _initToCurrentLocation() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!serviceEnabled) {
+        _finishInit(null);
+        return;
+      }
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
+        if (permission == LocationPermission.denied) {
+          _finishInit(null);
+          return;
+        }
       }
+      if (permission == LocationPermission.deniedForever) {
+        _finishInit(null);
+        return;
+      }
+
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      final loc = LatLng(pos.latitude, pos.longitude);
-      setState(() => _picked = loc);
-      _mapController.move(loc, 15);
-      _reverseGeocode(loc);
-    } catch (_) {}
+      _finishInit(LatLng(pos.latitude, pos.longitude));
+    } catch (_) {
+      _finishInit(null);
+    }
+  }
+
+  void _finishInit(LatLng? location) {
+    if (!mounted) return;
+    final centre = location ?? const LatLng(30.0444, 31.2357);
+    setState(() {
+      _initialCentre = centre;
+      _ready = true;
+    });
+    if (location != null) _mapController.move(location, 16);
+    _reverseGeocode(centre);
   }
 
   Future<void> _reverseGeocode(LatLng point) async {
     setState(() => _geocoding = true);
-    try {
-      final state = context.read<AppState>();
-      final res = await state.apiGet('/geocode/reverse?lat=${point.latitude}&lng=${point.longitude}');
-      final addr = res['display_name'] ?? res['address'] ?? 'موقع محدد';
-      if (mounted) setState(() {
-        _address = addr;
-        _geocoding = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() {
-        _address = 'موقع محدد';
-        _geocoding = false;
-      });
-    }
+    final address = await _locations.reverseGeocode(point);
+    if (!mounted) return;
+    setState(() {
+      _address = address ?? LocationService.coordinateLabel(point);
+      _geocoding = false;
+    });
   }
 
-  void _onMapTap(TapPosition _, LatLng point) {
-    setState(() => _picked = point);
-    _reverseGeocode(point);
+  /// Re-resolves the address once the rider stops panning.
+  void _onMapMoved(MapPosition position, bool hasGesture) {
+    if (!hasGesture) return;
+    final centre = position.center;
+    if (centre == null) return;
+    if (!_geocoding) setState(() => _geocoding = true);
+    _debouncer.run(() => _reverseGeocode(centre));
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileUrl = isDark
-        ? 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'
-        : 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png';
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
+    final go = GoTheme.of(context);
+    final panel = go.panel;
+    final text = go.text;
+    final muted = go.muted;
+    final surface = go.surface;
+    final accent = go.isDark ? go.action : AppTokens.primary;
 
     return Scaffold(
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text('اختر الموقع', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
         backgroundColor: panel,
@@ -235,23 +272,70 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _picked ?? const LatLng(30.0444, 31.2357),
-              initialZoom: 14,
-              onTap: _onMapTap,
+              initialCenter: _initialCentre ?? const LatLng(30.0444, 31.2357),
+              initialZoom: 15,
+              minZoom: 3,
+              maxZoom: 18.5,
+              onPositionChanged: _onMapMoved,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+              ),
             ),
             children: [
-              TileLayer(urlTemplate: tileUrl, subdomains: const ['a', 'b', 'c']),
-              if (_picked != null)
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: _picked!,
-                      width: 40, height: 40,
-                      child: const Icon(Icons.location_on, color: AppTokens.primary, size: 40),
+              TileLayer(
+                urlTemplate: MapTiles.urlForContext(context),
+                subdomains: MapTiles.subdomains,
+                retinaMode: RetinaMode.isHighDensity(context),
+                userAgentPackageName: 'tech.synapticstudio.godrive.rider',
+              ),
+            ],
+          ),
+
+          // Fixed centre pin. IgnorePointer lets every gesture reach the map.
+          IgnorePointer(
+            child: Center(
+              child: Transform.translate(
+                offset: const Offset(0, -26),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedScale(
+                      scale: _geocoding ? 0.9 : 1.0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.place_rounded,
+                          color: go.isDark ? go.onAction : Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                    Container(width: 2.5, height: 14, color: accent),
+                    Container(
+                      width: 9,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.28),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ],
                 ),
-            ],
+              ),
+            ),
           ),
           Positioned(
             left: 0, right: 0, bottom: 0,
@@ -283,13 +367,13 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                     Row(
                       children: [
                         if (_geocoding)
-                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.primary))
+                          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: accent))
                         else
-                          const Icon(Icons.location_on, color: AppTokens.primary, size: 16),
+                          Icon(Icons.location_on, color: accent, size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _address.isEmpty ? 'اضغط على الخريطة لتحديد الموقع' : _address,
+                            _address.isEmpty ? 'حرّك الخريطة لتحديد الموقع' : _address,
                             style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 13),
                             maxLines: 2, overflow: TextOverflow.ellipsis,
                           ),
@@ -300,16 +384,24 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                     SizedBox(
                       width: double.infinity, height: 48,
                       child: ElevatedButton(
-                        onPressed: _picked == null
+                        // The map centre is always a valid point once the
+                        // camera is ready, so this only guards the first frame.
+                        onPressed: !_ready
                             ? null
                             : () {
-                                widget.onConfirm(_picked!.latitude, _picked!.longitude, _address);
+                                final centre = _mapController.camera.center;
+                                final label = _address.isNotEmpty
+                                    ? _address
+                                    : LocationService.coordinateLabel(centre);
+                                widget.onConfirm(centre.latitude, centre.longitude, label);
                                 Navigator.pop(context);
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTokens.primary, foregroundColor: Colors.white,
-                          disabledBackgroundColor: AppTokens.primary.withOpacity(0.3),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
+                          backgroundColor: go.action,
+                          foregroundColor: go.onAction,
+                          disabledBackgroundColor: go.surface,
+                          disabledForegroundColor: go.muted,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusPill)),
                         ),
                         child: Text('حفظ المكان', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700, fontSize: 15)),
                       ),
