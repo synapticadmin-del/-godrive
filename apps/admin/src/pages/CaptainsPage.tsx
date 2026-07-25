@@ -2,9 +2,23 @@ import { useEffect, useState, useRef } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { StatusBadge } from '../components/ui/Badge';
-import { Search, Check, Ban, Loader2, Star, Car, MapPin, Navigation } from 'lucide-react';
+import { DataTable, type Column } from '../components/ui/DataTable';
+import { Search, Check, Ban, Loader2, Star, MapPin, Navigation, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useTheme } from '../design/ThemeContext';
+
+/**
+ * First character of a display name, safe for non-ASCII.
+ *
+ * `str[0]` splits a surrogate pair, so an emoji or an astral-plane character
+ * yields half a code point and renders as a replacement glyph. Array.from
+ * iterates by code point instead.
+ */
+function initialOf(name: string | null): string {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) return 'ك'; // "kaptin" — matches the Arabic fallback label
+  return Array.from(trimmed)[0].toUpperCase();
+}
 
 interface Captain {
   user_id: string;
@@ -41,6 +55,7 @@ export default function CaptainsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedCaptainId, setSelectedCaptainId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -164,24 +179,51 @@ export default function CaptainsPage() {
     }
   };
 
+  // Map lifecycle — mount ONCE.
+  //
+  // This was previously fused with the data effect and keyed on [token, filter],
+  // so every click on a status pill ran the cleanup: the Leaflet instance was
+  // destroyed and rebuilt from scratch. The map flickered and the admin's zoom
+  // and pan were discarded on each filter change. Map creation does not depend
+  // on `filter` at all, so it is now its own effect with an empty dependency
+  // list and the teardown runs only on unmount.
   useEffect(() => {
-    loadLeaflet().then(() => {
-      initMap();
-      fetchCaptains(true);
-    });
-
-    const interval = setInterval(() => {
-      fetchCaptains(false);
-    }, 10000);
+    let cancelled = false;
+    loadLeaflet()
+      .then(() => {
+        if (cancelled) return;
+        initMap();
+      })
+      .catch(() => {
+        // Leaflet is loaded from a CDN. If it cannot be fetched, say so instead
+        // of leaving a permanently blank rectangle with a spinner over it.
+        if (!cancelled) setMapError('تعذّر تحميل الخريطة. تحقق من الاتصال بالإنترنت.');
+      });
 
     return () => {
-      clearInterval(interval);
+      cancelled = true;
       if (mapObj.current) {
         mapObj.current.remove();
         mapObj.current = null;
       }
     };
+  }, []);
+
+  // Data lifecycle — refetch when the token or the server-side filter changes,
+  // and poll on an interval. Separate from the map so filtering never disturbs it.
+  useEffect(() => {
+    fetchCaptains(true);
+    const interval = setInterval(() => fetchCaptains(false), 10000);
+    return () => clearInterval(interval);
   }, [token, filter]);
+
+  // The map and the data now load independently, so whichever finishes second
+  // has to reconcile them. updateMapMarkers() is a no-op until the map exists,
+  // so a fetch that lands first would otherwise leave the map empty until the
+  // next 10s poll. Redrawing when either side changes closes that window.
+  useEffect(() => {
+    if (mapLoaded) updateMapMarkers(captains);
+  }, [mapLoaded, captains]);
 
   const handleFocusCaptain = (captain: Captain) => {
     setSelectedCaptainId(captain.user_id);
@@ -248,6 +290,91 @@ export default function CaptainsPage() {
     return c.is_online === 1 && lat != null && lng != null;
   }).length;
 
+  const captainColumns: Column<Captain>[] = [
+    {
+      key: 'name',
+      header: 'الكابتن',
+      sortable: true,
+      accessor: (c) => (
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary-500/10 text-primary-500 font-bold flex items-center justify-center text-sm shrink-0">
+            {initialOf(c.name)}
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium text-text-primary text-sm truncate">{c.name || 'كابتن'}</p>
+            <p className="text-xs text-text-tertiary font-mono">{c.user_id.slice(0, 8)}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'phone',
+      header: 'التواصل',
+      sortable: true,
+      accessor: (c) => (
+        <div className="min-w-0">
+          <p className="text-sm text-text-primary font-mono" dir="ltr">{c.phone || '—'}</p>
+          <p className="text-xs text-text-tertiary truncate" dir="ltr">{c.email}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'vehicle_make',
+      header: 'السيارة',
+      sortable: true,
+      accessor: (c) => (
+        <div>
+          <p className="text-sm text-text-primary">
+            {c.vehicle_make ? `${c.vehicle_make} ${c.vehicle_model || ''}`.trim() : '—'}
+          </p>
+          {c.vehicle_plate && (
+            <span className="inline-block mt-1 px-2 py-0.5 bg-warning-main/10 text-warning-main font-mono text-xs font-bold rounded">
+              {c.vehicle_plate}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'rating_avg',
+      header: 'التقييم',
+      sortable: true,
+      accessor: (c) => {
+        // A captain with no ratings yet is NOT a five-star captain.
+        // The previous `c.rating_avg ? ... : '5.0'` printed a fabricated 5.0
+        // both for unrated captains AND for a genuine 0.0 rating, because 0 is
+        // falsy — so the worst-rated captain on the platform displayed as
+        // perfect. Distinguish "no ratings" from a real score.
+        const hasRatings = (c.rating_count ?? 0) > 0 && c.rating_avg != null;
+        if (!hasRatings) {
+          return <span className="text-xs text-text-tertiary">لا تقييمات بعد</span>;
+        }
+        return (
+          <div className="flex items-center gap-1">
+            <Star className="w-4 h-4 fill-warning-main text-warning-main" />
+            <span className="text-sm font-bold text-text-primary">{c.rating_avg.toFixed(1)}</span>
+            <span className="text-xs text-text-tertiary">({c.rating_count})</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'approval_status',
+      header: 'الحالة / الموقع',
+      sortable: true,
+      accessor: (c) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatusBadge status={c.approval_status} />
+          {/* StatusBadge already ships online/offline variants with the right
+              Arabic labels and colours; this page was hand-rolling its own,
+              and used "مغلق" (closed) where the design system says
+              "غير متصل" (offline). */}
+          <StatusBadge status={c.is_online ? 'online' : 'offline'} />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -266,10 +393,14 @@ export default function CaptainsPage() {
               />
             </div>
             <div className="flex bg-surface-secondary p-1 rounded-lg border border-border-primary">
+              {/* 'rejected' was missing, so captains in that state could not be
+                  filtered to from this screen even though the API accepts the
+                  value and StatusBadge renders it. */}
               {([
                 ['', 'الكل'],
                 ['approved', 'معتمد'],
                 ['pending', 'بانتظار'],
+                ['rejected', 'مرفوض'],
                 ['suspended', 'موقوف'],
               ] as const).map(([st, label]) => (
                 <button
@@ -301,146 +432,68 @@ export default function CaptainsPage() {
           </span>
         </div>
         <div className="relative w-full h-[360px]">
-          {loading && !mapLoaded && (
-            <div className="absolute inset-0 z-10 bg-surface-primary/80 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+          {/* Three distinct states, previously collapsed into one spinner that
+              could spin forever if the Leaflet CDN was unreachable. */}
+          {mapError ? (
+            <div className="absolute inset-0 z-10 bg-surface-primary flex flex-col items-center justify-center gap-2 px-6 text-center">
+              <AlertTriangle className="w-7 h-7 text-warning-main" />
+              <p className="text-sm text-text-secondary">{mapError}</p>
+              <p className="text-xs text-text-tertiary">
+                بيانات الكباتن في الجدول أدناه لا تزال متاحة.
+              </p>
             </div>
+          ) : (
+            !mapLoaded && (
+              <div className="absolute inset-0 z-10 bg-surface-primary/80 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+              </div>
+            )
           )}
           <div ref={mapRef} className="w-full h-full" />
         </div>
       </div>
 
-      <div className="bg-surface-primary border border-border-primary rounded-xl overflow-hidden">
-        {loading && captains.length === 0 ? (
-          <div className="p-12 text-center">
-            <Loader2 className="w-8 h-8 mx-auto text-text-tertiary animate-spin" />
-            <p className="text-text-secondary mt-2">جاري تحميل بيانات الكباتن...</p>
-          </div>
-        ) : filteredCaptains.length === 0 ? (
-          <div className="p-12 text-center">
-            <Car className="w-12 h-12 mx-auto text-text-tertiary mb-4" />
-            <p className="text-text-secondary">لا يوجد كباتن مطبق عليهم البحث</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border-primary bg-surface-secondary/50">
-                  <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">الكابتن</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">التواصل</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">السيارة</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">التقييم</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">الحالة / الموقع</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-primary/50">
-                {filteredCaptains.map((c) => {
-                  const isSelected = selectedCaptainId === c.user_id;
-                  const lat = getCaptainLat(c);
-                  const lng = getCaptainLng(c);
-                  const hasLocation = lat != null && lng != null;
-
-                  return (
-                    <tr
-                      key={c.user_id}
-                      onClick={() => handleFocusCaptain(c)}
-                      className={`cursor-pointer transition-colors ${
-                        isSelected ? 'bg-primary-500/10 border-l-4 border-l-primary-500' : 'hover:bg-surface-hover'
-                      }`}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-primary-500/10 text-primary-500 font-bold flex items-center justify-center text-sm">
-                            {(c.name || 'C')[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium text-text-primary text-sm">{c.name || 'كابتن'}</p>
-                            <p className="text-xs text-text-tertiary font-mono">{c.user_id.slice(0, 8)}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-text-primary font-mono">{c.phone || '—'}</p>
-                        <p className="text-xs text-text-tertiary">{c.email}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-text-primary">
-                          {c.vehicle_make ? `${c.vehicle_make} ${c.vehicle_model || ''}` : '—'}
-                        </p>
-                        {c.vehicle_plate && (
-                          <span className="inline-block mt-1 px-2 py-0.5 bg-warning-main/10 text-warning-main font-mono text-xs font-bold rounded">
-                            {c.vehicle_plate}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-4 h-4 fill-warning-main text-warning-main" />
-                          <span className="text-sm font-bold text-text-primary">
-                            {c.rating_avg ? c.rating_avg.toFixed(1) : '5.0'}
-                          </span>
-                          <span className="text-xs text-text-tertiary">({c.rating_count})</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={c.approval_status} />
-                          {c.is_online ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-success-main font-bold">
-                              <span className="w-2 h-2 rounded-full bg-success-main animate-pulse" /> متصل
-                            </span>
-                          ) : (
-                            <span className="text-xs text-text-tertiary">مغلق</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleFocusCaptain(c)}
-                            title="تحديد موقعه على الخريطة"
-                            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors border ${
-                              hasLocation && c.is_online
-                                ? 'bg-primary-500/10 hover:bg-primary-500/20 text-primary-500 border-primary-500/30'
-                                : 'bg-surface-secondary text-text-tertiary border-border-primary'
-                            }`}
-                          >
-                            <Navigation className="w-3.5 h-3.5" /> موقع الكابتن
-                          </button>
-                          {c.approval_status === 'pending' && (
-                            <button
-                              disabled={processingId === c.user_id}
-                              onClick={() => handleApprove(c.user_id)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-success-main hover:bg-success-dark text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              {processingId === c.user_id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Check className="w-3 h-3" />
-                              )}{' '}
-                              اعتماد
-                            </button>
-                          )}
-                          {c.approval_status === 'approved' && (
-                            <button
-                              disabled={processingId === c.user_id}
-                              onClick={() => handleSuspend(c.user_id)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-error-main/10 hover:bg-error-main/20 text-error-main text-xs font-medium rounded-lg border border-error-main/30 transition-colors disabled:opacity-50"
-                            >
-                              <Ban className="w-3 h-3" /> إيقاف
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Captains table.
+          Now backed by the shared DataTable, which supplies sorting, paging,
+          a page-size selector, skeleton loading and an empty state. This page
+          previously hand-rolled a raw <table> that rendered EVERY row with no
+          pagination at all. */}
+      <DataTable<Captain>
+        data={filteredCaptains}
+        keyAccessor={(c) => c.user_id}
+        loading={loading && captains.length === 0}
+        emptyMessage={
+          searchTerm || filter
+            ? 'لا يوجد كباتن مطابقون لهذا البحث'
+            : 'لا يوجد كباتن مسجلون بعد'
+        }
+        defaultSortKey="approval_status"
+        pageSize={25}
+        onRowClick={handleFocusCaptain}
+        columns={captainColumns}
+        rowActions={[
+          {
+            label: 'تحديد موقعه على الخريطة',
+            icon: <Navigation className="w-4 h-4" />,
+            onClick: handleFocusCaptain,
+          },
+          {
+            label: 'اعتماد الكابتن',
+            icon: <Check className="w-4 h-4" />,
+            onClick: (c) => handleApprove(c.user_id),
+            show: (c) => c.approval_status === 'pending',
+            disabled: (c) => processingId === c.user_id,
+          },
+          {
+            label: 'إيقاف الكابتن',
+            icon: <Ban className="w-4 h-4" />,
+            variant: 'danger',
+            onClick: (c) => handleSuspend(c.user_id),
+            show: (c) => c.approval_status === 'approved',
+            disabled: (c) => processingId === c.user_id,
+          },
+        ]}
+      />
     </div>
   );
 }

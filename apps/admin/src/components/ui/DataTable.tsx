@@ -1,4 +1,4 @@
-import React, { useState, useMemo, forwardRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -104,6 +104,18 @@ export function DataTable<T extends Record<string, any>>({
 
   const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
 
+  // Body rows render an extra <td> for row actions, so the header must render a
+  // matching <th> or every column sits one cell off its heading.
+  const hasRowActions = rowActions.length > 0;
+  const totalColumnCount = columns.length + (hasRowActions ? 1 : 0);
+
+  // Guard against a stale page index after the data shrinks (a filter is
+  // applied, or the page size grows). Without this the table can land on a page
+  // that no longer exists and render blank.
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
+  }, [page, totalPages]);
+
   const handleSort = (key: string) => {
     if (!sortable) return;
     const column = columns.find((c) => c.key === key);
@@ -143,6 +155,13 @@ export function DataTable<T extends Record<string, any>>({
                       {col.header}
                     </th>
                   ))}
+                  {/* Mirror the loaded table's column count so the layout does
+                      not jump when the skeleton is swapped for real rows. */}
+                  {hasRowActions && (
+                    <th className="px-4 py-3 text-left text-sm font-medium text-text-secondary">
+                      <span className="sr-only">إجراءات</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -153,6 +172,11 @@ export function DataTable<T extends Record<string, any>>({
                         <div className="h-4 bg-surface-tertiary animate-pulse rounded w-3/4" />
                       </td>
                     ))}
+                    {hasRowActions && (
+                      <td className="px-4 py-3">
+                        <div className="h-4 bg-surface-tertiary animate-pulse rounded w-12 mr-auto" />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -207,6 +231,14 @@ export function DataTable<T extends Record<string, any>>({
                     </div>
                   </th>
                 ))}
+                {hasRowActions && (
+                  <th
+                    className="px-4 py-3 text-sm font-semibold text-text-secondary text-left"
+                    scope="col"
+                  >
+                    <span className="sr-only">إجراءات</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-border-primary/50">
@@ -276,9 +308,17 @@ export function DataTable<T extends Record<string, any>>({
                   </tr>
                 );
               })}
-              {paginatedData.length < (pagination ? pageSize : data.length) && (
+              {/* Only a page with genuinely zero rows gets the empty message.
+                  This previously read `paginatedData.length < pageSize`, which
+                  is true for every partial page — so the last page of any
+                  dataset that does not divide evenly, and any dataset smaller
+                  than one page, rendered "لا توجد بيانات" directly beneath its
+                  own real rows. The all-rows-empty case is handled by an early
+                  return above, so in practice this only fires when a filter
+                  leaves the current page empty. */}
+              {paginatedData.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + (rowActions.length > 0 ? 1 : 0)} className="px-4 py-8 text-center text-text-tertiary">
+                  <td colSpan={totalColumnCount} className="px-4 py-8 text-center text-text-tertiary">
                     {emptyMessage}
                   </td>
                 </tr>
