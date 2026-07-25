@@ -9,11 +9,11 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   ({ children, variant = 'neutral', size = 'md', dot = false, className = '', ...props }, ref) => {
     const variantStyles = {
-      default: 'bg-surface-tertiary text-text-secondary border border-border-primary',
-      success: 'bg-success-light text-success-main border border-success-main/30',
-      warning: 'bg-warning-light text-warning-main border border-warning-main/30',
-      danger: 'bg-error-light text-error-main border border-error-main/30',
-      info: 'bg-info-light text-info-main border border-info-main/30',
+      default: 'bg-surface-tertiary text-text-primary border border-border-primary',
+      success: 'bg-[#EAF5E3] text-[#14532D] border border-[#14532D]/30',
+      warning: 'bg-[#FEF3C7] text-[#78350F] border border-[#78350F]/30',
+      danger: 'bg-[#FEE2E2] text-[#7F1D1D] border border-[#7F1D1D]/30',
+      info: 'bg-[#EFF6FF] text-[#1E40AF] border border-[#1E40AF]/30',
       neutral: 'bg-surface-tertiary text-text-secondary border border-border-primary',
     };
 
@@ -49,29 +49,30 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
 Badge.displayName = 'Badge';
 
 export const StatusBadge = ({ status, className = '' }: { status: string; className?: string }) => {
-  const statusConfig: Record<string, { label: string; variant: BadgeProps['variant']; dot: boolean }> = {
-    active: { label: 'نشط', variant: 'success', dot: true },
-    inactive: { label: 'غير نشط', variant: 'neutral', dot: false },
-    pending: { label: 'بانتظار الموافقة', variant: 'warning', dot: false },
-    approved: { label: 'معتمد', variant: 'success', dot: false },
-    rejected: { label: 'مرفوض', variant: 'danger', dot: false },
-    suspended: { label: 'موقوف', variant: 'danger', dot: false },
-    searching: { label: 'جاري البحث', variant: 'info', dot: true },
-    offered: { label: 'قيد العرض', variant: 'warning', dot: true },
-    assigned: { label: 'مُعين', variant: 'info', dot: true },
-    arrived: { label: 'وصل الكابتن', variant: 'info', dot: true },
-    in_progress: { label: 'قيد التنفيذ', variant: 'info', dot: true },
-    completed: { label: 'مكتملة', variant: 'success', dot: false },
-    cancelled: { label: 'ملغية', variant: 'danger', dot: false },
-    online: { label: 'متصل', variant: 'success', dot: true },
-    offline: { label: 'غير متصل', variant: 'neutral', dot: false },
+  const statusConfig: Record<string, { label: string; variant: BadgeProps['variant']; icon: string }> = {
+    active: { label: 'نشط', variant: 'success', icon: '✓' },
+    inactive: { label: 'غير نشط', variant: 'neutral', icon: '○' },
+    pending: { label: 'بانتظار الموافقة', variant: 'warning', icon: '⏱' },
+    approved: { label: 'معتمد', variant: 'success', icon: '✓' },
+    rejected: { label: 'مرفوض', variant: 'danger', icon: '✕' },
+    suspended: { label: 'موقوف', variant: 'danger', icon: '✕' },
+    searching: { label: 'جاري البحث', variant: 'info', icon: '🔍' },
+    offered: { label: 'قيد العرض', variant: 'warning', icon: '⏱' },
+    assigned: { label: 'مُعين', variant: 'info', icon: '🚗' },
+    arrived: { label: 'وصل الكابتن', variant: 'info', icon: '📍' },
+    in_progress: { label: 'قيد التنفيذ', variant: 'info', icon: '⚡' },
+    completed: { label: 'مكتملة', variant: 'success', icon: '✓' },
+    cancelled: { label: 'ملغية', variant: 'danger', icon: '✕' },
+    online: { label: 'متصل', variant: 'success', icon: '●' },
+    offline: { label: 'غير متصل', variant: 'neutral', icon: '○' },
   };
 
-  const config = statusConfig[status] || { label: status, variant: 'neutral', dot: false };
+  const config = statusConfig[status] || { label: status, variant: 'neutral', icon: '' };
 
   return (
-    <Badge variant={config.variant} dot={config.dot} className={className}>
-      {config.label}
+    <Badge variant={config.variant} className={className}>
+      <span className="text-[11px] opacity-80" aria-hidden="true">{config.icon}</span>
+      <span>{config.label}</span>
     </Badge>
   );
 };

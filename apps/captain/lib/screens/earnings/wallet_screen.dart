@@ -171,29 +171,50 @@ class _WalletScreenState extends State<WalletScreen> {
                     const SizedBox(height: 32),
                     const Text('سجل المعاملات', style: TextStyle(color: AppTokens.lightText, fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
-                    ...List.generate(3, (index) => _buildTransactionCard(index)).animate(interval: 100.ms).fade().slideX(begin: 0.1),
+                    if ((_wallet?['transactions'] as List? ?? []).isEmpty)
+                      const EmptyState(message: 'لا توجد معاملات سابقة بالمحفظة حتى الآن')
+                    else
+                      ...((_wallet?['transactions'] as List? ?? []).map((tx) => _buildTransactionCard(tx as Map<String, dynamic>))),
                   ],
                 ),
     );
   }
 
-  Widget _buildTransactionCard(int index) {
+  Widget _buildTransactionCard(Map<String, dynamic> tx) {
+    final isCredit = tx['direction'] == 'credit';
+    final amount = (tx['amount'] as num?)?.toDouble() ?? 0;
+    final note = tx['note'] ?? (isCredit ? 'شحن رصيد' : 'خصم معاملة');
+    final date = tx['created_at']?.toString().substring(0, 10) ?? '';
+
     return Card(
       color: AppTokens.lightSurface,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        side: BorderSide(color: AppTokens.lightBorder),
+        side: const BorderSide(color: AppTokens.lightBorder),
       ),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: AppTokens.success.withOpacity(0.1), shape: BoxShape.circle),
-          child: const Icon(Icons.arrow_downward, color: AppTokens.success),
+          decoration: BoxDecoration(
+            color: (isCredit ? AppTokens.success : AppTokens.danger).withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+            color: isCredit ? AppTokens.success : AppTokens.danger,
+          ),
         ),
-        title: const Text('أرباح رحلة', style: TextStyle(color: AppTokens.lightText)),
-        subtitle: const Text('منذ يومين', style: TextStyle(color: AppTokens.lightMuted, fontSize: 12)),
-        trailing: const Text('+ 45 ج.م', style: TextStyle(color: AppTokens.success, fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(note, style: const TextStyle(color: AppTokens.lightText, fontWeight: FontWeight.w600)),
+        subtitle: Text(date, style: const TextStyle(color: AppTokens.lightMuted, fontSize: 12)),
+        trailing: Text(
+          '${isCredit ? "+" : "-"} ${amount.toStringAsFixed(0)} ج.م',
+          style: TextStyle(
+            color: isCredit ? AppTokens.success : AppTokens.danger,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
       ),
     );
   }
