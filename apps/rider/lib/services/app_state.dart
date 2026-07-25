@@ -318,7 +318,7 @@ class AppState extends ChangeNotifier {
   double? walletBalance;
 
   Future<Map<String, dynamic>> fetchWallet() async {
-    final res = await _get('/wallet');
+    final res = await _get('/user/wallet');
     walletBalance = (res['balance'] as num?)?.toDouble();
     notifyListeners();
     return res;
