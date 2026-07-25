@@ -8,6 +8,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get appTitle => 'GoDrive Captain';
 
   @override
+  String get appSlogan => 'اربح أكثر، طريقك أخضر';
+
+  @override
   String get login => 'تسجيل الدخول';
 
   @override

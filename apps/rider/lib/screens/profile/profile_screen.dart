@@ -196,12 +196,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppState>().fetchProfile();
+        context.read<AppState>().fetchWallet();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final user = appState.user;
     final balance = appState.walletBalance ?? 0.0;
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final avatarUrl = user?['avatarUrl'] as String?;
+
+    final rawName = user?['name']?.toString() ?? '';
+    final email = user?['email']?.toString() ?? '';
+    final phone = user?['phone']?.toString() ?? '';
+    final initial = rawName.isNotEmpty
+        ? rawName[0].toUpperCase()
+        : (email.isNotEmpty ? email[0].toUpperCase() : 'U');
+    final displayName = rawName.isNotEmpty
+        ? rawName
+        : (email.isNotEmpty ? email.split('@').first : (isAr ? 'مستخدم' : 'User'));
 
     return Scaffold(
       appBar: AppBar(
@@ -231,10 +252,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircleAvatar(
                   radius: 50,
                   backgroundColor: AppTokens.primary,
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null
+                  backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                  child: (avatarUrl == null || avatarUrl.isEmpty)
                       ? Text(
-                          user?['name']?.substring(0, 1).toUpperCase() ?? 'U',
+                          initial,
                           style: const TextStyle(fontSize: 40, color: Colors.white, fontWeight: FontWeight.bold),
                         )
                       : null,
@@ -260,21 +281,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            user?['name'] ?? (isAr ? 'مستخدم' : 'User'),
+            displayName,
             style: GoogleFonts.ibmPlexSansArabic(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
-          Text(
-            user?['email'] ?? '',
-            style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
-            textAlign: TextAlign.center,
-          ),
-          if (user?['phone'] != null && (user!['phone'] as String).isNotEmpty)
+          if (email.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              email,
+              style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          if (phone.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                user['phone'],
+                phone,
                 style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
                 textAlign: TextAlign.center,
               ),

@@ -8,6 +8,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'GoDrive Captain';
 
   @override
+  String get appSlogan => 'Earn more, your road is green';
+
+  @override
   String get login => 'Login';
 
   @override

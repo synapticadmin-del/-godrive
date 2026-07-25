@@ -99,6 +99,12 @@ abstract class AppLocalizations {
   /// **'GoDrive'**
   String get appTitle;
 
+  /// No description provided for @appSlogan.
+  ///
+  /// In ar, this message translates to:
+  /// **'طريقك أخضر دايمًا'**
+  String get appSlogan;
+
   /// No description provided for @login.
   ///
   /// In ar, this message translates to:

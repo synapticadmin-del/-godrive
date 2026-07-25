@@ -36,11 +36,28 @@ class AppState extends ChangeNotifier {
     if (raw != null) user = jsonDecode(raw) as Map<String, dynamic>;
     if (token != null) {
       await FcmService.init(onToken: registerDeviceToken);
+      await fetchProfile();
     } else {
       await FcmService.init(onToken: registerDeviceToken);
     }
     loading = false;
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>?> fetchProfile() async {
+    if (token == null) return null;
+    try {
+      final res = await _get('/auth/me');
+      if (res['user'] != null) {
+        user = Map<String, dynamic>.from(res['user'] as Map);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user', jsonEncode(user));
+        notifyListeners();
+      }
+      return res;
+    } catch (_) {
+      return null;
+    }
   }
 
   Map<String, String> get _headers => {
