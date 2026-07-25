@@ -44,7 +44,7 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
   Future<void> _addPlace(String name, double lat, double lng, String address) async {
     try {
       await context.read<AppState>().apiPost('/user/saved-places', {
-        'name': name,
+        'label': name,
         'address': address,
         'lat': lat,
         'lng': lng,
@@ -127,13 +127,13 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
                             borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                           ),
                           child: Icon(
-                            place['name'] == 'المنزل' || place['name'] == 'Home'
+                            place['label'] == 'المنزل' || place['label'] == 'Home'
                                 ? Icons.home
-                                : (place['name'] == 'العمل' || place['name'] == 'Work' ? Icons.work : Icons.place),
+                                : (place['label'] == 'العمل' || place['label'] == 'Work' ? Icons.work : Icons.place),
                             color: AppTokens.primary, size: 20,
                           ),
                         ),
-                        title: Text(place['name'] ?? 'مكان', style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
+                        title: Text(place['label'] ?? 'مكان', style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
                         subtitle: Text(place['address'] ?? '', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline, color: AppTokens.danger, size: 20),
