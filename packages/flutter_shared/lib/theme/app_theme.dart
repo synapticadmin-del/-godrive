@@ -8,16 +8,27 @@ import 'package:flutter/material.dart';
 ///  - Accent Header: #DDF2D1
 ///  - Pure White Light Theme & Clean Light Cards
 class AppTokens {
-  // Brand — GoDrive Green (#72BF44 family from screenshots)
-  static const primary = Color(0xFF72BF44);
-  static const primaryDark = Color(0xFF5E9E37);
+  // Brand — GoDrive Green (#4E842D family for WCAG AA >= 4.5:1 contrast)
+  static const primary = Color(0xFF4E842D);      // 4.50:1 on white (WCAG AA)
+  static const primaryFill = Color(0xFF4E842D);  // 4.50:1 on white
+  static const primaryDark = Color(0xFF38631E);  // 7.10:1 on white
   static const primaryLight = Color(0xFFEAF5E3);
   static const headerAccent = Color(0xFFDDF2D1);
-  static const accent = Color(0xFFF59E0B);
-  static const success = Color(0xFF22C55E);
-  static const warning = Color(0xFFEAB308);
-  static const danger = Color(0xFFEF4444);
-  static const sos = Color(0xFFDC2626);
+  static const accent = Color(0xFFA56A07);       // 4.50:1 on white (WCAG AA)
+  static const success = Color(0xFF178841);      // 4.53:1 on white (WCAG AA)
+  static const warning = Color(0xFF947105);      // 4.54:1 on white (WCAG AA)
+  static const danger = Color(0xFFEB1616);       // 4.51:1 on white (WCAG AA)
+  static const sos = Color(0xFFDC2626);          // 4.83:1 on white (WCAG AA)
+
+  // Badge Status Colors (High Contrast Dark Text on Light BG)
+  static const badgePendingText = Color(0xFF78350F);  // 8.15:1 on #FEF3C7
+  static const badgePendingBg = Color(0xFFFEF3C7);
+  static const badgeApprovedText = Color(0xFF14532D); // 8.10:1 on #EAF5E3
+  static const badgeApprovedBg = Color(0xFFEAF5E3);
+  static const badgeStoppedText = Color(0xFF7F1D1D);  // 8.20:1 on #FEE2E2
+  static const badgeStoppedBg = Color(0xFFFEE2E2);
+  static const badgeCompletedText = Color(0xFF166534);// 6.65:1 on #F3F9EC
+  static const badgeCompletedBg = Color(0xFFF3F9EC);
 
   // Light — Pure White & Soft Slate
   static const lightBg = Color(0xFFFFFFFF);

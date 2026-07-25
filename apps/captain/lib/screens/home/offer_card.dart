@@ -41,13 +41,14 @@ class _OfferCardState extends State<OfferCard> {
   Widget build(BuildContext context) {
     final state = context.read<CaptainState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.lightSurface : AppTokens.lightSurface;
-    final text = isDark ? AppTokens.lightText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.lightMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.lightBorder : AppTokens.lightBorder;
+    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightSurface;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     final fare = (widget.offer['estimated_fare'] as num?)?.toDouble() ?? 0;
     final distanceKm = (widget.offer['distanceKm'] as num?)?.toDouble();
+    final captainToPickupKm = (widget.offer['captain_to_pickup_km'] as num?)?.toDouble();
     final pickup = widget.offer['pickup_address'] ?? 'موقف الالتقاط';
     final dropoff = widget.offer['dropoff_address'] ?? 'الوجهة';
 
@@ -76,13 +77,20 @@ class _OfferCardState extends State<OfferCard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('رحلة جديدة', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 13, fontWeight: FontWeight.w600)),
-                if (distanceKm != null)
-                  Row(children: [
+                Row(children: [
+                  if (captainToPickupKm != null) ...[
+                    Icon(Icons.near_me, size: 14, color: AppTokens.accent),
+                    const SizedBox(width: 4),
+                    Text('الوصول: ${captainToPickupKm.toStringAsFixed(1)} كم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: AppTokens.accent, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 8),
+                  ],
+                  if (distanceKm != null) ...[
                     Icon(Icons.straighten, size: 14, color: muted),
                     const SizedBox(width: 4),
-                    Text('${distanceKm.toStringAsFixed(1)} كم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
+                    Text('الرحلة: ${distanceKm.toStringAsFixed(1)} كم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
                     const SizedBox(width: 12),
-                  ]),
+                  ],
+                ]),
                 Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontSize: 22, fontWeight: FontWeight.w800)),
               ],
             ),

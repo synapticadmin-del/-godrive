@@ -45,15 +45,22 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
   Widget build(BuildContext context) {
     final state = context.read<CaptainState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.lightPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.lightText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.lightMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.lightBorder : AppTokens.lightBorder;
+    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     final status = widget.trip['status'] as String?;
     final fare = (widget.trip['final_fare'] as num?)?.toDouble() ?? (widget.trip['estimated_fare'] as num?)?.toDouble() ?? 0;
+
+    final pickupLat = (widget.trip['pickup_lat'] as num?)?.toDouble();
+    final pickupLng = (widget.trip['pickup_lng'] as num?)?.toDouble();
     final dropLat = (widget.trip['dropoff_lat'] as num?)?.toDouble();
     final dropLng = (widget.trip['dropoff_lng'] as num?)?.toDouble();
+
+    final targetLat = (status == 'assigned' || status == 'arrived') ? pickupLat : dropLat;
+    final targetLng = (status == 'assigned' || status == 'arrived') ? pickupLng : dropLng;
+    final navLabel = (status == 'assigned' || status == 'arrived') ? 'تنقّل للراكب' : 'تنقّل للوجهة';
 
     String actionText = '';
     Color actionColor = AppTokens.primary;
@@ -70,7 +77,26 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     } else if (status == 'in_progress') {
       actionText = 'إنهاء الرحلة';
       actionColor = AppTokens.accent;
-      onAction = state.complete;
+      onAction = () async {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('تأكيد إنهاء الرحلة'),
+            content: Text('الأجرة المحسوبة: ${fare.toStringAsFixed(0)} ج.م\nهل أنت في نقطة الوصول بالفعل؟'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppTokens.success, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('نعم، إنهاء الرحلة'),
+              ),
+            ],
+          ),
+        );
+        if (ok == true) {
+          state.complete();
+        }
+      };
     }
 
     return Container(
@@ -106,7 +132,19 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.trip['rider_name'] ?? 'راكب', style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
               if (widget.trip['rider_phone'] != null)
-                Text(widget.trip['rider_phone'], style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12)),
+                InkWell(
+                  onTap: () async {
+                    final uri = Uri.parse('tel:${widget.trip['rider_phone']}');
+                    if (await canLaunchUrl(uri)) await launchUrl(uri);
+                  },
+                  child: Row(
+                    children: [
+                      const Icon(Icons.call, size: 14, color: AppTokens.primary),
+                      const SizedBox(width: 4),
+                      Text(widget.trip['rider_phone'], style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
             ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontSize: 20, fontWeight: FontWeight.w800)),
@@ -114,8 +152,8 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
             ]),
           ]),
           const SizedBox(height: 16),
-          if (dropLat != null && dropLng != null) ...[
-            NavigationButton(lat: dropLat, lng: dropLng, label: 'تنقّل للوجهة'),
+          if (targetLat != null && targetLng != null) ...[
+            NavigationButton(lat: targetLat, lng: targetLng, label: navLabel),
             const SizedBox(height: 10),
           ],
           SizedBox(

@@ -29,12 +29,12 @@ export const colors = {
       200: '#c5e5a6',
       300: '#a2d473',
       400: '#83c345',
-      500: '#6bb522',  // exact GoDrive logo green
-      600: '#579619',  // hover
-      700: '#457715',  // pressed
-      800: '#385f14',
-      900: '#2f4f13',
-      950: '#172c08',
+      500: '#4e842d',  // WCAG AA compliant GoDrive green (4.53:1 on white)
+      600: '#3d6923',  // hover
+      700: '#32541c',  // pressed
+      800: '#274116',
+      900: '#1c2f10',
+      950: '#101c09',
     },
     charcoal: {
       50: '#f7f8f9',
@@ -54,26 +54,26 @@ export const colors = {
   semantic: {
     success: {
       light: '#f3f9ec',
-      main: '#6bb522',
-      dark: '#457715',
+      main: '#4e842d',
+      dark: '#32541c',
       contrastText: '#ffffff',
     },
     warning: {
       light: '#fef3c7',
-      main: '#f59e0b',
-      dark: '#92400e',
+      main: '#b45309',
+      dark: '#78350f',
       contrastText: '#ffffff',
     },
     error: {
       light: '#fee2e2',
-      main: '#ef4444',
-      dark: '#991b1b',
+      main: '#dc2626',
+      dark: '#7f1d1d',
       contrastText: '#ffffff',
     },
     info: {
-      light: '#f3f9ec',
-      main: '#6bb522',
-      dark: '#457715',
+      light: '#eff6ff',
+      main: '#1d4ed8',
+      dark: '#1e40af',
       contrastText: '#ffffff',
     },
   },

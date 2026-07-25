@@ -24,10 +24,10 @@ class _HomeTabState extends State<HomeTab> {
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panelColor = isDark ? AppTokens.lightPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.lightText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.lightMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.lightBorder : AppTokens.lightBorder;
+    final panelColor = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     final approval =
         state.captain?['approval_status'] ?? state.captain?['status'];
