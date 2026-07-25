@@ -15,6 +15,7 @@ class EarningsScreen extends StatefulWidget {
 class _EarningsScreenState extends State<EarningsScreen> {
   Map<String, dynamic>? _data;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -23,6 +24,12 @@ class _EarningsScreenState extends State<EarningsScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final state = context.read<CaptainState>();
       final res = await state.earnings();
@@ -33,9 +40,25 @@ class _EarningsScreenState extends State<EarningsScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceAll('Exception:', '').trim();
+          _loading = false;
+        });
+      }
     }
   }
+
+  /// GET /captain/earnings responds with a flat payload:
+  /// `{from, to, trips, gross, commission, net, currency}`.
+  /// Amounts are formatted to two decimals because the server returns raw
+  /// REAL sums (e.g. 137.5), which previously rendered as "137.5 ج.م".
+  String _money(String key) {
+    final value = (_data?[key] as num?)?.toDouble() ?? 0;
+    return value.toStringAsFixed(2);
+  }
+
+  String _count(String key) => ((_data?[key] as num?)?.toInt() ?? 0).toString();
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +72,10 @@ class _EarningsScreenState extends State<EarningsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppTokens.primary))
           : _data == null
-              ? ErrorState(message: 'خطأ في تحميل بيانات الأرباح', onRetry: _load)
+              ? ErrorState(
+                  message: _error ?? 'خطأ في تحميل بيانات الأرباح',
+                  onRetry: _load,
+                )
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -71,8 +97,13 @@ class _EarningsScreenState extends State<EarningsScreen> {
                           const Text('صافي الأرباح', style: TextStyle(color: Colors.white70, fontSize: 16)),
                           const SizedBox(height: 8),
                           Text(
-                            '${_data!['net_earnings'] ?? 0} ج.م',
+                            '${_money('net')} ج.م',
                             style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'آخر ٧ أيام',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
                       ),
@@ -81,16 +112,16 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildStatCard('الرحلات', '${_data!['total_trips'] ?? 0}', Icons.directions_car, AppTokens.accent),
+                          child: _buildStatCard('الرحلات', _count('trips'), Icons.directions_car, AppTokens.accent),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: _buildStatCard('إجمالي الدخل', '${_data!['gross_earnings'] ?? 0} ج', Icons.attach_money, AppTokens.success),
+                          child: _buildStatCard('إجمالي الدخل', '${_money('gross')} ج', Icons.attach_money, AppTokens.success),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildStatCard('العمولة المخصومة', '${_data!['commission'] ?? 0} ج', Icons.pie_chart, AppTokens.danger),
+                    _buildStatCard('العمولة المخصومة', '${_money('commission')} ج', Icons.pie_chart, AppTokens.danger),
                     const SizedBox(height: 32),
                     ElevatedButton.icon(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen())),
