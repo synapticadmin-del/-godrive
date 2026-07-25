@@ -20,14 +20,14 @@ class ActiveTripPanel extends StatefulWidget {
 
 class _ActiveTripPanelState extends State<ActiveTripPanel> {
   Timer? _timer;
-  int _seconds = 0;
+  Duration _elapsed = Duration.zero;
+  bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _seconds++);
-    });
+    _tick();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
   @override
@@ -36,10 +36,55 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     super.dispose();
   }
 
+  /// Derives elapsed time from the trip's own server timestamp rather than
+  /// counting ticks. A tick counter restarts from 00:00 whenever the widget
+  /// rebuilds (every offers poll, every rotation, every app resume), so the
+  /// captain saw the timer reset repeatedly mid-trip.
+  void _tick() {
+    if (!mounted) return;
+    final startedAtRaw = (widget.trip['started_at'] ??
+            widget.trip['arrived_at'] ??
+            widget.trip['assigned_at'])
+        ?.toString();
+    final startedAt = startedAtRaw == null ? null : DateTime.tryParse(startedAtRaw);
+    setState(() {
+      _elapsed = startedAt == null
+          ? _elapsed + const Duration(seconds: 1)
+          : DateTime.now().toUtc().difference(startedAt.toUtc());
+    });
+  }
+
   String get _formattedTime {
-    final m = _seconds ~/ 60;
-    final s = _seconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    final total = _elapsed.isNegative ? Duration.zero : _elapsed;
+    final h = total.inHours;
+    final m = total.inMinutes % 60;
+    final s = total.inSeconds % 60;
+    final mm = m.toString().padLeft(2, '0');
+    final ss = s.toString().padLeft(2, '0');
+    return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+  }
+
+  /// Trip transitions hit the network and can fail (409 on a stale status,
+  /// connectivity loss). They were wired straight to state.arrived /
+  /// state.startTrip as bare VoidCallbacks, so a failure was invisible: the
+  /// button appeared to work and the trip silently stayed in its old state.
+  Future<void> _runAction(Future<void> Function() action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          backgroundColor: AppTokens.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -70,11 +115,11 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     if (status == 'assigned') {
       actionText = 'وصلت لنقطة الالتقاط';
       actionColor = AppTokens.primary;
-      onAction = state.arrived;
+      onAction = () => _runAction(state.arrived);
     } else if (status == 'arrived') {
       actionText = 'بدء الرحلة';
       actionColor = AppTokens.success;
-      onAction = state.startTrip;
+      onAction = () => _runAction(state.startTrip);
     } else if (status == 'in_progress') {
       actionText = 'إنهاء الرحلة';
       actionColor = AppTokens.accent;
@@ -83,7 +128,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('تأكيد إنهاء الرحلة'),
-            content: Text('الأجرة المحسوبة: ${fare.toStringAsFixed(0)} ج.م\nهل أنت في نقطة الوصول بالفعل؟'),
+            content: Text('الأجرة المقدرة: ${fare.toStringAsFixed(2)} ج.م\nهل أنت في نقطة الوصول بالفعل؟'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
               ElevatedButton(
@@ -94,9 +139,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
             ],
           ),
         );
-        if (ok == true) {
-          state.complete();
-        }
+        if (ok == true) await _runAction(state.complete);
       };
     }
 
@@ -135,8 +178,18 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
               if (widget.trip['rider_phone'] != null)
                 InkWell(
                   onTap: () async {
-                    final uri = Uri.parse('tel:${widget.trip['rider_phone']}');
-                    if (await canLaunchUrl(uri)) await launchUrl(uri);
+                    // canLaunchUrl('tel:') returns false on Android 11+ unless
+                    // the scheme is declared in <queries>, which silently made
+                    // the call button a no-op. Launch directly and fall back.
+                    final uri = Uri(scheme: 'tel', path: '${widget.trip['rider_phone']}');
+                    try {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تعذّر فتح تطبيق الاتصال')),
+                      );
+                    }
                   },
                   child: Row(
                     children: [
@@ -148,8 +201,11 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                 ),
             ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontSize: 20, fontWeight: FontWeight.w800)),
-              Text('الأجرة', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 11)),
+              Text('${fare.toStringAsFixed(2)} ج.م', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontSize: 20, fontWeight: FontWeight.w800)),
+              Text(
+                widget.trip['final_fare'] != null ? 'الأجرة النهائية' : 'الأجرة المقدرة',
+                style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 11),
+              ),
             ]),
           ]),
           const SizedBox(height: 16),
@@ -160,10 +216,15 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
           SizedBox(
             width: double.infinity, height: 52,
             child: ElevatedButton(
-              onPressed: onAction,
+              onPressed: _busy ? null : onAction,
               style: ElevatedButton.styleFrom(backgroundColor: actionColor, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd))),
-              child: Text(actionText, style: GoogleFonts.ibmPlexSansArabic(fontSize: 17, fontWeight: FontWeight.w700)),
+              child: _busy
+                  ? const SizedBox(
+                      width: 22, height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(actionText, style: GoogleFonts.ibmPlexSansArabic(fontSize: 17, fontWeight: FontWeight.w700)),
             ),
           ).animate().slideY(begin: 0.2),
         ]),
