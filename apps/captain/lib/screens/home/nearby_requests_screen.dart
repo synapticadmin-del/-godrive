@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:provider/provider.dart';
+import 'package:flutter_shared/flutter_shared.dart';
 import '../../models/ride_request_model.dart';
 import '../../services/captain_state.dart';
 
@@ -83,7 +83,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('تم تقديم عرض السعر (${price.toStringAsFixed(0)} ج.م) بنجاح'),
-            backgroundColor: const Color(0xFF6BB522),
+            backgroundColor: AppTokens.primary,
           ),
         );
         _fetchRequests();
@@ -147,9 +147,9 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6BB522).withOpacity(0.1),
+                  color: AppTokens.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF6BB522).withOpacity(0.3)),
+                  border: Border.all(color: AppTokens.primary.withOpacity(0.3)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -178,7 +178,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                   final calculated = req.offeredPrice + inc;
                   return ActionChip(
                     label: Text('+ $inc ج.م (${calculated.toStringAsFixed(0)})'),
-                    backgroundColor: const Color(0xFF6BB522).withOpacity(0.15),
+                    backgroundColor: AppTokens.primary.withOpacity(0.15),
                     labelStyle: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF53585F),
@@ -208,7 +208,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
 
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6BB522),
+                  backgroundColor: AppTokens.primary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -238,7 +238,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('طلبات التوصيل القريبة (المزايدة)'),
-          backgroundColor: const Color(0xFF6BB522),
+          backgroundColor: AppTokens.primary,
           foregroundColor: Colors.white,
           actions: [
             IconButton(
@@ -250,7 +250,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
         ),
         body: RefreshIndicator(
           onRefresh: _fetchRequests,
-          color: const Color(0xFF6BB522),
+          color: AppTokens.primary,
           child: _loading
               ? const Center(child: CircularProgressIndicator(color: Color(0xFF6BB522)))
               : _errorMessage != null
@@ -303,7 +303,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: const Color(0xFF6BB522).withOpacity(0.15),
+                  backgroundColor: AppTokens.primary.withOpacity(0.15),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(22),
                     child: Image.network(
@@ -342,9 +342,9 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6BB522).withOpacity(0.15),
+                    color: AppTokens.primary.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF6BB522).withOpacity(0.4)),
+                    border: Border.all(color: AppTokens.primary.withOpacity(0.4)),
                   ),
                   child: Text(
                     '${req.offeredPrice.toStringAsFixed(0)} ج.م',
@@ -416,7 +416,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                   flex: 2,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6BB522),
+                      backgroundColor: AppTokens.primary,
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),

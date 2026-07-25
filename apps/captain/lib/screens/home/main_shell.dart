@@ -181,14 +181,15 @@ class _MainShellState extends State<MainShell> {
             Positioned(
               top: MediaQuery.of(context).padding.top + 16,
               left: 16,
-              child: FloatingActionButton.small(
+              child: FloatingActionButton(
                 heroTag: 'sos',
                 backgroundColor: AppTokens.sos,
+                elevation: 6,
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const SosScreen()),
                 ),
-                child: const Icon(Icons.sos, color: Colors.white, size: 20),
+                child: const Icon(Icons.sos, color: Colors.white, size: 26),
               ),
             ),
 
