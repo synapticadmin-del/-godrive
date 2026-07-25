@@ -29,6 +29,7 @@ export default function LiveMapPage() {
   const [view, setView] = useState<'all' | 'trips' | 'captains'>('all');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
+  const tileLayerRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
 
   const fetchAll = async () => {
@@ -60,9 +61,18 @@ export default function LiveMapPage() {
     const tileUrl = resolved === 'dark'
       ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
       : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
-    L.tileLayer(tileUrl, { attribution: '&copy; OpenStreetMap & CARTO', maxZoom: 19, subdomains: 'abcd' }).addTo(mapObj.current);
+    tileLayerRef.current = L.tileLayer(tileUrl, { attribution: '&copy; OpenStreetMap & CARTO', maxZoom: 19, subdomains: 'abcd' }).addTo(mapObj.current);
     layerRef.current = L.layerGroup().addTo(mapObj.current);
   };
+
+  useEffect(() => {
+    if (tileLayerRef.current && window.L) {
+      const tileUrl = resolved === 'dark'
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+      tileLayerRef.current.setUrl(tileUrl);
+    }
+  }, [resolved]);
 
   const updateMap = (tripsData: LiveTrip[], captainsData: OnlineCaptain[]) => {
     if (!mapObj.current || !layerRef.current || !window.L) return;

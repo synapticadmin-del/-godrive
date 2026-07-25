@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { StatusBadge } from '../components/ui/Badge';
 import { Search, Check, Ban, Loader2, Star, Car, MapPin, Navigation } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { useTheme } from '../design/ThemeContext';
 
 interface Captain {
   user_id: string;
@@ -31,6 +32,7 @@ declare global {
 
 export default function CaptainsPage() {
   const { token } = useAuth();
+  const { resolved } = useTheme();
   const [captains, setCaptains] = useState<Captain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,7 @@ export default function CaptainsPage() {
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
+  const tileLayerRef = useRef<any>(null);
   const markersRef = useRef<{ [key: string]: any }>({});
   const layerRef = useRef<any>(null);
 
@@ -84,7 +87,10 @@ export default function CaptainsPage() {
     const L = window.L;
 
     mapObj.current = L.map(mapRef.current).setView([30.0444, 31.2357], 12);
-    L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+    const tileUrl = resolved === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+    tileLayerRef.current = L.tileLayer(tileUrl, {
       attribution: '&copy; Synaptic Go',
       maxZoom: 19,
       subdomains: ['a', 'b', 'c'],
@@ -93,6 +99,16 @@ export default function CaptainsPage() {
     layerRef.current = L.layerGroup().addTo(mapObj.current);
     setMapLoaded(true);
   };
+
+  // Dynamically switch map tiles whenever theme changes (light/dark)
+  useEffect(() => {
+    if (tileLayerRef.current && window.L) {
+      const tileUrl = resolved === 'dark'
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+      tileLayerRef.current.setUrl(tileUrl);
+    }
+  }, [resolved]);
 
   const updateMapMarkers = (captainsList: Captain[]) => {
     if (!mapObj.current || !layerRef.current || !window.L) return;
