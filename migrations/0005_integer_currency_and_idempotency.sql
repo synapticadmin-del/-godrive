@@ -17,3 +17,6 @@ UPDATE trips SET estimated_fare_piastres = CAST(ROUND(estimated_fare * 100) AS I
 UPDATE trips SET final_fare_piastres = CAST(ROUND(final_fare * 100) AS INTEGER) WHERE final_fare_piastres IS NULL AND final_fare IS NOT NULL;
 UPDATE trips SET commission_piastres = CAST(ROUND(commission * 100) AS INTEGER) WHERE commission_piastres IS NULL AND commission IS NOT NULL;
 UPDATE users SET wallet_balance_piastres = CAST(ROUND(wallet_balance * 100) AS INTEGER) WHERE wallet_balance IS NOT NULL;
+
+-- Add attempts counter to otp_codes for brute-force protection
+ALTER TABLE otp_codes ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;

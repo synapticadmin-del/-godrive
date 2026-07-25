@@ -145,17 +145,37 @@ authRoutes.post(
     const code = body.code.trim();
 
     const row = await c.env.DB.prepare(
-      `SELECT id, role, expires_at, consumed_at FROM otp_codes
-       WHERE email = ? AND code = ?
+      `SELECT id, code, role, expires_at, consumed_at, COALESCE(attempts, 0) as attempts FROM otp_codes
+       WHERE email = ? AND consumed_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
     )
-      .bind(identKey, code)
-      .first<{ id: string; role: UserRole; expires_at: string; consumed_at: string | null }>();
+      .bind(identKey)
+      .first<{ id: string; code: string; role: UserRole; expires_at: string; consumed_at: string | null; attempts: number }>();
 
-    if (!row) return c.json({ error: "Invalid code", code: "INVALID_OTP" }, 401);
-    if (row.consumed_at) return c.json({ error: "Code already used", code: "OTP_USED" }, 401);
+    if (!row) return c.json({ error: "Invalid or expired code", code: "INVALID_OTP" }, 401);
     if (new Date(row.expires_at).getTime() < Date.now()) {
       return c.json({ error: "Code expired", code: "OTP_EXPIRED" }, 401);
+    }
+
+    if (row.attempts >= 5) {
+      await c.env.DB.prepare(`UPDATE otp_codes SET consumed_at = ? WHERE id = ?`)
+        .bind(nowIso(), row.id)
+        .run();
+      return c.json({ error: "Maximum verification attempts exceeded", code: "TOO_MANY_ATTEMPTS" }, 429);
+    }
+
+    if (row.code !== code) {
+      const newAttempts = row.attempts + 1;
+      if (newAttempts >= 5) {
+        await c.env.DB.prepare(`UPDATE otp_codes SET attempts = ?, consumed_at = ? WHERE id = ?`)
+          .bind(newAttempts, nowIso(), row.id)
+          .run();
+      } else {
+        await c.env.DB.prepare(`UPDATE otp_codes SET attempts = ? WHERE id = ?`)
+          .bind(newAttempts, row.id)
+          .run();
+      }
+      return c.json({ error: "Invalid code", code: "INVALID_OTP" }, 401);
     }
 
     await c.env.DB.prepare(`UPDATE otp_codes SET consumed_at = ? WHERE id = ?`)
@@ -402,7 +422,15 @@ authRoutes.post("/admin/setup", rateLimit({ prefix: "admin-setup", limit: 3, win
     email?: string;
     name?: string;
     password?: string;
+    setupSecret?: string;
   };
+
+  const setupSecretHeader = c.req.header("x-setup-secret");
+  const providedSecret = setupSecretHeader ?? body.setupSecret;
+  if (c.env.ADMIN_SETUP_SECRET && providedSecret !== c.env.ADMIN_SETUP_SECRET) {
+    return c.json({ error: "Invalid setup secret", code: "FORBIDDEN" }, 403);
+  }
+
   if (!body.email || !body.password) {
     return c.json({ error: "email and password required", code: "VALIDATION_ERROR" }, 400);
   }
