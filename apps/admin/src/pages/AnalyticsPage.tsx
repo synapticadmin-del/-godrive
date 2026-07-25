@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
-  BarChart3, TrendingUp, DollarSign, CheckCircle, Loader2, Calendar,
-  PieChart as PieIcon, Award, Shield, ArrowUpRight, ArrowDownRight, RefreshCw, Filter
+  BarChart3, TrendingUp, DollarSign, CheckCircle, Calendar,
+  PieChart as PieIcon, Award, ArrowUpRight, ArrowDownRight, RefreshCw, Minus
 } from 'lucide-react';
 import {
   BarChart, Bar, AreaChart, Area, LineChart, Line, PieChart, Pie,
@@ -11,16 +11,35 @@ import {
 } from 'recharts';
 import { PageHeader } from '../components/layout/PageHeader';
 
+interface PeriodTotals {
+  trips: number;
+  completed: number;
+  cancelled: number;
+  gmv: number;
+  commission: number;
+  completionRate: number;
+}
+
+/**
+ * Percentage change vs the previous equal-length period, computed server-side.
+ *
+ * `null` means "no comparison available" — either the baseline was zero (growth
+ * from nothing is not a percentage) or the range could not be compared. The UI
+ * must render null as an explicit non-value, never as a placeholder figure.
+ */
+interface AnalyticsDeltas {
+  trips: number | null;
+  completed: number | null;
+  gmv: number | null;
+  commission: number | null;
+  /** Change in completion rate, in percentage POINTS (not percent-of-percent). */
+  completionRatePoints: number | null;
+}
+
 interface AnalyticsData {
   from: string;
   to: string;
-  totals: {
-    trips: number;
-    completed: number;
-    cancelled: number;
-    gmv: number;
-    completionRate: number;
-  };
+  totals: PeriodTotals;
   daily: Array<{
     day: string;
     trips: number;
@@ -37,6 +56,8 @@ interface AnalyticsData {
     trips: number;
     gmv: number;
   }>;
+  previous?: { from: string; to: string; totals: PeriodTotals } | null;
+  deltas?: AnalyticsDeltas;
 }
 
 const BRAND_COLORS = {
@@ -50,6 +71,44 @@ const BRAND_COLORS = {
 };
 
 const PIE_COLORS = ['#6bb522', '#ef4444', '#f59e0b', '#3b82f6'];
+
+/**
+ * Format a Date as YYYY-MM-DD in the viewer's LOCAL calendar.
+ *
+ * Deliberately not `.toISOString().split('T')[0]`: toISOString converts to UTC
+ * first, so for any positive-UTC timezone (this product operates in Cairo,
+ * UTC+2/+3) a local date near midnight shifts back a day. That made "this
+ * month" start on the last day of the PREVIOUS month, and made "today" resolve
+ * to yesterday for the first hours of every day.
+ */
+function toLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Build a date-only range for a preset, anchored to local midnight so the
+ * boundaries line up with the days the admin actually sees.
+ *
+ * The ranges are inclusive of both ends: "7d" is today plus the six preceding
+ * days, which is seven calendar days, matching the label.
+ */
+function presetRange(preset: '7d' | '30d' | 'thisMonth'): { from: string; to: string } {
+  const now = new Date();
+  const to = toLocalYmd(now);
+
+  if (preset === 'thisMonth') {
+    return { from: toLocalYmd(new Date(now.getFullYear(), now.getMonth(), 1)), to };
+  }
+
+  const days = preset === '7d' ? 7 : 30;
+  // Step by calendar date rather than by milliseconds so DST transitions
+  // cannot shift the boundary.
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
+  return { from: toLocalYmd(start), to };
+}
 
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
@@ -83,28 +142,11 @@ export default function AnalyticsPage() {
 
   // Preset Date Ranges
   const [datePreset, setDatePreset] = useState<'7d' | '30d' | 'thisMonth'>('30d');
-  const [dateRange, setDateRange] = useState({
-    from: new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0],
-    to: new Date().toISOString().split('T')[0],
-  });
+  const [dateRange, setDateRange] = useState(() => presetRange('30d'));
 
   const applyPreset = (preset: '7d' | '30d' | 'thisMonth') => {
     setDatePreset(preset);
-    const now = new Date();
-    let fromDate = new Date();
-
-    if (preset === '7d') {
-      fromDate = new Date(Date.now() - 7 * 864e5);
-    } else if (preset === '30d') {
-      fromDate = new Date(Date.now() - 30 * 864e5);
-    } else if (preset === 'thisMonth') {
-      fromDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-
-    setDateRange({
-      from: fromDate.toISOString().split('T')[0],
-      to: now.toISOString().split('T')[0],
-    });
+    setDateRange(presetRange(preset));
   };
 
   const loadAnalytics = async () => {
@@ -116,9 +158,11 @@ export default function AnalyticsPage() {
         { token }
       );
 
-      // Enhance daily data with completion rates if missing
+      // Enhance daily data with completion rates if missing.
+      // A day with no trips has NO completion rate — it is not 100% successful.
+      // The old `: 100` fallback drew a flat perfect line across empty days.
       const enhancedDaily = (res.daily || []).map((d) => {
-        const compRate = d.trips > 0 ? Math.round((d.completed / d.trips) * 100) : 100;
+        const compRate = d.trips > 0 ? Math.round((d.completed / d.trips) * 100) : 0;
         const cancelledCount = d.cancelled ?? Math.max(0, d.trips - d.completed);
         return {
           ...d,
@@ -127,9 +171,13 @@ export default function AnalyticsPage() {
         };
       });
 
+      // topCaptains was previously read unguarded at render time, so an API
+      // response that omitted it threw "Cannot read properties of undefined".
+      // `daily` was already guarded; this makes the treatment consistent.
       setData({
         ...res,
         daily: enhancedDaily,
+        topCaptains: res.topCaptains ?? [],
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'فشل تحميل بيانات التحليلات');
@@ -146,10 +194,23 @@ export default function AnalyticsPage() {
   const totalTrips = data?.totals?.trips ?? 0;
   const completedTrips = data?.totals?.completed ?? 0;
   const cancelledTrips = data?.totals?.cancelled ?? Math.max(0, totalTrips - completedTrips);
-  const completionRate = data?.totals?.completionRate ?? (totalTrips > 0 ? Math.round((completedTrips / totalTrips) * 100) : 100);
+  // No trips means no completion rate. The previous `: 100` fallback showed a
+  // perfect 100% success ring for periods that had zero activity.
+  const completionRate =
+    data?.totals?.completionRate ?? (totalTrips > 0 ? Math.round((completedTrips / totalTrips) * 100) : 0);
   const totalGmv = data?.totals?.gmv ?? 0;
-  const estimatedCommission = totalGmv * 0.2; // ~20% platform revenue
+  // Real commission summed from trips.commission, not GMV x 0.2. The flat 20%
+  // guess ignored per-city commission_rate in pricing_rules, so the figure was
+  // wrong for every city not set to exactly 20%.
+  const totalCommission = data?.totals?.commission ?? 0;
   const averageOrderValue = completedTrips > 0 ? Math.round(totalGmv / completedTrips) : 0;
+
+  // True when the selected range genuinely contains no trips. Distinct from
+  // `loading` and from an error: the request succeeded and the answer is zero.
+  const isEmptyRange = !!data && totalTrips === 0 && (data.daily?.length ?? 0) === 0;
+
+  const deltas = data?.deltas;
+  const hasComparison = !!data?.previous;
 
   // Pie chart data for trip status ratios
   const tripRatioData = [
@@ -244,10 +305,10 @@ export default function AnalyticsPage() {
             <KPI
               label="إجمالي حجم المعاملات (GMV)"
               value={`${totalGmv.toLocaleString('ar-EG')} ج.م`}
-              subtext={`صافي عمولة المنصة: ~${estimatedCommission.toLocaleString('ar-EG')} ج.م`}
+              subtext={`صافي عمولة المنصة: ${totalCommission.toLocaleString('ar-EG')} ج.م`}
               icon={<DollarSign className="w-6 h-6" />}
-              trend="+14.2%"
-              positive
+              delta={deltas?.gmv}
+              showComparison={hasComparison}
             />
 
             <KPI
@@ -255,8 +316,8 @@ export default function AnalyticsPage() {
               value={totalTrips.toLocaleString('ar-EG')}
               subtext={`المكتملة: ${completedTrips.toLocaleString('ar-EG')} رحلة`}
               icon={<BarChart3 className="w-6 h-6" />}
-              trend="+8.5%"
-              positive
+              delta={deltas?.trips}
+              showComparison={hasComparison}
             />
 
             <KPI
@@ -264,22 +325,59 @@ export default function AnalyticsPage() {
               value={`${completionRate}%`}
               subtext={`الملغية: ${cancelledTrips.toLocaleString('ar-EG')} رحلة`}
               icon={<CheckCircle className="w-6 h-6" />}
-              trend={completionRate >= 80 ? 'ممتاز' : 'يحتاج تحسين'}
-              positive={completionRate >= 80}
+              delta={deltas?.completionRatePoints}
+              deltaUnit="points"
+              showComparison={hasComparison}
             />
 
             <KPI
               label="متوسط قيمة الرحلة (AOV)"
-              value={`${averageOrderValue} ج.م`}
+              value={`${averageOrderValue.toLocaleString('ar-EG')} ج.م`}
               subtext="متوسط إنفاق الراكب في الرحلة"
               icon={<TrendingUp className="w-6 h-6" />}
-              trend="+3.1%"
-              positive
+              // AOV is GMV / completed trips. Deriving its delta from the GMV
+              // delta would be wrong (both numerator and denominator move), and
+              // the API does not return a previous AOV, so no delta is claimed.
+              showComparison={false}
             />
           </div>
 
-          {/* Section 1: Main Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Empty range.
+              The request succeeded and the honest answer is "no trips in this
+              window". Previously the page rendered three blank charts with no
+              explanation, which is indistinguishable from a failed load. The
+              KPI cards above stay visible because zero IS the correct value. */}
+          {isEmptyRange && (
+            <div className="bg-surface-primary border border-border-primary border-dashed rounded-xl p-10 text-center">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-surface-secondary flex items-center justify-center mb-4">
+                <Calendar className="w-7 h-7 text-text-tertiary" />
+              </div>
+              <p className="text-text-primary font-bold text-base">لا توجد رحلات في هذه الفترة</p>
+              <p className="text-text-tertiary text-sm mt-1.5 max-w-md mx-auto">
+                لم يتم تسجيل أي رحلات بين {dateRange.from} و {dateRange.to}. جرّب توسيع النطاق الزمني
+                أو اختيار فترة أخرى.
+              </p>
+              <div className="flex items-center justify-center gap-2 mt-5">
+                <button
+                  onClick={() => applyPreset('30d')}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-surface-secondary border border-border-primary text-text-secondary hover:text-text-primary hover:border-primary-500/40 transition-all"
+                >
+                  آخر 30 يوم
+                </button>
+                <button
+                  onClick={loadAnalytics}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-primary-500 text-white hover:bg-primary-600 transition-all"
+                >
+                  إعادة المحاولة
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Section 1: Main Charts Grid.
+              Hidden when the range is empty — an axis with no series is noise,
+              and the dashed panel above already states the situation. */}
+          <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 ${isEmptyRange ? 'hidden' : ''}`}>
             {/* GMV & Revenue Area Chart (7 Cols) */}
             <div className="lg:col-span-7 bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-border-primary pb-3">
@@ -308,7 +406,11 @@ export default function AnalyticsPage() {
                         <stop offset="95%" stopColor={BRAND_COLORS.charcoal} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border-primary)) font-mono" />
+                    {/* The Tailwind class "font-mono" had been concatenated into
+                        this SVG stroke value, making it an invalid colour, so
+                        this grid silently failed to paint. Line 467 always had
+                        the correct form. */}
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border-primary))" />
                     <XAxis dataKey="day" tick={{ fill: 'rgb(var(--text-tertiary))', fontSize: 11 }} />
                     <YAxis tick={{ fill: 'rgb(var(--text-tertiary))', fontSize: 11 }} />
                     <Tooltip content={<CustomTooltip />} />
@@ -386,7 +488,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Section 2: Daily Trips Breakdown & Top Captains Leaderboard */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 ${isEmptyRange ? 'hidden' : ''}`}>
             {/* Daily Trips Bar Chart (7 Cols) */}
             <div className="lg:col-span-7 bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-border-primary pb-3">
@@ -487,26 +589,70 @@ export default function AnalyticsPage() {
   );
 }
 
+/**
+ * KPI card.
+ *
+ * `delta` is a real percentage change computed server-side against the previous
+ * equal-length period. Three distinct states, deliberately kept separate:
+ *
+ *   number  -> render the signed change with a direction arrow
+ *   null    -> comparison exists but the baseline was zero: render "جديد" (new).
+ *              Growth from nothing is not a percentage.
+ *   omitted -> no comparison available at all: render no footer.
+ *
+ * This card previously accepted a free-text `trend` string, which is how
+ * hard-coded literals like "+14.2%" ended up displayed under a "compared to the
+ * previous period" label with nothing computing them. The typed `delta` makes
+ * that class of mistake impossible: there is no way to pass a decorative
+ * string any more.
+ */
 function KPI({
   label,
   value,
   subtext,
   icon,
-  trend,
-  positive,
+  delta,
+  deltaUnit = 'percent',
+  higherIsBetter = true,
+  showComparison = true,
 }: {
   label: string;
   value: string;
   subtext?: string;
   icon: React.ReactNode;
-  trend?: string;
-  positive?: boolean;
+  delta?: number | null;
+  /** 'percent' renders "12.5%"; 'points' renders "3.2 نقطة" for rate changes. */
+  deltaUnit?: 'percent' | 'points';
+  higherIsBetter?: boolean;
+  showComparison?: boolean;
 }) {
+  const hasDelta = typeof delta === 'number';
+  const isFlat = hasDelta && delta === 0;
+  const isUp = hasDelta && delta > 0;
+  // A rise is not automatically good — cancellations going up is bad. Callers
+  // set higherIsBetter=false for those so the colour matches the meaning.
+  const isGood = isUp === higherIsBetter;
+
+  const magnitude = hasDelta ? Math.abs(delta).toLocaleString('ar-EG') : null;
+  const deltaText = !hasDelta
+    ? 'جديد'
+    : deltaUnit === 'points'
+      ? `${magnitude} نقطة`
+      : `${magnitude}%`;
+
+  const toneClass = !hasDelta
+    ? 'text-text-secondary'
+    : isFlat
+      ? 'text-text-tertiary'
+      : isGood
+        ? 'text-primary-600 dark:text-primary-400'
+        : 'text-error-main';
+
   return (
-    <div className="bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-3">
+    <div className="group bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-3 transition-all duration-200 hover:border-primary-500/40 hover:shadow-md">
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-text-secondary">{label}</span>
-        <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500">
+        <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500 transition-transform duration-200 group-hover:scale-105">
           {icon}
         </div>
       </div>
@@ -516,16 +662,16 @@ function KPI({
         {subtext && <p className="text-[11px] text-text-tertiary mt-1">{subtext}</p>}
       </div>
 
-      {trend && (
+      {showComparison && (
         <div className="pt-2 border-t border-border-primary flex items-center justify-between text-xs">
           <span className="text-text-tertiary text-[11px]">مقارنة بالفترة السابقة</span>
-          <span
-            className={`font-bold flex items-center gap-0.5 ${
-              positive ? 'text-primary-600 dark:text-primary-400' : 'text-error-main'
-            }`}
-          >
-            {positive ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-            {trend}
+          <span className={`font-bold flex items-center gap-0.5 ${toneClass}`}>
+            {isFlat ? (
+              <Minus className="w-3.5 h-3.5" />
+            ) : hasDelta ? (
+              isUp ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />
+            ) : null}
+            {deltaText}
           </span>
         </div>
       )}
