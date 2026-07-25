@@ -82,10 +82,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 14),
                 TextField(
                   controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  readOnly: true,
                   decoration: InputDecoration(
-                    labelText: isAr ? 'البريد الإلكتروني' : 'Email Address',
+                    labelText: isAr ? 'البريد الإلكتروني (غير قابل للتعديل)' : 'Email Address (read only)',
                     prefixIcon: const Icon(Icons.email_outlined),
+                    suffixIcon: const Icon(Icons.lock_outline),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -95,7 +96,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     await ctx.read<AppState>().updateUserProfile(
                           name: nameController.text.trim(),
                           phone: phoneController.text.trim(),
-                          email: emailController.text.trim(),
                         );
                     if (ctx.mounted) {
                       Navigator.pop(ctx);
