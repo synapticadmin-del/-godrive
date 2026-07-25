@@ -49,7 +49,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppTokens.primary))
           : _data == null
-              ? const Center(child: Text('خطأ في تحميل الأرباح', style: TextStyle(color: AppTokens.danger)))
+              ? ErrorState(message: 'خطأ في تحميل بيانات الأرباح', onRetry: _load)
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
