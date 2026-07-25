@@ -28,6 +28,12 @@ class _TripScreenState extends State<TripScreen> {
   bool _loading = true;
   final MapController _mapController = MapController();
 
+  /// The driving route stored with the trip. `GET /trips/:id` returns the
+  /// geometry the backend computed at booking time; previously the screen
+  /// ignored it and showed only bare markers, so the rider could not see the
+  /// path their driver was taking.
+  List<LatLng> _routePoints = const [];
+
   @override
   void initState() {
     super.initState();
@@ -37,16 +43,52 @@ class _TripScreenState extends State<TripScreen> {
   Future<void> _loadTrip() async {
     try {
       final res = await context.read<AppState>().getTrip(widget.tripId);
+      if (!mounted) return;
       setState(() {
         _trip = res['trip'];
+        _routePoints = _parseGeometry(res['geometry']);
         _loading = false;
       });
+      _fitToRoute();
       _connectWs();
     } catch (e) {
       if (mounted) {
+        setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
+  }
+
+  /// Geometry arrives as `[[lat, lng], ...]`. Parsed defensively so a bad
+  /// payload degrades to "no line drawn" rather than crashing a live trip.
+  List<LatLng> _parseGeometry(dynamic raw) {
+    if (raw is! List) return const [];
+    final points = <LatLng>[];
+    for (final entry in raw) {
+      if (entry is! List || entry.length < 2) continue;
+      final lat = (entry[0] as num?)?.toDouble();
+      final lng = (entry[1] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+      points.add(LatLng(lat, lng));
+    }
+    return points;
+  }
+
+  /// Frames the journey once, leaving room for the status bar and the bottom
+  /// panel so the route is not hidden behind either.
+  void _fitToRoute() {
+    if (_routePoints.length < 2) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.fitCamera(
+        CameraFit.coordinates(
+          coordinates: _routePoints,
+          padding: const EdgeInsets.only(left: 50, right: 50, top: 140, bottom: 300),
+          maxZoom: 16,
+        ),
+      );
+    });
   }
 
   void _connectWs() {
@@ -106,11 +148,10 @@ class _TripScreenState extends State<TripScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileUrl = isDark
-        ? 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'
-        : 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png';
+    final go = GoTheme.of(context);
 
     return Scaffold(
+      backgroundColor: go.bg,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _trip == null
@@ -132,8 +173,33 @@ class _TripScreenState extends State<TripScreen> {
                     initialZoom: 14,
                   ),
                   children: [
-                    TileLayer(urlTemplate: tileUrl, subdomains: const ['a', 'b', 'c']),
-                    MarkerLayer(markers: _buildMarkers()),
+                    TileLayer(
+                      urlTemplate: MapTiles.urlForContext(context),
+                      subdomains: MapTiles.subdomains,
+                      retinaMode: RetinaMode.isHighDensity(context),
+                      userAgentPackageName: 'tech.synapticstudio.godrive.rider',
+                    ),
+                    // Casing beneath the route keeps it legible over busy tiles.
+                    if (_routePoints.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _routePoints,
+                            strokeWidth: 9,
+                            color: go.routeCasing,
+                            strokeCap: StrokeCap.round,
+                            strokeJoin: StrokeJoin.round,
+                          ),
+                          Polyline(
+                            points: _routePoints,
+                            strokeWidth: 5.5,
+                            color: go.routeLine,
+                            strokeCap: StrokeCap.round,
+                            strokeJoin: StrokeJoin.round,
+                          ),
+                        ],
+                      ),
+                    MarkerLayer(markers: _buildMarkers(go)),
                   ],
                 ),
                 Positioned(
@@ -161,30 +227,87 @@ class _TripScreenState extends State<TripScreen> {
     );
   }
 
-  List<Marker> _buildMarkers() {
+  List<Marker> _buildMarkers(GoTheme go) {
     final markers = <Marker>[];
     if (_trip != null) {
       final pickupLat = (_trip!['pickup_lat'] as num?)?.toDouble();
       final pickupLng = (_trip!['pickup_lng'] as num?)?.toDouble();
       final dropLat = (_trip!['dropoff_lat'] as num?)?.toDouble();
       final dropLng = (_trip!['dropoff_lng'] as num?)?.toDouble();
+
+      // Origin: a ringed dot, matching the home screen's visual language.
       if (pickupLat != null && pickupLng != null) {
-        markers.add(Marker(point: LatLng(pickupLat, pickupLng), width: 40, height: 40,
-          child: const Icon(Icons.location_on, color: AppTokens.primary, size: 36)));
+        markers.add(Marker(
+          point: LatLng(pickupLat, pickupLng),
+          width: 26,
+          height: 26,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: go.panel,
+              border: Border.all(color: go.pinPickup, width: 5),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 6),
+              ],
+            ),
+          ),
+        ));
       }
+
+      // Destination: flag on a stem.
       if (dropLat != null && dropLng != null) {
-        markers.add(Marker(point: LatLng(dropLat, dropLng), width: 40, height: 40,
-          child: const Icon(Icons.flag, color: AppTokens.accent, size: 36)));
+        markers.add(Marker(
+          point: LatLng(dropLat, dropLng),
+          width: 34,
+          height: 46,
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: go.isDark ? Colors.white : Colors.black,
+                  borderRadius: BorderRadius.circular(9),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 6),
+                  ],
+                ),
+                child: Icon(Icons.flag_rounded,
+                    size: 18, color: go.isDark ? Colors.black : Colors.white),
+              ),
+              Container(
+                width: 2.5,
+                height: 12,
+                color: go.isDark ? Colors.white : Colors.black,
+              ),
+            ],
+          ),
+        ));
       }
     }
+
     if (_captainLoc != null) {
-      markers.add(Marker(point: _captainLoc!, width: 44, height: 44,
+      final accent = go.isDark ? go.action : AppTokens.primary;
+      markers.add(Marker(
+        point: _captainLoc!,
+        width: 44,
+        height: 44,
         child: Container(
-          decoration: BoxDecoration(color: AppTokens.primary, shape: BoxShape.circle,
+          decoration: BoxDecoration(
+            color: accent,
+            shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [BoxShadow(color: AppTokens.primary.withOpacity(0.4), blurRadius: 8)]),
-          child: const Icon(Icons.directions_car, color: Colors.white, size: 20),
-        )));
+            boxShadow: [BoxShadow(color: accent.withOpacity(0.4), blurRadius: 8)],
+          ),
+          child: Icon(
+            Icons.directions_car_rounded,
+            color: go.isDark ? go.onAction : Colors.white,
+            size: 20,
+          ),
+        ),
+      ));
     }
     return markers;
   }
