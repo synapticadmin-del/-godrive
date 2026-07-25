@@ -112,15 +112,19 @@ paymentRoutes.post("/paymob/webhook", async (c) => {
 
   if (successBool && pmRow) {
     const amountEgp = amountCents / 100;
-    // We treat any intention as wallet_topup here; the actual purpose is encoded
-    // into the merchant_ref we wrote but to keep this generic we credit wallet
-    // and let downstream (trip completion / intercity booking) debit it.
-    await c.env.DB.prepare(
-      `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, payment_ref, status, created_at)
-       VALUES (?, ?, 'topup', 'credit', ?, ?, 'settled', datetime('now'))`,
+    const idempotencyKey = `paymob:${orderIdStr}:${txnId}`;
+
+    const ins = await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, payment_ref, idempotency_key, status, created_at)
+       VALUES (?, ?, 'topup', 'credit', ?, ?, ?, ?, 'settled', datetime('now'))`,
     )
-      .bind(id("wt"), pmRow.user_id, amountEgp, orderIdStr)
+      .bind(id("wt"), pmRow.user_id, amountEgp, amountCents, orderIdStr, idempotencyKey)
       .run();
+
+    if (ins.meta && ins.meta.changes === 0) {
+      return c.json({ status: "duplicate_ignored" }, 200);
+    }
+
     await c.env.DB.prepare(
       `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + ?, wallet_updated_at = ? WHERE id = ?`,
     )

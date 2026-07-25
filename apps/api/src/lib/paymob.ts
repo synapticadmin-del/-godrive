@@ -170,7 +170,7 @@ const HMAC_FIELDS = [
   "is_refunded",
   "is_standalone_payment",
   "is_voided",
-  "order",
+  "order.id",
   "owner",
   "pending",
   "source_data.pan",
@@ -205,9 +205,7 @@ function readPath(obj: unknown, path: string): unknown {
     if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
       return (acc as Record<string, unknown>)[key];
     }
-    // Paymob sometimes nests a flat order object; for "order" we want
-    // the "order.id" value when present, falling back to "order".
-    return acc;
+    return undefined;
   }, obj);
 }
 

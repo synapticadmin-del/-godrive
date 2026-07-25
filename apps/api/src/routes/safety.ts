@@ -188,6 +188,17 @@ safetyRoutes.post("/chat/:tripId", authMiddleware, async (c) => {
 safetyRoutes.get("/chat/:tripId", authMiddleware, async (c) => {
   const user = c.get("user");
   const tripId = c.req.param("tripId") ?? "";
+
+  const trip = await c.env.DB.prepare(`SELECT rider_id, captain_id FROM trips WHERE id = ?`)
+    .bind(tripId)
+    .first<{ rider_id: string; captain_id: string }>();
+
+  if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
+
+  if (user.role !== "admin" && trip.rider_id !== user.id && trip.captain_id !== user.id) {
+    return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+  }
+
   const limit = Math.min(Number(c.req.query("limit") ?? 100), 200);
   const msgs = await c.env.DB.prepare(
     `SELECT id, sender_id, sender_role, body, read_at, created_at

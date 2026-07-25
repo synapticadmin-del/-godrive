@@ -17,6 +17,13 @@ export async function api<T>(
   });
 
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401) {
+    localStorage.removeItem('sg_admin_token');
+    localStorage.removeItem('sg_admin_refresh_token');
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
   if (!res.ok) {
     throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
   }

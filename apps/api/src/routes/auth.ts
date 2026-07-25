@@ -123,9 +123,9 @@ authRoutes.post(
       channel: phone ? "whatsapp" : "email",
     };
 
-    if (asBool(c.env.DEV_OTP, true) || devFromChannel) {
+    if (asBool(c.env.DEV_OTP, false)) {
       payload.devCode = code;
-      payload.note = "DEV_OTP enabled or channel not configured — use devCode to login";
+      payload.note = "DEV_OTP is enabled for development testing";
     }
 
     return c.json(payload);

@@ -8,7 +8,7 @@ export const requestOtpSchema = z
       .max(30)
       .optional()
       .transform((s) => (s ? s.replace(/[\s-]/g, "") : s)),
-    role: z.enum(["rider", "captain", "admin"]).default("rider"),
+    role: z.enum(["rider", "captain"]).default("rider"),
     name: z.string().max(120).optional(),
     turnstileToken: z.string().max(2048).optional(),
   })
