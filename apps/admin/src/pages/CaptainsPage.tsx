@@ -3,9 +3,10 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { StatusBadge } from '../components/ui/Badge';
 import { DataTable, type Column } from '../components/ui/DataTable';
-import { Search, Check, Ban, Loader2, Star, MapPin, Navigation, AlertTriangle } from 'lucide-react';
+import { Search, Check, Ban, Loader2, Star, MapPin, Navigation, AlertTriangle, Download } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useTheme } from '../design/ThemeContext';
+import { downloadCsv, formatCsvDate, formatCsvNumber, type CsvColumn } from '../lib/csv';
 
 /**
  * First character of a display name, safe for non-ASCII.
@@ -36,6 +37,8 @@ interface Captain {
   last_lng?: number | null;
   rating_avg: number;
   rating_count: number;
+  /** Written by nowIso(); may be absent on rows that have never gone online. */
+  last_seen_at?: string | null;
 }
 
 declare global {
@@ -56,6 +59,7 @@ export default function CaptainsPage() {
   const [selectedCaptainId, setSelectedCaptainId] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -290,6 +294,39 @@ export default function CaptainsPage() {
     return c.is_online === 1 && lat != null && lng != null;
   }).length;
 
+  // CSV export.
+  // Exports exactly what the admin is currently looking at — the same
+  // search-and-filter result set as the table, in the same order — so the file
+  // matches the screen. Values are machine-readable (Latin digits, ISO-style
+  // timestamps), deliberately not the ar-EG display formatting.
+  const csvColumns: CsvColumn<Captain>[] = [
+    { header: 'معرف الكابتن', value: (c) => c.user_id },
+    { header: 'الاسم', value: (c) => c.name ?? '' },
+    { header: 'البريد الإلكتروني', value: (c) => c.email },
+    { header: 'الهاتف', value: (c) => c.phone ?? '' },
+    { header: 'حالة الاعتماد', value: (c) => c.approval_status },
+    { header: 'متصل', value: (c) => (c.is_online ? 'نعم' : 'لا') },
+    { header: 'الماركة', value: (c) => c.vehicle_make ?? '' },
+    { header: 'الموديل', value: (c) => c.vehicle_model ?? '' },
+    { header: 'رقم اللوحة', value: (c) => c.vehicle_plate ?? '' },
+    // An unrated captain exports as blank, not as a fabricated 5.0 — the same
+    // distinction the table now makes.
+    {
+      header: 'متوسط التقييم',
+      value: (c) => ((c.rating_count ?? 0) > 0 ? formatCsvNumber(c.rating_avg, 1) : ''),
+    },
+    { header: 'عدد التقييمات', value: (c) => formatCsvNumber(c.rating_count, 0) },
+    { header: 'خط العرض', value: (c) => formatCsvNumber(getCaptainLat(c), 6) },
+    { header: 'خط الطول', value: (c) => formatCsvNumber(getCaptainLng(c), 6) },
+    { header: 'آخر ظهور', value: (c) => formatCsvDate(c.last_seen_at) },
+  ];
+
+  const handleExportCsv = () => {
+    const n = downloadCsv('captains', filteredCaptains, csvColumns);
+    setExportNotice(`تم تصدير ${n.toLocaleString('ar-EG')} كابتن`);
+    window.setTimeout(() => setExportNotice(null), 4000);
+  };
+
   const captainColumns: Column<Captain>[] = [
     {
       key: 'name',
@@ -414,9 +451,29 @@ export default function CaptainsPage() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={handleExportCsv}
+              disabled={filteredCaptains.length === 0}
+              title={
+                filteredCaptains.length === 0
+                  ? 'لا توجد بيانات للتصدير'
+                  : `تصدير ${filteredCaptains.length} كابتن إلى CSV`
+              }
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-surface-secondary border border-border-primary text-text-secondary hover:text-text-primary hover:border-primary-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              تصدير CSV
+            </button>
           </div>
         }
       />
+
+      {exportNotice && (
+        <div className="p-3 bg-success-main/10 border border-success-main/30 rounded-xl text-success-main text-sm flex items-center gap-2">
+          <Download className="w-4 h-4 shrink-0" />
+          {exportNotice}
+        </div>
+      )}
 
       {error && <div className="p-4 bg-error-main/10 border border-error-main/30 rounded-xl text-error-main">{error}</div>}
 

@@ -3,13 +3,14 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
   BarChart3, TrendingUp, DollarSign, CheckCircle, Calendar,
-  PieChart as PieIcon, Award, ArrowUpRight, ArrowDownRight, RefreshCw, Minus
+  PieChart as PieIcon, Award, ArrowUpRight, ArrowDownRight, RefreshCw, Minus, Download
 } from 'lucide-react';
 import {
   BarChart, Bar, AreaChart, Area, LineChart, Line, PieChart, Pie,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts';
 import { PageHeader } from '../components/layout/PageHeader';
+import { downloadCsv, formatCsvNumber } from '../lib/csv';
 
 interface PeriodTotals {
   trips: number;
@@ -139,6 +140,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   // Preset Date Ranges
   const [datePreset, setDatePreset] = useState<'7d' | '30d' | 'thisMonth'>('30d');
@@ -218,6 +220,25 @@ export default function AnalyticsPage() {
     { name: 'رحلات ملغية', value: cancelledTrips },
   ];
 
+  // CSV export — the daily series, which is the row-shaped part of this page.
+  // The KPI totals are a single aggregate row and are better read on screen;
+  // exporting the day-by-day breakdown is what makes a spreadsheet useful.
+  const handleExportCsv = () => {
+    if (!data) return;
+    const rows = data.daily ?? [];
+    const n = downloadCsv(`analytics-${dateRange.from}_${dateRange.to}`, rows, [
+      { header: 'اليوم', value: (d) => d.day },
+      { header: 'إجمالي الرحلات', value: (d) => formatCsvNumber(d.trips, 0) },
+      { header: 'المكتملة', value: (d) => formatCsvNumber(d.completed, 0) },
+      { header: 'الملغية', value: (d) => formatCsvNumber(d.cancelled ?? 0, 0) },
+      { header: 'نسبة الإكمال %', value: (d) => formatCsvNumber(d.completionRate ?? 0, 1) },
+      { header: 'حجم المعاملات (GMV)', value: (d) => formatCsvNumber(d.gmv) },
+      { header: 'العمولة', value: (d) => formatCsvNumber(d.commission) },
+    ]);
+    setExportNotice(`تم تصدير ${n.toLocaleString('ar-EG')} يوم`);
+    window.setTimeout(() => setExportNotice(null), 4000);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
       {/* Header */}
@@ -279,9 +300,30 @@ export default function AnalyticsPage() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
+
+            <button
+              onClick={handleExportCsv}
+              disabled={!data || (data.daily?.length ?? 0) === 0}
+              title={
+                !data || (data.daily?.length ?? 0) === 0
+                  ? 'لا توجد بيانات للتصدير'
+                  : 'تصدير التحليلات اليومية إلى CSV'
+              }
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-surface-secondary border border-border-primary text-text-secondary hover:text-text-primary hover:border-primary-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" />
+              تصدير CSV
+            </button>
           </div>
         }
       />
+
+      {exportNotice && (
+        <div className="p-3 bg-success-main/10 border border-success-main/30 rounded-xl text-success-main text-sm flex items-center gap-2">
+          <Download className="w-4 h-4 shrink-0" />
+          {exportNotice}
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-error-main/10 border border-error-main/30 rounded-xl text-error-main text-sm">
