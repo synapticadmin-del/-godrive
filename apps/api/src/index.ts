@@ -127,6 +127,16 @@ app.get("/ws/trips/:id", authMiddleware, async (c) => {
   const tripId = c.req.param("id");
   if (!tripId) return c.json({ error: "trip id required", code: "MISSING_ID" }, 400);
   const user = c.get("user");
+
+  const trip = await c.env.DB.prepare(`SELECT rider_id, captain_id FROM trips WHERE id = ?`)
+    .bind(tripId)
+    .first<{ rider_id: string; captain_id: string }>();
+
+  if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
+  if (user.role !== "admin" && trip.rider_id !== user.id && trip.captain_id !== user.id) {
+    return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+  }
+
   const id = c.env.TRIP_ROOM.idFromName(tripId);
   const stub = c.env.TRIP_ROOM.get(id);
 

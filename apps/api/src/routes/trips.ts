@@ -593,17 +593,23 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
   //  - If company-billed (B2B): no rider debit; finance is collected monthly.
   //  - Cash: no wallet writes here — commission is logged only.
   if (trip.payment_method === "wallet" && !trip.billed_to_company && trip.rider_id) {
-    await c.env.DB.prepare(
-      `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, trip_id, note, status, created_at)
-       VALUES (?, ?, 'trip_payment', 'debit', ?, ?, 'رحلة مكتملة', 'settled', datetime('now'))`,
+    const idemKey = `trip_debit:${tripId}`;
+    const finalFarePiastres = Math.round(finalFare * 100);
+
+    const ins = await c.env.DB.prepare(
+      `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
+       VALUES (?, ?, 'trip_payment', 'debit', ?, ?, ?, ?, 'رحلة مكتملة', 'settled', datetime('now'))`,
     )
-      .bind(id("wt"), trip.rider_id, finalFare, tripId)
+      .bind(id("wt"), trip.rider_id, finalFare, finalFarePiastres, tripId, idemKey)
       .run();
-    await c.env.DB.prepare(
-      `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_updated_at = ? WHERE id = ?`,
-    )
-      .bind(finalFare, nowIso(), trip.rider_id)
-      .run();
+
+    if (!ins.meta || ins.meta.changes > 0) {
+      await c.env.DB.prepare(
+        `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) - ?, wallet_updated_at = ? WHERE id = ? AND wallet_balance >= ?`,
+      )
+        .bind(finalFare, finalFarePiastres, nowIso(), trip.rider_id, finalFare)
+        .run();
+    }
   }
   if (trip.captain_id) {
     await c.env.DB.prepare(
