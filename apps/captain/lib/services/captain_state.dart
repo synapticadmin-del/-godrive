@@ -371,6 +371,14 @@ class CaptainState extends ChangeNotifier {
     await pushLocation();
   }
 
+  Future<void> decline(String tripId) async {
+    try {
+      await _post('/trips/$tripId/decline');
+    } catch (_) {}
+    offers.removeWhere((o) => o['id'] == tripId);
+    notifyListeners();
+  }
+
   Future<void> arrived() async {
     if (activeTrip == null) return;
     final res = await _post('/trips/${activeTrip!['id']}/arrived');

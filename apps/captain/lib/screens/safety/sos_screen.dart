@@ -21,6 +21,8 @@ class _SosScreenState extends State<SosScreen> {
       final state = context.read<CaptainState>();
       await state.apiPost('/safety/sos', {
         'tripId': state.activeTrip?['id'],
+        'lat': state.lastLat,
+        'lng': state.lastLng,
       });
       if (mounted) {
         setState(() {

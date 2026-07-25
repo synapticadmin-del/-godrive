@@ -38,9 +38,18 @@ class _SosScreenState extends State<SosScreen> {
 
     setState(() => _loading = true);
     try {
-      await context.read<AppState>().apiPost('/safety/sos', {'tripId': widget.tripId});
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 3));
+      } catch (_) {}
+
+      await context.read<AppState>().apiPost('/safety/sos', {
+        'tripId': widget.tripId,
+        if (pos != null) 'lat': pos.latitude,
+        if (pos != null) 'lng': pos.longitude,
+      });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك')));
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;

@@ -133,7 +133,10 @@ class _OfferCardState extends State<OfferCard> {
                   child: SizedBox(
                     height: 48,
                     child: OutlinedButton(
-                      onPressed: () => HapticFeedback.lightImpact(),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        context.read<CaptainState>().decline(widget.offer['id']);
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: muted, side: BorderSide(color: border),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
