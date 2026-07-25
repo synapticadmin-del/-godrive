@@ -27,7 +27,7 @@ adminRoutes.get("/stats", async (c) => {
     `SELECT COUNT(*) as trips,
             COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv,
             COALESCE(SUM(CASE WHEN status='completed' THEN commission ELSE 0 END),0) as commission
-     FROM trips WHERE created_at >= ?`,
+     FROM trips WHERE datetime(created_at) >= datetime(?)`,
   )
     .bind(todayIso)
     .first<{ trips: number; gmv: number; commission: number }>();
@@ -65,6 +65,22 @@ adminRoutes.get("/analytics", async (c) => {
   const from = c.req.query("from") || new Date(Date.now() - 30 * 864e5).toISOString();
   const to = c.req.query("to") || nowIso();
 
+  // The admin UI sends date-only bounds ("2026-07-25"), while stored timestamps
+  // carry a time component. Comparing "2026-07-25 14:03:00" <= "2026-07-25" is
+  // false, which silently dropped the whole final day of every range.
+  // For a date-only upper bound, move to the start of the NEXT day and compare
+  // exclusively so the selected end date is fully included. A full timestamp is
+  // already precise, so it is used as-is (shifting it would over-extend by a day).
+  // The '+1 day' shift is applied by SQLite, so the bound value is passed
+  // through unchanged; only the comparison form differs.
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(to);
+  const upperBound = isDateOnly
+    ? `datetime(created_at) < datetime(?, '+1 day')`
+    : `datetime(created_at) <= datetime(?)`;
+  const upperBoundCompleted = isDateOnly
+    ? `datetime(t.completed_at) < datetime(?, '+1 day')`
+    : `datetime(t.completed_at) <= datetime(?)`;
+
   const daily = await c.env.DB.prepare(
     `SELECT date(created_at) as day,
             COUNT(*) as trips,
@@ -72,7 +88,7 @@ adminRoutes.get("/analytics", async (c) => {
             COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv,
             COALESCE(SUM(CASE WHEN status='completed' THEN commission ELSE 0 END),0) as commission
      FROM trips
-     WHERE created_at >= ? AND created_at <= ?
+     WHERE datetime(created_at) >= datetime(?) AND ${upperBound}
      GROUP BY date(created_at)
      ORDER BY day ASC`,
   )
@@ -85,7 +101,7 @@ adminRoutes.get("/analytics", async (c) => {
             COALESCE(SUM(t.final_fare),0) as gmv
      FROM trips t
      JOIN users u ON u.id = t.captain_id
-     WHERE t.status = 'completed' AND t.completed_at >= ? AND t.completed_at <= ?
+     WHERE t.status = 'completed' AND datetime(t.completed_at) >= datetime(?) AND ${upperBoundCompleted}
      GROUP BY t.captain_id
      ORDER BY trips DESC
      LIMIT 10`,
@@ -98,7 +114,7 @@ adminRoutes.get("/analytics", async (c) => {
             SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed,
             SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) as cancelled,
             COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv
-     FROM trips WHERE created_at >= ? AND created_at <= ?`,
+     FROM trips WHERE datetime(created_at) >= datetime(?) AND ${upperBound}`,
   )
     .bind(from, to)
     .first<{ trips: number; completed: number; cancelled: number; gmv: number }>();
@@ -129,15 +145,19 @@ adminRoutes.get("/audit-log", async (c) => {
 
 adminRoutes.get("/captains", async (c) => {
   const status = c.req.query("status");
-  // Clean stale online sessions older than 5 minutes
+  // Clean stale online sessions older than 5 minutes.
+  // last_seen_at is written via nowIso() ("2026-07-25T21:00:00.000Z") while
+  // datetime('now', ...) yields "2026-07-25 21:00:00". A bytewise TEXT compare
+  // put every ISO value above the threshold ('T' 0x54 > ' ' 0x20), so no stale
+  // session was ever cleared. datetime() on both sides normalises the encodings.
   await c.env.DB.prepare(
-    `UPDATE captains SET is_online = 0 WHERE is_online = 1 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))`
+    `UPDATE captains SET is_online = 0 WHERE is_online = 1 AND (last_seen_at IS NULL OR datetime(last_seen_at) < datetime('now', '-5 minutes'))`
   ).run();
 
   let sql = `
     SELECT c.*,
            CASE
-             WHEN c.is_online = 1 AND (c.last_seen_at IS NOT NULL AND c.last_seen_at >= datetime('now', '-5 minutes')) THEN 1
+             WHEN c.is_online = 1 AND (c.last_seen_at IS NOT NULL AND datetime(c.last_seen_at) >= datetime('now', '-5 minutes')) THEN 1
              ELSE 0
            END as is_online,
            u.email, u.name, u.phone, u.status as user_status, u.created_at as user_created_at
