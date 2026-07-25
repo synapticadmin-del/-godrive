@@ -1,0 +1,166 @@
+name = "synaptic-go-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "synaptic-go"
+database_id = "c832b8fd-ca8c-4198-b7e5-cde3451c4b5a"
+migrations_dir = "../../migrations"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "52a9fa33f64d441ea311d23317464b9d"
+preview_id = "52a9fa33f64d441ea311d23317464b9d"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "synaptic-go-files"
+preview_bucket_name = "synaptic-go-files"
+
+[durable_objects]
+bindings = [
+  { name = "TRIP_ROOM", class_name = "TripRoom" },
+  { name = "GEO_CELL", class_name = "GeoCell" },
+  { name = "CAPTAIN_INBOX", class_name = "CaptainInbox" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TripRoom", "GeoCell"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CaptainInbox"]
+
+# Notification queue: producers call env.NOTIFICATIONS.send(...) and the
+# `notifications` consumer drains it as a Worker queue handler. Configure the
+# queue with `wrangler queues create synaptic-go-notifications` once.
+[[queues.producers]]
+queue = "synaptic-go-notifications"
+binding = "NOTIFICATIONS"
+
+[[queues.consumers]]
+queue = "synaptic-go-notifications"
+max_batch_size = 100
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "synaptic-go-notifications-dlq"
+
+# Schedule dispatch for trips scheduled_for the near future + monthly B2B
+# invoicing on the 1st of each month. Configure after deploy:
+#   wrangler queues create synaptic-go-notifications
+#   wrangler queues create synaptic-go-notifications-dlq
+[triggers]
+crons = [
+  "*/1 * * * *",  # every minute: dispatch due scheduled trips
+  "0 3 1 * *",    # 1st of month 03:00 UTC: generate company invoices
+]
+
+[[routes]]
+pattern = "api.synapticstudio.tech/*"
+zone_name = "synapticstudio.tech"
+
+# ---------------------------------------------------------------------------
+# Default (local dev) environment overrides
+# ---------------------------------------------------------------------------
+[vars]
+APP_NAME = "Synaptic Go"
+APP_VERSION = "0.4.0"
+DEV_OTP = "true"
+DEFAULT_CITY = "cairo"
+JWT_ISSUER = "synaptic-go"
+OSRM_URL = "https://router.project-osrm.org"
+# Turnstile site key is pubic-safe; can be set here. The matching secret MUST
+# be set via `wrangler secret put TURNSTILE_SECRET_KEY`.
+TURNSTILE_SITE_KEY = ""
+
+[observability]
+enabled = true
+
+# ---------------------------------------------------------------------------
+# Production environment
+# ---------------------------------------------------------------------------
+[env.prod]
+name = "synaptic-go-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+
+[[env.prod.d1_databases]]
+binding = "DB"
+database_name = "synaptic-go"
+database_id = "c832b8fd-ca8c-4198-b7e5-cde3451c4b5a"
+migrations_dir = "../../migrations"
+
+[[env.prod.kv_namespaces]]
+binding = "SESSIONS"
+id = "52a9fa33f64d441ea311d23317464b9d"
+
+[[env.prod.r2_buckets]]
+binding = "FILES"
+bucket_name = "synaptic-go-files"
+
+[env.prod.durable_objects]
+bindings = [
+  { name = "TRIP_ROOM", class_name = "TripRoom" },
+  { name = "GEO_CELL", class_name = "GeoCell" },
+  { name = "CAPTAIN_INBOX", class_name = "CaptainInbox" }
+]
+
+[[env.prod.queues.producers]]
+queue = "synaptic-go-notifications"
+binding = "NOTIFICATIONS"
+
+[[env.prod.queues.consumers]]
+queue = "synaptic-go-notifications"
+max_batch_size = 100
+max_batch_timeout = 5
+max_retries = 3
+dead_letter_queue = "synaptic-go-notifications-dlq"
+
+[env.prod.triggers]
+crons = ["*/1 * * * *", "0 3 1 * *"]
+
+[env.prod.vars]
+APP_NAME = "Synaptic Go"
+APP_VERSION = "0.4.0"
+DEV_OTP = "false"   # Force real OTP delivery in prod — must run with WhatsApp/email secret
+DEFAULT_CITY = "cairo"
+JWT_ISSUER = "synaptic-go"
+OSRM_URL = "https://router.project-osrm.org"
+TURNSTILE_SITE_KEY = "0x4AAAAAAA" # placeholder — set your site key
+
+[env.prod.observability]
+enabled = true
+
+# ---------------------------------------------------------------------------
+# Staging environment (mirrors prod minus secrets)
+# ---------------------------------------------------------------------------
+[env.staging]
+name = "synaptic-go-api-staging"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "synaptic-go-staging"
+database_id = "c832b8fd-ca8c-4198-b7e5-cde3451c4b5a"
+migrations_dir = "../../migrations"
+
+[env.staging.vars]
+APP_NAME = "Synaptic Go (staging)"
+APP_VERSION = "0.4.0"
+DEV_OTP = "true"
+DEFAULT_CITY = "cairo"
+JWT_ISSUER = "synaptic-go"
+OSRM_URL = "https://router.project-osrm.org"
+TURNSTILE_SITE_KEY = ""
+
+[env.staging.observability]
+enabled = true

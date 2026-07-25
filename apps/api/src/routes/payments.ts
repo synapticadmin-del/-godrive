@@ -1,0 +1,164 @@
+import { Hono } from "hono";
+import { z } from "zod";
+import { id, nowIso } from "../lib/utils";
+import { authMiddleware, type AppEnv } from "../middleware/auth";
+import { isResponse, parseBody } from "../middleware/rateLimit";
+import { logAudit } from "../lib/audit";
+import { createPaymobIntention, verifyPaymobHmacAsync, type PaymobBillingData } from "../lib/paymob";
+import { pushToUser } from "../lib/notifications";
+
+export const paymentRoutes = new Hono<AppEnv>();
+
+const intentionSchema = z.object({
+  amount: z.number().min(1),
+  currency: z.string().default("EGP"),
+  paymentMethod: z.enum(["card", "wallet", "cash"]).default("card"),
+  purpose: z.enum(["wallet_topup", "trip_payment", "intercity_booking"]).default("wallet_topup"),
+  tripId: z.string().optional(),
+});
+
+// POST /payments/paymob/intention — create a Paymob payment intention
+// that returns an iframe URL the client opens in a WebView. HMAC verified
+// in the webhook credits the wallet / marks trip paid.
+paymentRoutes.post("/paymob/intention", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const body = await parseBody(c, intentionSchema);
+  if (isResponse(body)) return body;
+
+  const merchantRef = `${user.id.slice(0, 8)}_${Date.now().toString(36)}`;
+  const billing: PaymobBillingData = {
+    email: (user as { email?: string }).email ?? "guest@synapticstudio.tech",
+    first_name: (user as { name?: string }).name?.split(" ")[0] ?? "Rider",
+    last_name: (user as { name?: string }).name?.split(" ").slice(1).join(" ") ?? "Synaptic",
+    phone_number: "01000000000",
+    apartment: "NA",
+    floor: "NA",
+    street: "NA",
+    building: "NA",
+    city: "Cairo",
+    country: "EG",
+    state: "Cairo",
+  };
+
+  try {
+    const intention = await createPaymobIntention({
+      env: c.env,
+      amountEgp: body.amount,
+      merchantRef,
+      billing,
+    });
+
+    // Record payment_method entry for tracking; webhook will mark settled.
+    const paymentId = id("pay");
+    await c.env.DB.prepare(
+      `INSERT INTO payment_methods (id, user_id, type, provider, token, last4, created_at)
+       VALUES (?, ?, ?, 'paymob', ?, ?, ?)`,
+    )
+      .bind(paymentId, user.id, body.paymentMethod, intention.orderId, intention.stubbed ? "0000" : "", nowIso())
+      .run();
+
+    return c.json({
+      ok: true,
+      paymentId,
+      orderId: intention.orderId,
+      amount: body.amount,
+      currency: body.currency,
+      iframeUrl: intention.iframeUrl,
+      clientSecret: intention.paymentKey,
+      stubbed: intention.stubbed,
+      purpose: body.purpose,
+    });
+  } catch (e) {
+    return c.json({ error: (e as Error).message, code: "PAYMOB_INTENTION_FAILED" }, 502);
+  }
+});
+
+// POST /payments/paymob/webhook — Paymob callback. HMAC-SHA512 verified.
+// Returns 200 immediately once accepted (Paymob retries on non-2xx).
+paymentRoutes.post("/paymob/webhook", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+  const obj = (body?.obj ?? body) as Record<string, unknown> | undefined;
+  if (!obj) return c.json({ status: "ignored", reason: "empty" });
+
+  // Paymob passes hmac as ?hmac= query OR inside body hmac.
+  const providedHmac = (c.req.query("hmac") ?? (body.hmac as string | undefined)) ?? undefined;
+  const verify = await verifyPaymobHmacAsync({ body: obj as Record<string, unknown>, providedHmac, env: c.env });
+  if (!verify.ok) {
+    await logAudit(c.env.DB, {
+      actorId: "paymob",
+      action: "payment.webhook.rejected",
+      ip: c.req.header("cf-connecting-ip"),
+      userAgent: c.req.header("user-agent"),
+      payload: JSON.stringify({ reason: verify.reason, orderId: obj?.order }),
+    });
+    return c.json({ status: "rejected", reason: verify.reason }, 401);
+  }
+
+  const successRaw = obj?.success;
+  const successBool = successRaw === true || successRaw === "true";
+  const orderId = (obj?.order as { id?: string | number } | string | undefined);
+  const orderIdStr =
+    typeof orderId === "string" ? orderId : (orderId as { id?: string })?.id?.toString() ?? String(obj?.id ?? "");
+  const amountCents = Number(obj?.amount_cents ?? 0);
+
+  // Match the payment_methods row we stored at intention time using order id.
+  // If success, credit wallet_transactions for wallet_topup; for trip_payment,
+  // mark the trip paid + settle commission; for intercity_booking, mark paid.
+  const pmRow = await c.env.DB.prepare(
+    `SELECT id, user_id, token FROM payment_methods WHERE token = ? ORDER BY created_at DESC LIMIT 1`,
+  )
+    .bind(orderIdStr)
+    .first<{ id: string; user_id: string; token: string }>();
+
+  if (successBool && pmRow) {
+    const amountEgp = amountCents / 100;
+    // We treat any intention as wallet_topup here; the actual purpose is encoded
+    // into the merchant_ref we wrote but to keep this generic we credit wallet
+    // and let downstream (trip completion / intercity booking) debit it.
+    await c.env.DB.prepare(
+      `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, payment_ref, status, created_at)
+       VALUES (?, ?, 'topup', 'credit', ?, ?, 'settled', datetime('now'))`,
+    )
+      .bind(id("wt"), pmRow.user_id, amountEgp, orderIdStr)
+      .run();
+    await c.env.DB.prepare(
+      `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + ?, wallet_updated_at = ? WHERE id = ?`,
+    )
+      .bind(amountEgp, nowIso(), pmRow.user_id)
+      .run();
+
+    // Notify the user their top-up succeeded.
+    await pushToUser({
+      env: c.env,
+      userId: pmRow.user_id,
+      topic: "wallet.topup.success",
+      title: "تم شحن المحفظة",
+      body: `تم إضافة ${amountEgp} ج.م إلى محفظتك.`,
+      data: { amount: String(amountEgp), ref: orderIdStr },
+    });
+  } else if (!successBool && pmRow) {
+    await c.env.DB.prepare(
+      `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, payment_ref, status, created_at)
+       VALUES (?, ?, 'topup', 'credit', ?, ?, 'failed', datetime('now'))`,
+    )
+      .bind(id("wt"), pmRow.user_id, amountCents / 100, orderIdStr)
+      .run();
+    await pushToUser({
+      env: c.env,
+      userId: pmRow.user_id,
+      topic: "wallet.topup.failed",
+      title: "فشل الشحن",
+      body: "تعذّر إتمام عملية الشحن. جرّب مرة أخرى.",
+    });
+  }
+
+  await logAudit(c.env.DB, {
+    actorId: "paymob",
+    action: "payment.webhook.verified",
+    ip: c.req.header("cf-connecting-ip"),
+    userAgent: c.req.header("user-agent"),
+    payload: JSON.stringify({ success: successBool, orderId: orderIdStr, amountCents }),
+  });
+
+  return c.json({ status: "verified", success: successBool, orderId: orderIdStr });
+});

@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_shared/flutter_shared.dart';
+
+/// In-app notifications center — shows recent push + in-app notifications.
+class NotificationsScreen extends StatefulWidget {
+  const NotificationsScreen({super.key});
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final List<_Notif> _items = [
+    _Notif(icon: Icons.local_taxi, color: AppTokens.primary, title: 'رحلة مكتملة', body: 'وصلت بسلامة. الأجرة 45 ج.م.', time: 'منذ 5 دقائق', unread: true),
+    _Notif(icon: Icons.local_offer, color: AppTokens.accent, title: 'عرض جديد', body: 'خصم 20% على رحلتك القادمة بكود GO20', time: 'منذ ساعة', unread: true),
+    _Notif(icon: Icons.account_balance_wallet, color: AppTokens.success, title: 'تم شحن المحفظة', body: 'تم إضافة 100 ج.م إلى محفظتك.', time: 'منذ 3 ساعات', unread: false),
+    _Notif(icon: Icons.star, color: AppTokens.accent, title: 'قيّم رحلتك', body: 'كيف كانت رحلتك مع الكابتن أحمد؟', time: 'أمس', unread: false),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('الإشعارات', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                for (final n in _items) {
+                  n.unread = false;
+                }
+              });
+            },
+            child: Text('تعليم الكل كمقروء', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: AppTokens.primary)),
+          ),
+        ],
+      ),
+      body: _items.isEmpty
+          ? const EmptyState(icon: Icons.notifications_none, title: 'لا توجد إشعارات', subtitle: 'ستظهر إشعاراتك هنا')
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _items.length,
+              itemBuilder: (_, i) {
+                final n = _items[i];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: n.unread ? n.color.withOpacity(0.05) : panel,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    border: Border.all(color: n.unread ? n.color.withOpacity(0.2) : border),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(color: n.color.withOpacity(0.12), borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
+                        child: Icon(n.icon, color: n.color, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(n.title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: text)),
+                                if (n.unread) ...[
+                                  const SizedBox(width: 6),
+                                  Container(width: 8, height: 8, decoration: BoxDecoration(color: n.color, shape: BoxShape.circle)),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(n.body, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted, height: 1.4)),
+                            const SizedBox(height: 4),
+                            Text(n.time, style: GoogleFonts.ibmPlexSansArabic(fontSize: 11, color: muted.withOpacity(0.7))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _Notif {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+  final String time;
+  bool unread;
+  _Notif({required this.icon, required this.color, required this.title, required this.body, required this.time, required this.unread});
+}

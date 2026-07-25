@@ -1,0 +1,23 @@
+{
+  "name": "synaptic-go",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Synaptic Go — Egypt ride-hailing on Cloudflare",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @synaptic-go/api",
+    "dev:admin": "npm run dev -w @synaptic-go/admin",
+    "build:admin": "npm run build -w @synaptic-go/admin",
+    "deploy:api": "npm run deploy -w @synaptic-go/api",
+    "deploy:admin": "npm run deploy -w @synaptic-go/admin",
+    "db:migrate:local": "npm run db:migrate:local -w @synaptic-go/api",
+    "db:migrate:remote": "npm run db:migrate:remote -w @synaptic-go/api",
+    "typecheck": "npm run typecheck -w @synaptic-go/api && npm run typecheck -w @synaptic-go/admin"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

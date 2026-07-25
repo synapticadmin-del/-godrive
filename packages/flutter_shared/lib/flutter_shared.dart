@@ -1,0 +1,16 @@
+/// Shared API client helpers for Synaptic Go Flutter apps.
+/// Copy or path-depend this package when Flutter monorepo tooling is ready.
+library flutter_shared;
+
+export 'models/user.dart';
+export 'models/trip.dart';
+export 'services/api_client.dart';
+export 'services/fcm_service.dart';
+export 'theme/app_theme.dart';
+export 'widgets/main_bottom_nav.dart';
+export 'widgets/empty_state.dart';
+export 'widgets/error_state.dart';
+export 'widgets/skeleton_loader.dart';
+export 'widgets/status_chip.dart';
+export 'widgets/loading_overlay.dart';
+export 'widgets/navigation_button.dart';

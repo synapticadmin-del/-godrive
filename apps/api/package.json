@@ -1,0 +1,25 @@
+{
+  "name": "@synaptic-go/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply synaptic-go --local",
+    "db:migrate:remote": "wrangler d1 migrations apply synaptic-go --remote",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@synaptic-go/shared": "*",
+    "hono": "^4.7.11",
+    "jose": "^6.0.11",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250620.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.22.0"
+  }
+}

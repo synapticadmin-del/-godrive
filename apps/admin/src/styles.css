@@ -1,0 +1,175 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Dual-theme design tokens — Light (pure white) / Dark (pure black)
+   Values are RGB triplets consumed by tailwind.config.js via
+   rgb(var(--x) / <alpha-value>).
+   ============================================================ */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds — white base */
+  --bg-primary: 255 255 255;      /* #FFFFFF */
+  --bg-secondary: 248 250 252;    /* #F8FAFC */
+  --bg-tertiary: 241 245 249;     /* #F1F5F9 */
+  --bg-elevated: 255 255 255;     /* cards on white */
+
+  /* Surfaces (panels, cards, sidebars) */
+  --surface-primary: 255 255 255;   /* #FFFFFF */
+  --surface-secondary: 248 250 252; /* #F8FAFC */
+  --surface-tertiary: 241 245 249;  /* #F1F5F9 */
+  --surface-hover: 241 245 249;     /* #F1F5F9 */
+  --surface-active: 226 232 240;    /* #E2E8F0 */
+
+  /* Borders */
+  --border-primary: 226 232 240;    /* #E2E8F0 */
+  --border-secondary: 203 213 225;  /* #CBD5E1 */
+
+  /* Text */
+  --text-primary: 15 23 42;       /* #0F172A */
+  --text-secondary: 71 85 105;    /* #475569 */
+  --text-tertiary: 100 116 139;   /* #64748B */
+  --text-inverse: 248 250 252;    /* #F8FAFC */
+  --text-disabled: 148 163 184;   /* #94A3B8 */
+
+  /* Semantic light washes (badge backgrounds etc.) */
+  --success-light: 243 249 236;   /* #F3F9EC */
+  --warning-light: 254 243 199;   /* #FEF3C7 */
+  --error-light: 254 226 226;     /* #FEE2E2 */
+  --info-light: 243 249 236;      /* #F3F9EC */
+
+  --scrollbar-thumb: 203 213 225;
+  --scrollbar-thumb-hover: 148 163 184;
+}
+
+.dark,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Backgrounds — GoDrive Slate Dark base */
+  --bg-primary: 13 17 23;         /* #0D1117 */
+  --bg-secondary: 22 27 34;       /* #161B22 */
+  --bg-tertiary: 33 38 45;        /* #21262D */
+  --bg-elevated: 33 38 45;        /* #21262D */
+
+  /* Surfaces */
+  --surface-primary: 22 27 34;    /* #161B22 */
+  --surface-secondary: 33 38 45;  /* #21262D */
+  --surface-tertiary: 48 54 61;   /* #30363D */
+  --surface-hover: 48 54 61;      /* #30363D */
+  --surface-active: 60 67 76;     /* #3C434C */
+
+  /* Borders */
+  --border-primary: 48 54 61;     /* #30363D */
+  --border-secondary: 60 67 76;   /* #3C434C */
+
+  /* Text */
+  --text-primary: 240 246 252;    /* #F0F6FC */
+  --text-secondary: 198 208 219;  /* #C6D0DB */
+  --text-tertiary: 139 148 158;   /* #8B949E */
+  --text-inverse: 13 17 23;       /* #0D1117 */
+  --text-disabled: 110 118 129;   /* #6E7681 */
+
+  /* Semantic dark washes */
+  --success-light: 35 64 12;      /* #23400C */
+  --warning-light: 120 53 15;     /* #78350F */
+  --error-light: 127 29 29;       /* #7F1D1D */
+  --info-light: 35 64 12;        /* #23400C */
+
+  --scrollbar-thumb: 60 67 76;
+  --scrollbar-thumb-hover: 110 118 129;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: "IBM Plex Sans Arabic", system-ui, sans-serif;
+    background-color: rgb(var(--bg-primary));
+    color: rgb(var(--text-primary));
+    min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background-color: #6bb522;
+    color: white;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--scrollbar-thumb));
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--scrollbar-thumb-hover));
+  }
+
+  /* Focus visibility — GoDrive Green ring */
+  :focus-visible {
+    outline: 2px solid #6bb522;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-primary border border-border-primary rounded-xl p-5;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-medium rounded-lg px-4 py-2 text-base transition-all duration-150;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700 shadow-sm shadow-primary-500/25;
+  }
+
+  .btn-secondary {
+    @apply btn bg-surface-secondary text-text-primary border border-border-primary hover:bg-surface-tertiary;
+  }
+
+  .btn-danger {
+    @apply btn bg-error-main text-white hover:bg-error-dark;
+  }
+
+  .input {
+    @apply w-full bg-surface-primary border border-border-primary rounded-lg px-4 py-2.5 text-text-primary placeholder:text-text-tertiary focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-all;
+  }
+}

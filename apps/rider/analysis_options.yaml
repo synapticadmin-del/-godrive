@@ -1,0 +1,6 @@
+# Analysis options placeholder — run `flutter create .` later to generate platform folders.
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_const_constructors: false

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.git/
+package-lock.json
+*.apk
+*.aab
+*.pdf
+generate_pdf.py

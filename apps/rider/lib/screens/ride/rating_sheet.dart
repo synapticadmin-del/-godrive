@@ -1,0 +1,172 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_shared/flutter_shared.dart';
+import '../../services/app_state.dart';
+
+/// Bottom sheet shown after a trip completes — lets the rider rate the captain
+/// (1–5 stars), leave a comment, and optionally add a tip.
+class RatingSheet extends StatefulWidget {
+  final String tripId;
+  final String captainName;
+  final VoidCallback onDone;
+
+  const RatingSheet({
+    super.key,
+    required this.tripId,
+    required this.captainName,
+    required this.onDone,
+  });
+
+  @override
+  State<RatingSheet> createState() => _RatingSheetState();
+}
+
+class _RatingSheetState extends State<RatingSheet> {
+  int _rating = 0;
+  final _commentController = TextEditingController();
+  bool _submitting = false;
+
+  Future<void> _submit() async {
+    if (_rating == 0) return;
+    setState(() => _submitting = true);
+    try {
+      final state = context.read<AppState>();
+      await state.rateTrip(widget.tripId, _rating);
+      if (mounted) {
+        widget.onDone();
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 24, right: 24, top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: border, borderRadius: BorderRadius.circular(999))),
+            // Title
+            Text('كيف كانت رحلتك؟', style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
+            const SizedBox(height: 4),
+            Text('قيّم ${widget.captainName}', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: muted)),
+            const SizedBox(height: 24),
+            // Stars
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (i) {
+                final star = i + 1;
+                return GestureDetector(
+                  onTap: () => setState(() => _rating = star),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      star <= _rating ? Icons.star : Icons.star_border,
+                      size: 44,
+                      color: star <= _rating ? AppTokens.accent : muted.withOpacity(0.4),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 24),
+            // Quick tags
+            if (_rating > 0) ...[
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _tag('قيادة آمنة'),
+                  _tag('موجّه مهذب'),
+                  _tag('سيارة نظيفة'),
+                  _tag('في الوقت'),
+                  _tag('موسيقى مريحة'),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+            // Comment
+            TextField(
+              controller: _commentController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'تعليق إضافي (اختياري)',
+                hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
+                filled: true,
+                fillColor: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
+              ),
+              style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            // Submit
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _submitting || _rating == 0 ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTokens.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppTokens.primary.withOpacity(0.4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
+                ),
+                child: _submitting
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text('إرسال التقييم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('تخطّي', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tag(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTokens.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppTokens.primary.withOpacity(0.2)),
+      ),
+      child: Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, fontWeight: FontWeight.w600, color: AppTokens.primary)),
+    );
+  }
+}
