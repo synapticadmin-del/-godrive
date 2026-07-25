@@ -49,7 +49,11 @@ class AppState extends ChangeNotifier {
     try {
       final res = await _get('/auth/me');
       if (res['user'] != null) {
-        user = Map<String, dynamic>.from(res['user'] as Map);
+        final localAvatar = user?['avatarUrl'];
+        user = {
+          ...Map<String, dynamic>.from(res['user'] as Map),
+          if (localAvatar is String && localAvatar.isNotEmpty) 'avatarUrl': localAvatar,
+        };
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user', jsonEncode(user));
         notifyListeners();
