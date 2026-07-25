@@ -264,9 +264,9 @@ export default {
         const periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth() - 1, 1);
         for (const cmp of companies.results ?? []) {
           const sum = await env.DB.prepare(
-            `SELECT COUNT(*) AS trips, COALESCE(SUM(fare), 0) AS total
+            `SELECT COUNT(*) AS trips, COALESCE(SUM(COALESCE(final_fare, estimated_fare, 0)), 0) AS total
              FROM trips WHERE company_id = ? AND billed_to_company = 1
-               AND created_at >= ? AND created_at < ?`,
+               AND datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)`,
           )
             .bind(cmp.id, periodStart.toISOString(), periodEnd.toISOString())
             .first<{ trips: number; total: number }>();
