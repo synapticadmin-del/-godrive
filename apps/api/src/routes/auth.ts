@@ -352,6 +352,7 @@ authRoutes.post("/register", rateLimit({ prefix: "register", limit: 10, windowSe
   const body = await c.req.json().catch(() => ({})) as {
     email?: string;
     name?: string;
+    phone?: string;
     password?: string;
     role?: "rider" | "captain";
   };
@@ -359,6 +360,10 @@ authRoutes.post("/register", rateLimit({ prefix: "register", limit: 10, windowSe
     return c.json({ error: "email and password required", code: "VALIDATION_ERROR" }, 400);
   }
   const email = body.email.trim().toLowerCase();
+  const phone = body.phone?.trim() || null;
+  if (phone && (phone.length < 6 || phone.length > 20)) {
+    return c.json({ error: "Invalid phone number", code: "VALIDATION_ERROR" }, 400);
+  }
   const existing = await c.env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email).first();
   if (existing) return c.json({ error: "Email already exists", code: "EMAIL_EXISTS" }, 409);
 
@@ -368,9 +373,9 @@ authRoutes.post("/register", rateLimit({ prefix: "register", limit: 10, windowSe
   const pwHash = await hashPassword(body.password);
   const userId = id("usr");
   await c.env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, name, role, status, phone) VALUES (?, ?, ?, ?, ?, 'active', NULL)`,
+    `INSERT INTO users (id, email, password_hash, name, role, status, phone) VALUES (?, ?, ?, ?, ?, 'active', ?)`,
   )
-    .bind(userId, email, pwHash, body.name ?? "", assignedRole)
+    .bind(userId, email, pwHash, body.name ?? "", assignedRole, phone)
     .run();
   if (assignedRole === "captain") {
     await c.env.DB.prepare(`INSERT INTO captains (user_id, approval_status) VALUES (?, 'pending')`).bind(userId).run();
@@ -379,7 +384,7 @@ authRoutes.post("/register", rateLimit({ prefix: "register", limit: 10, windowSe
   if (!user) return c.json({ error: "User creation failed", code: "CREATE_FAILED" }, 500);
   const tokens = await issueTokens(c.env, user);
   await logAudit(c.env.DB, { actorId: user.id, action: "auth.register.email", entityType: "user", entityId: user.id, ip: c.req.header("cf-connecting-ip"), userAgent: c.req.header("user-agent") });
-  return c.json({ ok: true, user: { id: user.id, email: user.email, role: user.role, name: user.name, status: user.status }, ...tokens });
+  return c.json({ ok: true, user: { id: user.id, email: user.email, phone: user.phone, role: user.role, name: user.name, status: user.status }, ...tokens });
 });
 
 authRoutes.post("/login", rateLimit({ prefix: "login", limit: 15, windowSec: 60 }), async (c) => {
