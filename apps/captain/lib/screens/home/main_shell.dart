@@ -108,6 +108,50 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  /// Builds every map pin: the captain's own position plus the active trip's
+  /// pickup/dropoff. Coordinates arrive from the API as JSON numbers, so they
+  /// are read defensively via `num?` — a raw `as double` cast would throw when
+  /// D1 returns an integer-valued column.
+  List<Marker> _buildMarkers(CaptainState state) {
+    final markers = <Marker>[];
+
+    if (_currentLocation != null) {
+      markers.add(Marker(
+        point: _currentLocation!,
+        width: 48,
+        height: 48,
+        child: const _CaptainLocationMarker(),
+      ));
+    }
+
+    final trip = state.activeTrip;
+    if (trip != null) {
+      final pickupLat = (trip['pickup_lat'] as num?)?.toDouble();
+      final pickupLng = (trip['pickup_lng'] as num?)?.toDouble();
+      if (pickupLat != null && pickupLng != null) {
+        markers.add(Marker(
+          point: LatLng(pickupLat, pickupLng),
+          width: 40,
+          height: 40,
+          child: const Icon(Icons.location_on, color: AppTokens.primary, size: 36),
+        ));
+      }
+
+      final dropLat = (trip['dropoff_lat'] as num?)?.toDouble();
+      final dropLng = (trip['dropoff_lng'] as num?)?.toDouble();
+      if (dropLat != null && dropLng != null) {
+        markers.add(Marker(
+          point: LatLng(dropLat, dropLng),
+          width: 40,
+          height: 40,
+          child: const Icon(Icons.flag, color: AppTokens.accent, size: 36),
+        ));
+      }
+    }
+
+    return markers;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
@@ -138,17 +182,10 @@ class _MainShellState extends State<MainShell> {
                   urlTemplate: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
                   subdomains: const ['a', 'b', 'c'],
                 ),
-                if (_currentLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _currentLocation!,
-                        width: 48,
-                        height: 48,
-                        child: _CaptainLocationMarker(),
-                      ),
-                    ],
-                  ),
+                // Captain position + active-trip pickup/dropoff pins. These
+                // must be FlutterMap children — a MarkerLayer looks up
+                // MapCamera.of(context) and throws outside a map ancestor.
+                MarkerLayer(markers: _buildMarkers(state)),
               ],
             ),
 
@@ -217,6 +254,8 @@ class _MainShellState extends State<MainShell> {
 }
 
 class _CaptainLocationMarker extends StatelessWidget {
+  const _CaptainLocationMarker();
+
   @override
   Widget build(BuildContext context) {
     return Container(

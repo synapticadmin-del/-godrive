@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
@@ -37,27 +36,10 @@ class _HomeTabState extends State<HomeTab> {
 
     return Stack(
       children: [
-        // Active trip markers
-        if (activeTrip != null)
-          MarkerLayer(
-            markers: [
-              Marker(
-                point: LatLng(
-                  (activeTrip['pickup_lat'] as num).toDouble(),
-                  (activeTrip['pickup_lng'] as num).toDouble(),
-                ),
-                child: const Icon(Icons.location_on, color: AppTokens.primary, size: 36),
-              ),
-              if (activeTrip['dropoff_lat'] != null)
-                Marker(
-                  point: LatLng(
-                    (activeTrip['dropoff_lat'] as num).toDouble(),
-                    (activeTrip['dropoff_lng'] as num).toDouble(),
-                  ),
-                  child: const Icon(Icons.flag, color: AppTokens.accent, size: 36),
-                ),
-            ],
-          ),
+        // NOTE: the active-trip pickup/dropoff markers are rendered by
+        // MainShell as children of the real FlutterMap. A MarkerLayer resolves
+        // its position through MapCamera.of(context) and throws when it has no
+        // FlutterMap ancestor, so it must never be placed in this plain Stack.
 
         // Top status bar
         Positioned(
