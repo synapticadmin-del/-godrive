@@ -61,11 +61,18 @@ class _SosScreenState extends State<SosScreen> {
   }
 
   Future<void> _shareTrip() async {
-    final url = context.read<AppState>().shareTripUrl(widget.tripId);
     try {
-      await context.read<AppState>().apiPost('/safety/share', {'tripId': widget.tripId});
-      Share.share('تتبع رحلتي على GoDrive عبر الرابط التالي:\n$url');
+      final res = await context.read<AppState>().apiPost(
+        '/safety/share',
+        {'tripId': widget.tripId},
+      );
+      final url = res['url'] as String?;
+      if (url == null || url.isEmpty) {
+        throw Exception('تعذّر إنشاء رابط تتبع الرحلة');
+      }
+      await Share.share('تتبع رحلتي على GoDrive عبر الرابط التالي:\n$url');
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
