@@ -150,13 +150,13 @@ workers_dev = true
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "synaptic-go-staging"
-database_id = "c832b8fd-ca8c-4198-b7e5-cde3451c4b5a"
+database_id = "staging-d1-database-id-placeholder"
 migrations_dir = "../../migrations"
 
 [env.staging.vars]
 APP_NAME = "Synaptic Go (staging)"
 APP_VERSION = "0.4.0"
-DEV_OTP = "true"
+DEV_OTP = "false"
 DEFAULT_CITY = "cairo"
 JWT_ISSUER = "synaptic-go"
 OSRM_URL = "https://router.project-osrm.org"

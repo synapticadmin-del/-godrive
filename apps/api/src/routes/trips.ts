@@ -468,12 +468,16 @@ tripRoutes.post("/:id/accept", requireRole("captain", "admin"), async (c) => {
     .first();
   if (busy) return c.json({ error: "You already have an active trip", code: "BUSY" }, 409);
 
-  await c.env.DB.prepare(
+  const updateRes = await c.env.DB.prepare(
     `UPDATE trips SET status = 'assigned', captain_id = ?, assigned_at = ?, captain_lat = ?, captain_lng = ?, updated_at = ?
      WHERE id = ? AND status IN ('searching','offered')`,
   )
     .bind(user.id, nowIso(), captain.last_lat, captain.last_lng, nowIso(), tripId)
     .run();
+
+  if (updateRes.meta && updateRes.meta.changes === 0) {
+    return c.json({ error: "Trip was already taken by another captain", code: "TRIP_TAKEN" }, 409);
+  }
 
   await logEvent(c.env.DB, tripId, "assigned", user.id);
   const updated = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
@@ -804,12 +808,24 @@ tripRoutes.post("/:id/accept-bid", requireRole("rider", "admin"), async (c) => {
     return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
   }
 
-  const selectedBid = await c.env.DB.prepare(`SELECT * FROM trip_bids WHERE id = ? AND trip_id = ?`)
+  if (!["searching", "offered"].includes(trip.status)) {
+    return c.json({ error: "Trip is no longer open", code: "TRIP_CLOSED" }, 409);
+  }
+
+  const selectedBid = await c.env.DB.prepare(`SELECT * FROM trip_bids WHERE id = ? AND trip_id = ? AND status = 'pending'`)
     .bind(body.bidId, tripId)
-    .first<{ id: string; captain_id: string; counter_price: number }>();
+    .first<{ id: string; captain_id: string; counter_price: number; status: string }>();
 
   if (!selectedBid) {
-    return c.json({ error: "Bid not found", code: "BID_NOT_FOUND" }, 404);
+    return c.json({ error: "Bid not found or no longer valid", code: "BID_NOT_FOUND" }, 404);
+  }
+
+  const cap = await c.env.DB.prepare(`SELECT approval_status FROM captains WHERE user_id = ?`)
+    .bind(selectedBid.captain_id)
+    .first<{ approval_status: string }>();
+
+  if (cap?.approval_status !== "approved") {
+    return c.json({ error: "Captain is not approved", code: "CAPTAIN_NOT_APPROVED" }, 409);
   }
 
   const acceptedPrice = selectedBid.counter_price;
@@ -817,13 +833,17 @@ tripRoutes.post("/:id/accept-bid", requireRole("rider", "admin"), async (c) => {
   const commissionRate = pricing?.commission_rate || 0.2;
   const commission = Math.round(acceptedPrice * commissionRate * 100) / 100;
 
-  // Assign captain and set agreed price
-  await c.env.DB.prepare(
+  // Assign captain conditionally and set agreed price
+  const updateRes = await c.env.DB.prepare(
     `UPDATE trips SET captain_id = ?, accepted_price = ?, final_fare = ?, commission = ?, status = 'assigned', assigned_at = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ? AND status IN ('searching', 'offered')`
   )
     .bind(selectedBid.captain_id, acceptedPrice, acceptedPrice, commission, nowIso(), nowIso(), tripId)
     .run();
+
+  if (updateRes.meta && updateRes.meta.changes === 0) {
+    return c.json({ error: "Trip already assigned or completed", code: "TRIP_CONFLICT" }, 409);
+  }
 
   // Mark selected bid as accepted, others as rejected
   await c.env.DB.prepare(`UPDATE trip_bids SET status = 'accepted' WHERE id = ?`).bind(body.bidId).run();

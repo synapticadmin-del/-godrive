@@ -99,7 +99,12 @@ paymentRoutes.post("/paymob/webhook", async (c) => {
   const orderId = (obj?.order as { id?: string | number } | string | undefined);
   const orderIdStr =
     typeof orderId === "string" ? orderId : (orderId as { id?: string })?.id?.toString() ?? String(obj?.id ?? "");
+  const txnId = String(obj?.id ?? "");
   const amountCents = Number(obj?.amount_cents ?? 0);
+
+  if (!txnId) {
+    return c.json({ status: "ignored", reason: "missing_txn_id" }, 200);
+  }
 
   // Match the payment_methods row we stored at intention time using order id.
   // If success, credit wallet_transactions for wallet_topup; for trip_payment,

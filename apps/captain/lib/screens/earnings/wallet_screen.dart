@@ -60,16 +60,17 @@ class _WalletScreenState extends State<WalletScreen> {
               onTap: () async {
                 Navigator.pop(context);
                 try {
-                  final client = ApiClient();
-                  await client.post('/captain/wallet/payout', {
+                  final state = context.read<CaptainState>();
+                  final amount = _wallet?['balance'] ?? 0;
+                  await state.apiPost('/captain/wallet/payout', {
                     'method': 'vodafone_cash',
-                    'amount': _balance,
+                    'amount': amount,
                   });
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('تم إرسال طلب السحب بنجاح إلى فودافون كاش')),
                     );
-                    _fetchBalance();
+                    _load();
                   }
                 } catch (e) {
                   if (mounted) {
@@ -89,16 +90,17 @@ class _WalletScreenState extends State<WalletScreen> {
               onTap: () async {
                 Navigator.pop(context);
                 try {
-                  final client = ApiClient();
-                  await client.post('/captain/wallet/payout', {
+                  final state = context.read<CaptainState>();
+                  final amount = _wallet?['balance'] ?? 0;
+                  await state.apiPost('/captain/wallet/payout', {
                     'method': 'instapay',
-                    'amount': _balance,
+                    'amount': amount,
                   });
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('تم إرسال طلب السحب بنجاح إلى انستا باي')),
                     );
-                    _fetchBalance();
+                    _load();
                   }
                 } catch (e) {
                   if (mounted) {
