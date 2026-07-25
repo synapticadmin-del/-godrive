@@ -41,9 +41,11 @@ class CaptainState extends ChangeNotifier {
     loading = false;
     notifyListeners();
     if (token != null) {
-      FcmService.init();
+      await FcmService.init(onToken: registerDeviceToken);
       await refreshMe();
       startOffersPolling();
+    } else {
+      await FcmService.init(onToken: registerDeviceToken);
     }
   }
 

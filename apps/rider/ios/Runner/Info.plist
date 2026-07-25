@@ -45,5 +45,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>يحتاج التطبيق للتحديد الدقيق لموقعك لتوفير الخدمة وتأكيد الانطلاق والوصول</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>تحديد موقعك لتحديث رحلاتك ومتابعة السائق</string>
+	<key>NSCameraUsageDescription</key>
+	<string>يحتاج التطبيق للوصول للكاميرا لالتقاط المستندات والصورة الشخصية</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>يحتاج التطبيق لمعرض الصور لرفع صور المستندات المطلوبة</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

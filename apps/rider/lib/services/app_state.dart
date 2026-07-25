@@ -35,10 +35,19 @@ class AppState extends ChangeNotifier {
     final raw = prefs.getString('user');
     if (raw != null) user = jsonDecode(raw) as Map<String, dynamic>;
     if (token != null) {
-      await FcmService.init();
+      await FcmService.init(onToken: registerDeviceToken);
+    } else {
+      await FcmService.init(onToken: registerDeviceToken);
     }
     loading = false;
     notifyListeners();
+  }
+
+  Future<void> registerDeviceToken(String fcm) async {
+    if (token == null) return;
+    try {
+      await _post('/user/device', {'token': fcm, 'platform': 'android'});
+    } catch (_) {}
   }
 
   Map<String, String> get _headers => {

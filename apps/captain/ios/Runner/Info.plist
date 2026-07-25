@@ -45,5 +45,19 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>يحتاج تطبيق الكابتن للتحديد الدقيق لموقعك لتلقي العروض وتتبع المسار بشكل مستمر</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>تحديث موقع الكابتن بالخلفية لضمان وصول عروض الرحلات ومتابعة العميل للرحلة</string>
+	<key>NSCameraUsageDescription</key>
+	<string>يحتاج التطبيق للوصول للكاميرا لالتقاط صورة الرخصة والبطاقة والفيش</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>يحتاج التطبيق لمعرض الصور لرفع صور مستندات الكابتن المطلوبة</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>remote-notification</string>
+		<string>fetch</string>
+	</array>
 </dict>
 </plist>
