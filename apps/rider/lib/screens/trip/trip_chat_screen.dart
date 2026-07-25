@@ -64,7 +64,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      final isMine = msg['sender'] == 'rider';
+                      final isMine = msg['sender_role'] == 'rider';
                       return Align(
                         alignment: isMine ? Alignment.centerLeft : Alignment.centerRight,
                         child: Container(
@@ -75,7 +75,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
                             borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                           ),
                           child: Text(
-                            msg['content'],
+                            msg['body']?.toString() ?? '',
                             style: GoogleFonts.ibmPlexSansArabic(color: Colors.white),
                           ),
                         ),
