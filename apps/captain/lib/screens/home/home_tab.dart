@@ -3,124 +3,174 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'offer_card.dart';
 import 'active_trip_panel.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-/// The captain's map tab: top status bar + offers sheet / active trip panel.
-class HomeTab extends StatefulWidget {
-  const HomeTab({super.key, required this.mapController});
+/// The captain's map tab: a glanceable status header, the go-online control,
+/// and the offers sheet — all floating over the map owned by MainShell.
+///
+/// The important change here is that **going online is now a visible, primary
+/// control**. It used to be a side effect of tapping the centre nav button,
+/// which is undiscoverable: a new captain had no way to learn that the logo
+/// button was also the earn/don't-earn switch. Category leaders all give this
+/// its own large pill, and so do we now.
+///
+/// The idle state also does real work instead of showing a bare sentence: it
+/// tells the captain whether they are actually reachable (socket status) and
+/// what to do next.
+class HomeTab extends StatelessWidget {
+  const HomeTab({
+    super.key,
+    required this.mapController,
+    required this.online,
+    required this.onToggleOnline,
+    this.busy = false,
+  });
 
   final MapController mapController;
+  final bool online;
+  final ValueChanged<bool> onToggleOnline;
+  final bool busy;
 
-  @override
-  State<HomeTab> createState() => _HomeTabState();
-}
-
-class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panelColor = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
-    final approval =
-        state.captain?['approval_status'] ?? state.captain?['status'];
+    final approval = state.captain?['approval_status'] ?? state.captain?['status'];
     final isApproved = approval == 'approved';
     final activeTrip = state.activeTrip;
     final offers = state.offers;
-    // name may be null, empty, or whitespace — substring(0, 1) throws on an
+
+    // `name` may be null, empty or whitespace — indexing [0] throws on an
     // empty string, so the initial is derived defensively.
-    final captainName = (state.user?['name'] as String?)?.trim();
-    final hasName = captainName != null && captainName.isNotEmpty;
-    final initial = hasName ? captainName[0].toUpperCase() : 'C';
+    final rawName = (state.user?['name'] as String?)?.trim();
+    final hasName = rawName != null && rawName.isNotEmpty;
 
     return Stack(
       children: [
-        // NOTE: the active-trip pickup/dropoff markers are rendered by
-        // MainShell as children of the real FlutterMap. A MarkerLayer resolves
-        // its position through MapCamera.of(context) and throws when it has no
-        // FlutterMap ancestor, so it must never be placed in this plain Stack.
-
-        // Top status bar
-        Positioned(
+        // NOTE: trip markers are rendered by MainShell as children of the real
+        // FlutterMap. A MarkerLayer resolves its position via
+        // MapCamera.of(context) and throws without a FlutterMap ancestor, so
+        // it must never be placed in this plain Stack.
+        PositionedDirectional(
           top: MediaQuery.of(context).padding.top + 10,
-          left: 60, // leave room for SOS FAB
-          right: 16,
-          child: _buildStatusBar(
-            panelColor, text, muted, border, state, isApproved,
-            initial, hasName ? captainName : 'كابتن',
+          start: AppTokens.spaceMd,
+          end: AppTokens.spaceMd,
+          child: _StatusHeader(
+            name: hasName ? rawName : 'كابتن',
+            online: online,
+            isApproved: isApproved,
+            connected: state.offersWsStatus == 'connected',
+            isDark: isDark,
           ),
         ),
 
-        // Approval banner
-        if (!isApproved)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 70,
-            left: 16,
-            right: 16,
-            child: _buildApprovalBanner(),
+        if (activeTrip != null)
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: ActiveTripPanel(trip: activeTrip),
+          )
+        else
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _OffersSheet(
+              offers: offers,
+              online: online,
+              busy: busy,
+              isApproved: isApproved,
+              onToggleOnline: onToggleOnline,
+              isDark: isDark,
+            ),
           ),
-
-        // Bottom: offers sheet or active trip panel
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: activeTrip != null
-              ? ActiveTripPanel(trip: activeTrip)
-              : _buildOffersSheet(panelColor, border, muted, offers),
-        ),
       ],
     );
   }
+}
 
-  Widget _buildStatusBar(
-    Color bg, Color text, Color muted, Color border,
-    CaptainState state, bool isApproved,
-    String initial, String displayName,
-  ) {
+/// Floating identity + state strip. Reads in one glance: who am I, am I
+/// earning, and is my connection actually alive.
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({
+    required this.name,
+    required this.online,
+    required this.isApproved,
+    required this.connected,
+    required this.isDark,
+  });
+
+  final String name;
+  final bool online;
+  final bool isApproved;
+  final bool connected;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final panel = isDark ? AppTokens.darkPanel : Colors.white;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+
+    final Color stateColor;
+    final String stateLabel;
+    if (!isApproved) {
+      stateColor = AppTokens.warning;
+      stateLabel = 'بانتظار الموافقة';
+    } else if (online) {
+      stateColor = AppTokens.success;
+      stateLabel = 'متصل ومستعد للرحلات';
+    } else {
+      stateColor = muted;
+      stateLabel = 'غير متصل';
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSm,
+        vertical: AppTokens.spaceXs + 2,
+      ),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 12,
-          ),
-        ],
+        color: panel,
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        boxShadow: AppTokens.shadowFloating,
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: AppTokens.primary.withOpacity(0.15),
-            radius: 16,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTokens.primary.withOpacity(0.14),
+            ),
+            alignment: Alignment.center,
             child: Text(
-              initial,
-              style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 14),
+              name.characters.first.toUpperCase(),
+              style: AppTokens.font(
+                color: AppTokens.primary,
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppTokens.spaceSm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  displayName,
-                  style: GoogleFonts.ibmPlexSansArabic(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: text,
-                  ),
+                  name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: AppTokens.font(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: text,
+                  ),
                 ),
+                const SizedBox(height: 1),
                 Row(
                   children: [
                     Container(
@@ -128,21 +178,16 @@ class _HomeTabState extends State<HomeTab> {
                       height: 7,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: state.offersWsStatus == 'connected'
-                            ? AppTokens.success
-                            : AppTokens.danger,
+                        color: stateColor,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isApproved
-                          ? (state.online ? 'متصل الآن' : 'غير متصل')
-                          : 'بانتظار الموافقة',
-                      style: GoogleFonts.ibmPlexSansArabic(
-                        fontSize: 11,
-                        color: isApproved
-                            ? (state.online ? AppTokens.success : muted)
-                            : AppTokens.accent,
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        stateLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTokens.font(fontSize: 11.5, color: stateColor),
                       ),
                     ),
                   ],
@@ -150,111 +195,213 @@ class _HomeTabState extends State<HomeTab> {
               ],
             ),
           ),
+          // Live-connection telltale. When the captain is online but the
+          // socket is down they are not actually reachable, and previously
+          // nothing said so.
+          if (online)
+            Tooltip(
+              message: connected ? 'الاتصال المباشر يعمل' : 'إعادة الاتصال…',
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(start: 6, end: 4),
+                child: Icon(
+                  connected
+                      ? Icons.wifi_tethering_rounded
+                      : Icons.wifi_tethering_off_rounded,
+                  size: 19,
+                  color: connected ? AppTokens.success : AppTokens.warning,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildApprovalBanner() {
-    return GestureDetector(
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppTokens.accent.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-          border: Border.all(color: AppTokens.accent.withOpacity(0.4)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: AppTokens.accent, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'حسابك قيد المراجعة. ارفع المستندات لتفعيل الحساب.',
-                style: GoogleFonts.ibmPlexSansArabic(
-                  color: AppTokens.accent,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: AppTokens.accent, size: 18),
-          ],
-        ),
-      ).animate().fade().slideY(begin: -0.2),
-    );
-  }
+/// The bottom sheet. Three distinct states — offline, online-and-waiting, and
+/// offers-present — each with a clear next action.
+class _OffersSheet extends StatelessWidget {
+  const _OffersSheet({
+    required this.offers,
+    required this.online,
+    required this.busy,
+    required this.isApproved,
+    required this.onToggleOnline,
+    required this.isDark,
+  });
 
-  Widget _buildOffersSheet(
-    Color bg, Color border, Color muted, List<Map<String, dynamic>> offers,
-  ) {
-    if (offers.isEmpty) {
-      return DraggableScrollableSheet(
-        initialChildSize: 0.15,
-        minChildSize: 0.1,
-        maxChildSize: 0.6,
-        builder: (_, ctrl) => Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(top: BorderSide(color: border)),
+  final List<Map<String, dynamic>> offers;
+  final bool online;
+  final bool busy;
+  final bool isApproved;
+  final ValueChanged<bool> onToggleOnline;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final panel = isDark ? AppTokens.darkPanel : Colors.white;
+
+    // With no offers the sheet stays out of the way so the captain can see
+    // the map they are driving through; when work arrives it takes over.
+    final hasOffers = offers.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: panel,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppTokens.radiusXl),
+        ),
+        boxShadow: AppTokens.shadowSheet,
+      ),
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.55,
           ),
-          child: ListView(
-            controller: ctrl,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    'بانتظار طلبات الركاب…',
-                    style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
-                  ),
-                ),
-              ),
+              const SizedBox(height: AppTokens.spaceSm),
+              _grabHandle(),
+              const SizedBox(height: AppTokens.spaceMd),
+              if (hasOffers)
+                Flexible(child: _offersList())
+              else
+                _idleBody(context),
+              const SizedBox(height: AppTokens.spaceMd),
             ],
           ),
         ),
-      );
-    }
-    return DraggableScrollableSheet(
-      initialChildSize: 0.4,
-      minChildSize: 0.2,
-      maxChildSize: 0.8,
-      builder: (_, ctrl) => Container(
+      ),
+    );
+  }
+
+  Widget _grabHandle() => Container(
+        width: 42,
+        height: 4,
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border(top: BorderSide(color: border)),
+          color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
+          borderRadius: BorderRadius.circular(AppTokens.radiusPill),
         ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: border,
-                borderRadius: BorderRadius.circular(2),
+      );
+
+  Widget _offersList() {
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
+      itemCount: offers.length,
+      // Keyed by trip id: without a key Flutter reuses the State of whichever
+      // card previously sat at this index, so an expiring countdown would
+      // carry over onto a brand-new offer.
+      itemBuilder: (_, i) => OfferCard(
+        key: ValueKey(offers[i]['id']),
+        offer: offers[i],
+      ).animate().fadeIn(delay: (60 * i).ms).slideY(begin: 0.15, end: 0),
+    );
+  }
+
+  Widget _idleBody(BuildContext context) {
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceLg,
+        0,
+        AppTokens.spaceLg,
+        0,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (online) ...[
+            const _SearchingPulse(),
+            const SizedBox(height: AppTokens.spaceSm),
+            Text(
+              'جاري البحث عن رحلات قريبة…',
+              style: AppTokens.font(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: text,
               ),
             ),
-            Expanded(
-              child: ListView.builder(
-                controller: ctrl,
-                padding: const EdgeInsets.all(12),
-                itemCount: offers.length,
-                // Keyed by trip id: without a key Flutter reuses the State of
-                // whatever card previously sat at this index, so an expiring
-                // countdown would carry over onto a brand-new offer.
-                itemBuilder: (_, i) => OfferCard(
-                  key: ValueKey(offers[i]['id']),
-                  offer: offers[i],
-                )
-                    .animate()
-                    .fade(delay: (50 * i).ms)
-                    .slideX(begin: 0.2),
+            const SizedBox(height: AppTokens.space2xs),
+            Text(
+              'ابقَ في منطقة مزدحمة لزيادة فرص الطلبات',
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 13, color: muted),
+            ),
+          ] else ...[
+            Text(
+              isApproved ? 'أنت غير متصل حالياً' : 'حسابك قيد المراجعة',
+              style: AppTokens.font(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: text,
               ),
+            ),
+            const SizedBox(height: AppTokens.space2xs),
+            Text(
+              isApproved
+                  ? 'اضغط لبدء استقبال الرحلات والأرباح'
+                  : 'سنخطرك فور اعتماد مستنداتك',
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 13, color: muted),
             ),
           ],
-        ),
+          const SizedBox(height: AppTokens.spaceMd),
+          GoOnlineButton(
+            online: online,
+            busy: busy,
+            enabled: isApproved,
+            width: double.infinity,
+            onChanged: onToggleOnline,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Concentric expanding rings — the visual language for "listening".
+class _SearchingPulse extends StatelessWidget {
+  const _SearchingPulse();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 54,
+      height: 54,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTokens.primary.withOpacity(0.10),
+            ),
+          )
+              .animate(onPlay: (c) => c.repeat())
+              .scaleXY(begin: 0.6, end: 1, duration: 1600.ms, curve: Curves.easeOut)
+              .fadeOut(duration: 1600.ms),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTokens.primary.withOpacity(0.16),
+            ),
+            child: const Icon(
+              Icons.radar_rounded,
+              size: 19,
+              color: AppTokens.primary,
+            ),
+          ),
+        ],
       ),
     );
   }
