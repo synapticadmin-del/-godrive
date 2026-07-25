@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,12 +7,18 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
+
 import '../../services/app_state.dart';
+import '../../services/location_service.dart';
 import '../history/history_screen.dart';
 import '../wallet/wallet_screen.dart';
 import '../profile/profile_screen.dart';
 import 'fare_estimate_sheet.dart';
+import 'location_search_sheet.dart';
+import 'vehicle_selector.dart';
+
+/// Which point the rider is currently choosing on the map.
+enum PickMode { none, pickup, dropoff }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,8 +27,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
+
   int _tabIndex = 0;
   LatLng? _currentLocation;
   LatLng? _pickupLocation;
@@ -31,7 +39,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   String _pickupText = '';
   String _dropoffText = '';
 
-  late AnimationController _pulseController;
+  /// The driving route returned by the backend. When present we draw the real
+  /// street-following geometry instead of a straight line.
+  RoutePreview? _route;
+  bool _loadingRoute = false;
+
+  /// Centre-pin picking state.
+  PickMode _pickMode = PickMode.none;
+  String _pinAddress = '';
+  bool _resolvingPin = false;
+
+  /// Vehicle category shown in the top strip (رحلة / سفر / الشحن / تروسيكل).
+  String _category = 'ride';
+
+  late final AnimationController _pulseController;
+  late final LocationService _locations;
+  final Debouncer _pinDebouncer = Debouncer(milliseconds: 450);
 
   @override
   void initState() {
@@ -41,14 +64,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
+    _locations = LocationService(context.read<AppState>());
     _determinePosition();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _pinDebouncer.dispose();
     super.dispose();
   }
+
+  // ───────────────────────────── location ─────────────────────────────
 
   Future<void> _determinePosition() async {
     try {
@@ -64,14 +91,87 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
+
       final latLng = LatLng(position.latitude, position.longitude);
       setState(() {
         _currentLocation = latLng;
-        _pickupLocation = latLng;
-        _pickupText = 'موقعي الحالي (GPS)';
+        _pickupLocation ??= latLng;
       });
-      _mapController.move(latLng, 15);
-    } catch (_) {}
+      _mapController.move(latLng, 15.5);
+
+      // Resolve a human-readable address for the default pickup so the rider
+      // sees a street name rather than "موقعي الحالي" with no context.
+      if (_pickupText.isEmpty) {
+        final address = await _locations.reverseGeocode(latLng);
+        if (!mounted) return;
+        final isAr = _isArabic;
+        setState(() {
+          _pickupText = address ??
+              (isAr ? 'موقعي الحالي (GPS)' : 'Current location (GPS)');
+        });
+      }
+    } catch (_) {
+      // Location is best-effort; the rider can still search or drop a pin.
+    }
+  }
+
+  bool get _isArabic =>
+      Localizations.localeOf(context).languageCode == 'ar';
+
+  // ───────────────────────────── routing ─────────────────────────────
+
+  /// Fetches the real driving route and fits the camera around it.
+  ///
+  /// This is the fix for the core bug: previously the app drew a straight line
+  /// between two points. Now we ask the backend (which calls OSRM) for the
+  /// actual path the driver will take through the street network.
+  Future<void> _refreshRoute({bool openBooking = false}) async {
+    final pickup = _pickupLocation;
+    final dropoff = _dropoffLocation;
+    if (pickup == null || dropoff == null) {
+      setState(() => _route = null);
+      return;
+    }
+
+    setState(() => _loadingRoute = true);
+
+    final route = await _locations.fetchRoute(
+      origin: pickup,
+      destination: dropoff,
+    );
+    if (!mounted) return;
+
+    setState(() {
+      _route = route;
+      _loadingRoute = false;
+    });
+
+    _fitToRoute();
+    if (openBooking) _showBookingFlow();
+  }
+
+  /// Frames the whole journey, leaving room for the top bar and bottom sheet
+  /// so the route is never hidden behind the UI.
+  void _fitToRoute() {
+    final points = _route?.points ??
+        [
+          if (_pickupLocation != null) _pickupLocation!,
+          if (_dropoffLocation != null) _dropoffLocation!,
+        ];
+    if (points.length < 2) return;
+
+    _mapController.fitCamera(
+      CameraFit.coordinates(
+        coordinates: points,
+        padding: const EdgeInsets.only(
+          left: 56,
+          right: 56,
+          top: 160,
+          bottom: 280,
+        ),
+        maxZoom: 16,
+      ),
+    );
   }
 
   void _swapLocations() {
@@ -84,39 +184,136 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _pickupText = _dropoffText;
       _dropoffText = tempText;
     });
-
-    if (_pickupLocation != null && _dropoffLocation != null) {
-      _fitMapToPoints();
-    }
+    _refreshRoute();
   }
 
-  void _fitMapToPoints() {
-    if (_pickupLocation == null || _dropoffLocation == null) return;
-    final bounds = LatLngBounds.fromPoints([_pickupLocation!, _dropoffLocation!]);
-    _mapController.fitCamera(CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)));
-  }
+  // ─────────────────────── centre-pin picking ───────────────────────
 
-  void _onMapTap(TapPosition tapPosition, LatLng point) {
+  /// Enters the inDrive-style picking mode: a pin is anchored to the centre of
+  /// the screen and the map moves beneath it.
+  ///
+  /// This is far more accurate than tapping, because a fingertip covers ~40px
+  /// of map — on a city street that is a whole block. Anchoring to the centre
+  /// lets the rider fine-tune the exact doorway.
+  void _startPicking(PickMode mode) {
+    final seed = mode == PickMode.pickup
+        ? (_pickupLocation ?? _currentLocation)
+        : (_dropoffLocation ?? _currentLocation);
+
     setState(() {
-      _dropoffLocation = point;
-      _dropoffText = '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}';
+      _pickMode = mode;
+      _pinAddress = '';
+      _tabIndex = 0;
     });
-    if (_pickupLocation != null) {
-      _showBookingFlow();
-    }
+
+    if (seed != null) _mapController.move(seed, 16.5);
+    _resolvePinAddress(seed ?? _mapController.camera.center);
+  }
+
+  void _cancelPicking() {
+    _pinDebouncer.cancel();
+    setState(() {
+      _pickMode = PickMode.none;
+      _pinAddress = '';
+      _resolvingPin = false;
+    });
+  }
+
+  /// Called continuously as the map moves. Debounced so we only geocode once
+  /// the rider stops panning — the backend rate-limits to 20 req/min.
+  void _onMapMoved(MapPosition position, bool hasGesture) {
+    if (_pickMode == PickMode.none || !hasGesture) return;
+    final centre = position.center;
+    if (centre == null) return;
+
+    if (!_resolvingPin) setState(() => _resolvingPin = true);
+    _pinDebouncer.run(() => _resolvePinAddress(centre));
+  }
+
+  Future<void> _resolvePinAddress(LatLng point) async {
+    if (_pickMode == PickMode.none) return;
+    setState(() => _resolvingPin = true);
+
+    final address = await _locations.reverseGeocode(point);
+    if (!mounted || _pickMode == PickMode.none) return;
+
+    setState(() {
+      _pinAddress = address ?? LocationService.coordinateLabel(point);
+      _resolvingPin = false;
+    });
+  }
+
+  /// Commits the centre pin as the chosen pickup or dropoff.
+  void _confirmPin() {
+    final centre = _mapController.camera.center;
+    final label = _pinAddress.isNotEmpty
+        ? _pinAddress
+        : LocationService.coordinateLabel(centre);
+    final mode = _pickMode;
+
+    setState(() {
+      if (mode == PickMode.pickup) {
+        _pickupLocation = centre;
+        _pickupText = label;
+      } else {
+        _dropoffLocation = centre;
+        _dropoffText = label;
+      }
+      _pickMode = PickMode.none;
+      _pinAddress = '';
+    });
+
+    _refreshRoute(openBooking: _pickupLocation != null && _dropoffLocation != null);
+  }
+
+  // ───────────────────────────── search ─────────────────────────────
+
+  void _openSearch(bool isPickup) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => LocationSearchSheet(
+        isPickup: isPickup,
+        currentLocation: _currentLocation,
+        locations: _locations,
+        onSelectLocation: (label, latLng) {
+          setState(() {
+            if (isPickup) {
+              _pickupLocation = latLng;
+              _pickupText = label;
+            } else {
+              _dropoffLocation = latLng;
+              _dropoffText = label;
+            }
+          });
+          _mapController.move(latLng, 16);
+          _refreshRoute(
+            openBooking: _pickupLocation != null && _dropoffLocation != null,
+          );
+        },
+        onPickOnMap: () => _startPicking(
+          isPickup ? PickMode.pickup : PickMode.dropoff,
+        ),
+      ),
+    );
   }
 
   void _showBookingFlow() {
-    final pickup = _pickupLocation ?? _currentLocation ?? const LatLng(30.0444, 31.2357);
-    final dropoff = _dropoffLocation ?? const LatLng(30.0444, 31.2357);
+    final pickup = _pickupLocation;
+    final dropoff = _dropoffLocation;
+    if (pickup == null || dropoff == null) return;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => FareEstimateSheet(
+      builder: (_) => FareEstimateSheet(
         pickup: pickup,
         dropoff: dropoff,
+        pickupAddress: _pickupText,
+        dropoffAddress: _dropoffText,
+        initialRoute: _route,
       ),
     );
   }
@@ -124,158 +321,36 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void _onCenterTap() {
     if (_tabIndex != 0) {
       setState(() => _tabIndex = 0);
+      return;
+    }
+    if (_currentLocation != null) {
+      _mapController.move(_currentLocation!, 16);
     } else {
-      if (_currentLocation != null) {
-        _mapController.move(_currentLocation!, 15);
-      } else {
-        _determinePosition();
-      }
+      _determinePosition();
     }
   }
 
-  void _openLocationSearchModal(bool isPickup) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _LocationSearchSheet(
-        isPickup: isPickup,
-        currentLocation: _currentLocation,
-        onSelectLocation: (address, latLng) {
-          setState(() {
-            if (isPickup) {
-              _pickupLocation = latLng;
-              _pickupText = address;
-            } else {
-              _dropoffLocation = latLng;
-              _dropoffText = address;
-            }
-          });
-          _mapController.move(latLng, 15);
-          if (_pickupLocation != null && _dropoffLocation != null) {
-            _fitMapToPoints();
-            _showBookingFlow();
-          }
-        },
-      ),
-    );
-  }
+  // ───────────────────────────── build ─────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final go = GoTheme.of(context);
+    final picking = _pickMode != PickMode.none;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      backgroundColor: go.bg,
       body: Stack(
         children: [
-          // Map View (Home Tab)
-          if (_tabIndex == 0)
-            RepaintBoundary(
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _currentLocation ?? const LatLng(30.0444, 31.2357),
-                  initialZoom: 14,
-                  onTap: _onMapTap,
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: isDark
-                        ? 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'
-                        : 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
-                    subdomains: const ['a', 'b', 'c'],
-                  ),
-                  if (_pickupLocation != null && _dropoffLocation != null)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: [_pickupLocation!, _dropoffLocation!],
-                          strokeWidth: 4.5,
-                          color: AppTokens.primary,
-                        ),
-                      ],
-                    ),
-                  MarkerLayer(
-                    markers: [
-                      // User Current Location Glowing Ripple Marker
-                      if (_currentLocation != null)
-                        Marker(
-                          point: _currentLocation!,
-                          width: 60,
-                          height: 60,
-                          child: AnimatedBuilder(
-                            animation: _pulseController,
-                            builder: (context, child) {
-                              return Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Container(
-                                    width: 40 + (16 * _pulseController.value),
-                                    height: 40 + (16 * _pulseController.value),
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppTokens.primary.withOpacity(0.3 * (1 - _pulseController.value)),
-                                    ),
-                                  ),
-                                  Container(
-                                    width: 24,
-                                    height: 24,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: AppTokens.primary,
-                                      border: Border.all(color: Colors.white, width: 3),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Icon(Icons.person, color: Colors.white, size: 14),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
+          if (_tabIndex == 0) _buildMap(go),
 
-                      // Custom Pickup Marker (if different from GPS)
-                      if (_pickupLocation != null && _pickupLocation != _currentLocation)
-                        Marker(
-                          point: _pickupLocation!,
-                          width: 40,
-                          height: 40,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.circle_outlined, color: Colors.white, size: 20),
-                          ),
-                        ),
-
-                      // Dropoff Marker (Red Pin)
-                      if (_dropoffLocation != null)
-                        Marker(
-                          point: _dropoffLocation!,
-                          width: 44,
-                          height: 44,
-                          child: const Icon(Icons.location_on_rounded, color: Color(0xFFEF4444), size: 44),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-          // IndexedStack for Main Screen Tabs
+          // Tab content sits above the map. The home tab is a transparent
+          // overlay so the map stays visible and interactive beneath it.
           Positioned.fill(
             child: IndexedStack(
               index: _tabIndex,
               children: [
-                _buildHomeOverlay(appState),
+                _buildHomeOverlay(appState, go),
                 const HistoryScreen(),
                 const WalletScreen(),
                 const ProfileScreen(),
@@ -284,67 +359,226 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-      bottomNavigationBar: MainBottomNav(
-        currentIndex: _tabIndex,
-        onTap: (index) => setState(() => _tabIndex = index),
-        onCenterTap: _onCenterTap,
+      // The bottom bar is hidden while picking so the confirm button owns the
+      // bottom of the screen — one clear action at a time.
+      bottomNavigationBar: picking
+          ? null
+          : MainBottomNav(
+              currentIndex: _tabIndex,
+              onTap: (index) => setState(() => _tabIndex = index),
+              onCenterTap: _onCenterTap,
+            ),
+    );
+  }
+
+  Widget _buildMap(GoTheme go) {
+    return RepaintBoundary(
+      child: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: _currentLocation ?? const LatLng(30.0444, 31.2357),
+          initialZoom: 14,
+          minZoom: 3,
+          maxZoom: 18.5,
+          onPositionChanged: _onMapMoved,
+          interactionOptions: const InteractionOptions(
+            flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+          ),
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: MapTiles.urlForContext(context),
+            subdomains: MapTiles.subdomains,
+            retinaMode: RetinaMode.isHighDensity(context),
+            userAgentPackageName: 'tech.synapticstudio.godrive.rider',
+            tileProvider: NetworkTileProvider(),
+          ),
+          _buildRouteLayer(go),
+          _buildMarkerLayer(go),
+        ],
       ),
     );
   }
 
-  Widget _buildHomeOverlay(AppState appState) {
-    final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  /// Draws the driving route as a casing + line pair.
+  ///
+  /// The dark casing underneath keeps the route legible where it crosses
+  /// bright roads or dense labels — the same technique Google and inDrive use.
+  Widget _buildRouteLayer(GoTheme go) {
+    final route = _route;
+    if (route == null || route.points.length < 2) {
+      return const SizedBox.shrink();
+    }
+
+    return PolylineLayer(
+      polylines: [
+        Polyline(
+          points: route.points,
+          strokeWidth: 9,
+          color: go.routeCasing,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ),
+        Polyline(
+          points: route.points,
+          strokeWidth: 5.5,
+          color: go.routeLine,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMarkerLayer(GoTheme go) {
+    // While picking, the centre pin represents the point being chosen, so we
+    // hide that endpoint's marker to avoid showing two pins for one location.
+    final hidePickup = _pickMode == PickMode.pickup;
+    final hideDropoff = _pickMode == PickMode.dropoff;
+
+    return MarkerLayer(
+      markers: [
+        if (_currentLocation != null)
+          Marker(
+            point: _currentLocation!,
+            width: 64,
+            height: 64,
+            child: _PulsingLocationDot(controller: _pulseController, go: go),
+          ),
+        if (!hidePickup &&
+            _pickupLocation != null &&
+            _pickupLocation != _currentLocation)
+          Marker(
+            point: _pickupLocation!,
+            width: 34,
+            height: 34,
+            child: _EndpointDot(color: go.pinPickup, go: go),
+          ),
+        if (!hideDropoff && _dropoffLocation != null)
+          Marker(
+            point: _dropoffLocation!,
+            width: 40,
+            height: 48,
+            alignment: Alignment.topCenter,
+            child: _DestinationFlag(go: go),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHomeOverlay(AppState appState, GoTheme go) {
+    if (_pickMode != PickMode.none) return _buildPickingOverlay(go);
+
+    final isAr = _isArabic;
+    final topInset = MediaQuery.of(context).padding.top;
 
     return Stack(
       children: [
-        // Top Action Bar: Theme Switcher & Language Switcher
+        // Floating utility buttons — kept small so the map dominates.
         Positioned(
-          top: MediaQuery.of(context).padding.top + 8,
-          left: 16,
-          right: 16,
+          top: topInset + 10,
+          left: 14,
+          right: 14,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Theme Switcher Button
-              Material(
-                elevation: 4,
-                shape: const CircleBorder(),
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                child: IconButton(
-                  icon: Icon(
-                    appState.themeMode == ThemeMode.dark ? Icons.wb_sunny : Icons.nightlight_round,
-                    color: AppTokens.primary,
-                  ),
-                  tooltip: isAr ? 'تغيير المظهر' : 'Toggle Theme',
-                  onPressed: () => appState.toggleTheme(),
-                ),
+              _CircleGlassButton(
+                go: go,
+                icon: appState.themeMode == ThemeMode.dark
+                    ? Icons.light_mode_rounded
+                    : Icons.dark_mode_rounded,
+                tooltip: isAr ? 'تغيير المظهر' : 'Toggle theme',
+                onTap: appState.toggleTheme,
               ),
+              _PillGlassButton(
+                go: go,
+                icon: Icons.language_rounded,
+                label: isAr ? 'English' : 'العربية',
+                onTap: appState.toggleLanguage,
+              ),
+            ],
+          ),
+        ),
 
-              // Language Switcher Button
-              Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(20),
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                child: InkWell(
-                  onTap: () => appState.toggleLanguage(),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.language, size: 18, color: AppTokens.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          isAr ? 'English' : 'العربية',
-                          style: GoogleFonts.ibmPlexSansArabic(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: isDark ? Colors.white : AppTokens.lightText,
-                          ),
-                        ),
-                      ],
+        // Recentre button floats just above the booking panel.
+        Positioned(
+          bottom: 232,
+          left: isAr ? 16 : null,
+          right: isAr ? null : 16,
+          child: _CircleGlassButton(
+            go: go,
+            icon: Icons.my_location_rounded,
+            tooltip: isAr ? 'موقعي' : 'My location',
+            onTap: _onCenterTap,
+          ),
+        ),
+
+        // The booking panel anchors the bottom of the screen, inDrive-style.
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: _BookingPanel(
+            go: go,
+            isArabic: isAr,
+            category: _category,
+            onCategoryChanged: (c) => setState(() => _category = c),
+            pickupText: _pickupText,
+            dropoffText: _dropoffText,
+            route: _route,
+            loadingRoute: _loadingRoute,
+            onTapPickup: () => _openSearch(true),
+            onTapDropoff: () => _openSearch(false),
+            onSwap: _swapLocations,
+            onContinue: _showBookingFlow,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The centre-pin picking UI — a fixed pin, a live address readout, and a
+  /// single confirm action.
+  Widget _buildPickingOverlay(GoTheme go) {
+    final isAr = _isArabic;
+    final isPickup = _pickMode == PickMode.pickup;
+    final topInset = MediaQuery.of(context).padding.top;
+
+    final title = isPickup
+        ? (isAr ? 'تعيين نقطة الانطلاق' : 'Set pickup point')
+        : (isAr ? 'تعيين الوجهة' : 'Set destination');
+
+    return Stack(
+      children: [
+        // Back control + instruction chip.
+        Positioned(
+          top: topInset + 10,
+          left: 14,
+          right: 14,
+          child: Row(
+            children: [
+              _CircleGlassButton(
+                go: go,
+                icon: isAr
+                    ? Icons.arrow_forward_rounded
+                    : Icons.arrow_back_rounded,
+                tooltip: isAr ? 'رجوع' : 'Back',
+                onTap: _cancelPicking,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: go.isDark ? go.panel : Colors.black.withOpacity(0.82),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                    boxShadow: _softShadow(go),
+                  ),
+                  child: Text(
+                    title,
+                    style: GoogleFonts.ibmPlexSansArabic(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -353,139 +587,32 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ),
 
-        // Pickup & Destination Search Box (Matching Screenshot 2)
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 64,
-          left: 16,
-          right: 16,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Swap Icon (⇅) on left
-                IconButton(
-                  onPressed: _swapLocations,
-                  icon: const Icon(Icons.swap_vert, size: 26, color: Color(0xFF334155)),
-                  tooltip: isAr ? 'تبديل الأماكن' : 'Swap locations',
-                ),
-                const SizedBox(width: 8),
-
-                // Main Text Inputs Column
-                Expanded(
-                  child: Column(
-                    children: [
-                      // Pickup Input Field Box
-                      GestureDetector(
-                        onTap: () => _openLocationSearchModal(true),
-                        child: Container(
-                          height: 44,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isDark ? const Color(0xFF475569) : const Color(0xFF64748B)),
-                          ),
-                          child: Align(
-                            alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
-                            child: Text(
-                              _pickupText.isNotEmpty
-                                  ? _pickupText
-                                  : (isAr ? 'اختر نقطة بداية، أو انقر على الخريطة...' : 'Choose starting point...'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.ibmPlexSansArabic(
-                                fontSize: 13,
-                                color: _pickupText.isNotEmpty
-                                    ? (isDark ? Colors.white : Colors.black87)
-                                    : (isDark ? Colors.grey[400] : Colors.grey[600]),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Destination Input Field Box
-                      GestureDetector(
-                        onTap: () => _openLocationSearchModal(false),
-                        child: Container(
-                          height: 44,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isDark ? const Color(0xFF475569) : const Color(0xFF64748B)),
-                          ),
-                          child: Align(
-                            alignment: isAr ? Alignment.centerRight : Alignment.centerLeft,
-                            child: Text(
-                              _dropoffText.isNotEmpty
-                                  ? _dropoffText
-                                  : (isAr ? 'اختر الوجهة...' : 'Choose destination...'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.ibmPlexSansArabic(
-                                fontSize: 13,
-                                color: _dropoffText.isNotEmpty
-                                    ? (isDark ? Colors.white : Colors.black87)
-                                    : (isDark ? Colors.grey[400] : Colors.grey[600]),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-
-                // Circle (O) + Dots (:) + Red Pin (📍) Column on Right
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Hollow Circle Icon (O)
-                    const Icon(Icons.radio_button_unchecked, size: 18, color: Colors.black87),
-                    const SizedBox(height: 2),
-                    // Dotted Line (:)
-                    Text(
-                      '⋮',
-                      style: TextStyle(
-                        fontSize: 14,
-                        height: 0.8,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    // Red Location Pin Icon (📍)
-                    const Icon(Icons.location_on, size: 20, color: Color(0xFFEF4444)),
-                  ],
-                ),
-              ],
+        // The pin itself: anchored to the exact centre of the map viewport.
+        // `IgnorePointer` keeps every gesture flowing through to the map.
+        IgnorePointer(
+          child: Center(
+            child: Transform.translate(
+              // Lift by half the pin height so the tip — not the middle —
+              // marks the chosen coordinate.
+              offset: const Offset(0, -26),
+              child: _CentrePin(
+                color: isPickup ? go.pinPickup : go.pinDropoff,
+                busy: _resolvingPin,
+              ),
             ),
           ),
         ),
 
-        // FAB to Recenter GPS on map
-        Positioned(
-          bottom: 24,
-          left: isAr ? 16 : null,
-          right: isAr ? null : 16,
-          child: FloatingActionButton(
-            heroTag: 'recenter_gps',
-            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-            onPressed: _onCenterTap,
-            child: const Icon(Icons.my_location, color: AppTokens.primary),
+        // Address readout + confirm.
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: _PinConfirmPanel(
+            go: go,
+            isArabic: isAr,
+            isPickup: isPickup,
+            address: _pinAddress,
+            resolving: _resolvingPin,
+            onConfirm: _confirmPin,
           ),
         ),
       ],
@@ -493,266 +620,686 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-/// Location Search Sheet with Live Autocomplete & Quick Egypt Spots Suggestions
-class _LocationSearchSheet extends StatefulWidget {
-  final bool isPickup;
-  final LatLng? currentLocation;
-  final Function(String address, LatLng latLng) onSelectLocation;
+// ═══════════════════════════ map decorations ═══════════════════════════
 
-  const _LocationSearchSheet({
-    required this.isPickup,
-    this.currentLocation,
-    required this.onSelectLocation,
-  });
+List<BoxShadow> _softShadow(GoTheme go) => [
+      BoxShadow(
+        color: Colors.black.withOpacity(go.isDark ? 0.5 : 0.14),
+        blurRadius: 18,
+        offset: const Offset(0, 6),
+      ),
+    ];
 
-  @override
-  State<_LocationSearchSheet> createState() => _LocationSearchSheetState();
-}
+/// The rider's own position: a solid dot with a slow breathing halo.
+class _PulsingLocationDot extends StatelessWidget {
+  const _PulsingLocationDot({required this.controller, required this.go});
 
-class _LocationSearchSheetState extends State<_LocationSearchSheet> {
-  final TextEditingController _searchController = TextEditingController();
-  Timer? _debounceTimer;
-  bool _searching = false;
-  List<Map<String, dynamic>> _searchResults = [];
-
-  // Egyptian Popular Destinations
-  final List<Map<String, dynamic>> _popularEgyptSpots = [
-    {
-      'title': 'ميدان التحرير، وسط البلد',
-      'titleEn': 'Tahrir Square, Downtown Cairo',
-      'lat': 30.0444,
-      'lng': 31.2357,
-      'icon': Icons.location_city,
-    },
-    {
-      'title': 'مطار القاهرة الدولي (صالة 3)',
-      'titleEn': 'Cairo International Airport (T3)',
-      'lat': 30.1219,
-      'lng': 31.4056,
-      'icon': Icons.flight_takeoff,
-    },
-    {
-      'title': 'سيتي ستارز مول، مدينة نصر',
-      'titleEn': 'Citystars Mall, Nasr City',
-      'lat': 30.0732,
-      'lng': 31.3465,
-      'icon': Icons.shopping_bag_outlined,
-    },
-    {
-      'title': 'مول العرب، 6 أكتوبر',
-      'titleEn': 'Mall of Arabia, 6th of October',
-      'lat': 29.9998,
-      'lng': 30.9701,
-      'icon': Icons.shopping_cart_outlined,
-    },
-    {
-      'title': 'شارع 9، المعادي',
-      'titleEn': 'Road 9, Maadi',
-      'lat': 29.9592,
-      'lng': 31.2612,
-      'icon': Icons.storefront,
-    },
-    {
-      'title': 'برج القاهرة، الزمالك',
-      'titleEn': 'Cairo Tower, Zamalek',
-      'lat': 30.0459,
-      'lng': 31.2243,
-      'icon': Icons.attractions,
-    },
-  ];
-
-  void _onQueryChanged(String query) {
-    if (_debounceTimer?.isActive ?? false) _debounceTimer!.cancel();
-    if (query.trim().length < 2) {
-      setState(() {
-        _searchResults = [];
-        _searching = false;
-      });
-      return;
-    }
-
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
-      setState(() => _searching = true);
-      try {
-        final uri = Uri.parse(
-          'https://nominatim.openstreetmap.org/search?format=json&accept-language=ar&countrycodes=eg&q=${Uri.encodeComponent(query)}',
-        );
-        final res = await http.get(uri, headers: {'User-Agent': 'GoDriveRiderApp/1.0'});
-        if (res.statusCode == 200) {
-          final data = jsonDecode(res.body) as List;
-          if (mounted) {
-            setState(() {
-              _searchResults = data.map((item) {
-                return {
-                  'title': item['display_name'] as String,
-                  'lat': double.parse(item['lat']),
-                  'lng': double.parse(item['lon']),
-                };
-              }).toList();
-              _searching = false;
-            });
-          }
-        }
-      } catch (_) {
-        if (mounted) setState(() => _searching = false);
-      }
-    });
-  }
+  final AnimationController controller;
+  final GoTheme go;
 
   @override
   Widget build(BuildContext context) {
-    final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
+    final accent = go.isDark ? go.action : AppTokens.primary;
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final t = controller.value;
+        return Stack(
+          alignment: Alignment.center,
           children: [
-            const SizedBox(height: 12),
             Container(
-              width: 40,
+              width: 26 + (26 * t),
+              height: 26 + (26 * t),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent.withOpacity(0.26 * (1 - t)),
+              ),
+            ),
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.28),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A small ringed dot marking a confirmed endpoint.
+class _EndpointDot extends StatelessWidget {
+  const _EndpointDot({required this.color, required this.go});
+
+  final Color color;
+  final GoTheme go;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: go.panel,
+          border: Border.all(color: color, width: 5),
+          boxShadow: _softShadow(go),
+        ),
+      ),
+    );
+  }
+}
+
+/// Destination marker drawn as a flag on a stem, matching the reference app.
+class _DestinationFlag extends StatelessWidget {
+  const _DestinationFlag({required this.go});
+
+  final GoTheme go;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: go.isDark ? Colors.white : Colors.black,
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: _softShadow(go),
+          ),
+          child: Icon(
+            Icons.flag_rounded,
+            size: 19,
+            color: go.isDark ? Colors.black : Colors.white,
+          ),
+        ),
+        Container(
+          width: 2.5,
+          height: 12,
+          color: go.isDark ? Colors.white : Colors.black,
+        ),
+      ],
+    );
+  }
+}
+
+/// The fixed centre pin used while choosing a point.
+class _CentrePin extends StatelessWidget {
+  const _CentrePin({required this.color, required this.busy});
+
+  final Color color;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedScale(
+          scale: busy ? 0.9 : 1.0,
+          duration: const Duration(milliseconds: 180),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.32),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.place_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ),
+        // Stem + ground shadow give the pin a sense of touching the map.
+        Container(width: 2.5, height: 14, color: color),
+        Container(
+          width: 9,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.28),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════ overlay panels ═══════════════════════════
+
+class _CircleGlassButton extends StatelessWidget {
+  const _CircleGlassButton({
+    required this.go,
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = Material(
+      color: go.panel,
+      shape: const CircleBorder(),
+      elevation: go.isDark ? 0 : 3,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: go.border, width: go.isDark ? 1 : 0),
+          ),
+          child: Icon(icon, size: 21, color: go.text),
+        ),
+      ),
+    );
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+  }
+}
+
+class _PillGlassButton extends StatelessWidget {
+  const _PillGlassButton({
+    required this.go,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: go.panel,
+      borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+      elevation: go.isDark ? 0 : 3,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+            border: Border.all(color: go.border, width: go.isDark ? 1 : 0),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: go.text),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: GoogleFonts.ibmPlexSansArabic(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: go.text,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The bottom booking panel: category strip, route summary, and the two
+/// location fields.
+class _BookingPanel extends StatelessWidget {
+  const _BookingPanel({
+    required this.go,
+    required this.isArabic,
+    required this.category,
+    required this.onCategoryChanged,
+    required this.pickupText,
+    required this.dropoffText,
+    required this.route,
+    required this.loadingRoute,
+    required this.onTapPickup,
+    required this.onTapDropoff,
+    required this.onSwap,
+    required this.onContinue,
+  });
+
+  final GoTheme go;
+  final bool isArabic;
+  final String category;
+  final ValueChanged<String> onCategoryChanged;
+  final String pickupText;
+  final String dropoffText;
+  final RoutePreview? route;
+  final bool loadingRoute;
+  final VoidCallback onTapPickup;
+  final VoidCallback onTapDropoff;
+  final VoidCallback onSwap;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBoth = pickupText.isNotEmpty && dropoffText.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: go.panel,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppTokens.radiusXl),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(go.isDark ? 0.55 : 0.16),
+            blurRadius: 26,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
               height: 4,
               decoration: BoxDecoration(
-                color: isDark ? Colors.grey[700] : Colors.grey[300],
+                color: go.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                onChanged: _onQueryChanged,
-                decoration: InputDecoration(
-                  hintText: widget.isPickup
-                      ? (isAr ? 'ابحث عن نقطة الانطلاق...' : 'Search starting point...')
-                      : (isAr ? 'ابحث عن الوجهة...' : 'Search destination...'),
-                  prefixIcon: Icon(
-                    widget.isPickup ? Icons.circle_outlined : Icons.location_on,
-                    color: widget.isPickup ? AppTokens.primary : const Color(0xFFEF4444),
-                  ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            _onQueryChanged('');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
             const SizedBox(height: 12),
 
-            if (_searching)
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
-              )
-            else
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    // If user searched and got results
-                    if (_searchResults.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          isAr ? 'نتائج البحث' : 'Search Results',
-                          style: GoogleFonts.ibmPlexSansArabic(
-                            fontWeight: FontWeight.bold,
-                            color: AppTokens.primary,
-                          ),
-                        ),
-                      ),
-                      ..._searchResults.map((item) {
-                        return ListTile(
-                          leading: const Icon(Icons.place_outlined, color: AppTokens.primary),
-                          title: Text(
-                            item['title'],
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.ibmPlexSansArabic(fontSize: 14),
-                          ),
-                          onTap: () {
-                            widget.onSelectLocation(
-                              item['title'],
-                              LatLng(item['lat'], item['lng']),
-                            );
-                            Navigator.pop(context);
-                          },
-                        );
-                      }),
-                    ] else ...[
-                      // Option for current GPS location if pickup
-                      if (widget.isPickup && widget.currentLocation != null)
-                        ListTile(
-                          leading: const Icon(Icons.my_location, color: AppTokens.primary),
-                          title: Text(
-                            isAr ? 'موقعي الحالي (GPS)' : 'Current Location (GPS)',
-                            style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            isAr ? 'استخدام الموقع الحالي بالجهاز' : 'Use current device location',
-                            style: GoogleFonts.ibmPlexSansArabic(fontSize: 12),
-                          ),
-                          onTap: () {
-                            widget.onSelectLocation(
-                              isAr ? 'موقعي الحالي (GPS)' : 'Current Location (GPS)',
-                              widget.currentLocation!,
-                            );
-                            Navigator.pop(context);
-                          },
-                        ),
-                      const Divider(),
+            VehicleCategoryStrip(
+              selected: category,
+              onChanged: onCategoryChanged,
+              isArabic: isArabic,
+            ),
+            const SizedBox(height: 14),
 
-                      // Popular Egypt Places Suggestions
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          isAr ? 'أماكن مقترحة وشائعة' : 'Popular Suggestions',
-                          style: GoogleFonts.ibmPlexSansArabic(
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.grey[300] : Colors.grey[700],
-                          ),
-                        ),
-                      ),
-                      ..._popularEgyptSpots.map((spot) {
-                        final title = isAr ? spot['title'] : spot['titleEn'];
-                        return ListTile(
-                          leading: Icon(spot['icon'] as IconData, color: AppTokens.primary),
-                          title: Text(title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14)),
-                          onTap: () {
-                            widget.onSelectLocation(
-                              title,
-                              LatLng(spot['lat'] as double, spot['lng'] as double),
-                            );
-                            Navigator.pop(context);
-                          },
-                        );
-                      }),
-                    ],
-                  ],
+            if (loadingRoute || route != null) ...[
+              _RouteSummary(
+                go: go,
+                isArabic: isArabic,
+                route: route,
+                loading: loadingRoute,
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            _LocationField(
+              go: go,
+              icon: Icons.trip_origin_rounded,
+              iconColor: go.pinPickup,
+              value: pickupText,
+              hint: isArabic ? 'من أين تنطلق؟' : 'Where from?',
+              onTap: onTapPickup,
+              trailing: IconButton(
+                onPressed: onSwap,
+                icon: Icon(Icons.swap_vert_rounded, color: go.muted, size: 22),
+                tooltip: isArabic ? 'تبديل' : 'Swap',
+              ),
+            ),
+            const SizedBox(height: 8),
+            _LocationField(
+              go: go,
+              icon: Icons.place_rounded,
+              iconColor: go.pinDropoff,
+              value: dropoffText,
+              hint: isArabic ? 'ما الوجهة وما التكلفة؟' : 'Where to?',
+              onTap: onTapDropoff,
+              emphasise: true,
+            ),
+
+            if (hasBoth) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: loadingRoute ? null : onContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: go.action,
+                    foregroundColor: go.onAction,
+                    minimumSize: const Size.fromHeight(54),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppTokens.radiusPill),
+                    ),
+                  ),
+                  child: Text(
+                    isArabic ? 'متابعة' : 'Continue',
+                    style: GoogleFonts.ibmPlexSansArabic(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Distance + duration readout, with an honest label when the backend had to
+/// approximate because the routing engine was unreachable.
+class _RouteSummary extends StatelessWidget {
+  const _RouteSummary({
+    required this.go,
+    required this.isArabic,
+    required this.route,
+    required this.loading,
+  });
+
+  final GoTheme go;
+  final bool isArabic;
+  final RoutePreview? route;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 15,
+            height: 15,
+            child: CircularProgressIndicator(strokeWidth: 2, color: go.muted),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            isArabic ? 'جارٍ حساب المسار...' : 'Calculating route...',
+            style: GoogleFonts.ibmPlexSansArabic(
+              fontSize: 13,
+              color: go.muted,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final r = route!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: go.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.route_rounded, size: 18, color: go.muted),
+          const SizedBox(width: 8),
+          Text(
+            r.distanceLabel(isArabic: isArabic),
+            style: GoogleFonts.ibmPlexSansArabic(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: go.text,
+            ),
+          ),
+          Text(
+            '  ·  ',
+            style: TextStyle(color: go.muted),
+          ),
+          Icon(Icons.schedule_rounded, size: 18, color: go.muted),
+          const SizedBox(width: 6),
+          Text(
+            r.durationLabel(isArabic: isArabic),
+            style: GoogleFonts.ibmPlexSansArabic(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: go.text,
+            ),
+          ),
+          const Spacer(),
+          if (r.isApproximate)
+            Text(
+              isArabic ? 'تقريبي' : 'approx.',
+              style: GoogleFonts.ibmPlexSansArabic(
+                fontSize: 11.5,
+                color: go.muted,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationField extends StatelessWidget {
+  const _LocationField({
+    required this.go,
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.hint,
+    required this.onTap,
+    this.trailing,
+    this.emphasise = false,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String hint;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final bool emphasise;
+
+  @override
+  Widget build(BuildContext context) {
+    final filled = value.isNotEmpty;
+
+    return Material(
+      color: go.surface,
+      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        onTap: onTap,
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+            border: emphasise && !filled
+                ? Border.all(color: go.action.withOpacity(0.55), width: 1.4)
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 19, color: iconColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  filled ? value : hint,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.ibmPlexSansArabic(
+                    fontSize: 14.5,
+                    fontWeight: filled ? FontWeight.w600 : FontWeight.w500,
+                    color: filled ? go.text : go.muted,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom panel shown during centre-pin picking.
+class _PinConfirmPanel extends StatelessWidget {
+  const _PinConfirmPanel({
+    required this.go,
+    required this.isArabic,
+    required this.isPickup,
+    required this.address,
+    required this.resolving,
+    required this.onConfirm,
+  });
+
+  final GoTheme go;
+  final bool isArabic;
+  final bool isPickup;
+  final String address;
+  final bool resolving;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: go.panel,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppTokens.radiusXl),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(go.isDark ? 0.55 : 0.16),
+            blurRadius: 26,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isPickup ? Icons.trip_origin_rounded : Icons.place_rounded,
+                  size: 20,
+                  color: isPickup ? go.pinPickup : go.pinDropoff,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: resolving && address.isEmpty
+                      ? _AddressSkeleton(go: go)
+                      : Text(
+                          address.isEmpty
+                              ? (isArabic
+                                  ? 'حرّك الخريطة لتحديد المكان'
+                                  : 'Move the map to set the point')
+                              : address,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.ibmPlexSansArabic(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: address.isEmpty ? go.muted : go.text,
+                            height: 1.35,
+                          ),
+                        ),
+                ),
+                if (resolving && address.isNotEmpty) ...[
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: go.muted,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onConfirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: go.action,
+                foregroundColor: go.onAction,
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                ),
+              ),
+              child: Text(
+                isPickup
+                    ? (isArabic ? 'تأكيد نقطة الانطلاق' : 'Confirm pickup')
+                    : (isArabic ? 'تأكيد الوجهة' : 'Confirm destination'),
+                style: GoogleFonts.ibmPlexSansArabic(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Placeholder bars shown while the first address resolves, so the panel does
+/// not jump in height when text arrives.
+class _AddressSkeleton extends StatelessWidget {
+  const _AddressSkeleton({required this.go});
+
+  final GoTheme go;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(double width) => Container(
+          width: width,
+          height: 11,
+          decoration: BoxDecoration(
+            color: go.surface,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [bar(190), const SizedBox(height: 7), bar(120)],
     );
   }
 }
