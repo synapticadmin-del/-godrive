@@ -362,8 +362,7 @@ tripRoutes.get("/:id", async (c) => {
   if (
     user.role !== "admin" &&
     trip.rider_id !== user.id &&
-    trip.captain_id !== user.id &&
-    !["searching", "offered"].includes(trip.status)
+    trip.captain_id !== user.id
   ) {
     return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
   }
@@ -751,7 +750,18 @@ tripRoutes.post("/:id/bid", requireRole("captain", "admin"), async (c) => {
 
 // GET /trips/:id/bids — Rider or Admin fetches all bids submitted for a trip
 tripRoutes.get("/:id/bids", async (c) => {
+  const user = c.get("user");
   const tripId = c.req.param("id");
+
+  const trip = await c.env.DB.prepare(`SELECT rider_id FROM trips WHERE id = ?`)
+    .bind(tripId)
+    .first<{ rider_id: string }>();
+
+  if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
+
+  if (user.role !== "admin" && trip.rider_id !== user.id) {
+    return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+  }
 
   const bids = await c.env.DB.prepare(
     `SELECT b.id, b.trip_id, b.captain_id, b.counter_price, b.status, b.created_at,

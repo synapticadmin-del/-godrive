@@ -110,20 +110,23 @@ walletRoutes.post("/captain/wallet/payout", requireRole("captain", "admin"), asy
     return c.json({ error: "رصيد غير كافٍ للسحب", code: "INSUFFICIENT_BALANCE" }, 400);
   }
 
-  // Reserve the amount immediately (debit pending payout) so a second request
-  // can't double-spend the same balance.
+  const updateRes = await c.env.DB.prepare(
+    `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_updated_at = ? WHERE id = ? AND wallet_balance >= ?`,
+  )
+    .bind(body.amount, nowIso(), user.id, body.amount)
+    .run();
+
+  if (updateRes.meta && updateRes.meta.changes === 0) {
+    return c.json({ error: "رصيد غير كافٍ للسحب أو تم تغيير الرصيد بالتزامن", code: "INSUFFICIENT_BALANCE" }, 409);
+  }
+
   const txnId = id("wt");
   await c.env.DB.prepare(
     `INSERT INTO wallet_transactions
-      (id, user_id, type, direction, amount, note, status, created_at)
-     VALUES (?, ?, 'payout', 'debit', ?, ?, 'pending', datetime('now'))`,
+      (id, user_id, type, direction, amount, amount_piastres, note, status, created_at)
+     VALUES (?, ?, 'payout', 'debit', ?, ?, ?, 'pending', datetime('now'))`,
   )
-    .bind(txnId, user.id, body.amount, `${body.method}:${body.account_info}`)
-    .run();
-  await c.env.DB.prepare(
-    `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_updated_at = ? WHERE id = ?`,
-  )
-    .bind(body.amount, nowIso(), user.id)
+    .bind(txnId, user.id, body.amount, Math.round(body.amount * 100), `${body.method}:${body.account_info}`)
     .run();
 
   await logAudit(c.env.DB, {

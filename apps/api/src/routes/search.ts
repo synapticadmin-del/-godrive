@@ -20,9 +20,10 @@ searchRoutes.get('/admin/search', async (c) => {
 
   // 1. Search Users (Captains & Riders)
   const usersRes = await c.env.DB.prepare(`
-    SELECT id, email, name, phone, role, approval_status, vehicle_plate
-    FROM users
-    WHERE LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR phone LIKE ? OR LOWER(vehicle_plate) LIKE ? OR id LIKE ?
+    SELECT u.id, u.email, u.name, u.phone, u.role, c.approval_status, c.vehicle_plate
+    FROM users u
+    LEFT JOIN captains c ON u.id = c.user_id
+    WHERE LOWER(u.name) LIKE ? OR LOWER(u.email) LIKE ? OR u.phone LIKE ? OR LOWER(c.vehicle_plate) LIKE ? OR u.id LIKE ?
     LIMIT 10
   `).bind(term, term, term, term, term).all();
 

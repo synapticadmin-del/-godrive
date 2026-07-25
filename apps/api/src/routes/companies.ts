@@ -37,7 +37,7 @@ companyRoutes.post("/trip", async (c) => {
 
   // Spend limit this month
   const spendRes = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS trips, COALESCE(SUM(fare), 0) AS total
+    `SELECT COUNT(*) AS trips, COALESCE(SUM(COALESCE(final_fare, estimated_fare, 0)), 0) AS total
      FROM trips WHERE company_id = ? AND cost_center = ? AND billed_to_company = 1
      AND created_at >= datetime('now','start of month')`,
   )
@@ -171,7 +171,7 @@ companyRoutes.post("/admin/:id/invoice", async (c) => {
   const end = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
   const summary = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS trips, COALESCE(SUM(fare), 0) AS total
+    `SELECT COUNT(*) AS trips, COALESCE(SUM(COALESCE(final_fare, estimated_fare, 0)), 0) AS total
      FROM trips WHERE company_id = ? AND billed_to_company = 1
      AND created_at >= ? AND created_at < ?`,
   )
