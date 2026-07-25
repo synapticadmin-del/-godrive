@@ -573,15 +573,19 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
     );
   }
 
-  const finalFare = trip.estimated_fare ?? 0;
+  const finalFare = trip.accepted_price ?? trip.final_fare ?? trip.estimated_fare ?? 0;
   const commission = trip.commission ?? 0;
   const captainPayout = Math.max(0, Math.round((finalFare - commission) * 100) / 100);
 
-  await c.env.DB.prepare(
-    `UPDATE trips SET status = 'completed', final_fare = ?, completed_at = ?, updated_at = ? WHERE id = ?`,
+  const updateRes = await c.env.DB.prepare(
+    `UPDATE trips SET status = 'completed', final_fare = ?, completed_at = ?, updated_at = ? WHERE id = ? AND status != 'completed'`,
   )
     .bind(finalFare, nowIso(), nowIso(), tripId)
     .run();
+
+  if (updateRes.meta && updateRes.meta.changes === 0) {
+    return c.json({ error: "Trip is already completed or state changed", code: "CONFLICT" }, 409);
+  }
 
   await logEvent(c.env.DB, tripId, "completed", user.id, { finalFare, commission });
 

@@ -397,13 +397,21 @@ captainRoutes.post("/upload", async (c) => {
 
 // GET /captain/file/:key — serve a file from R2 (for the captain's own docs)
 captainRoutes.get("/file/*", async (c) => {
+  const user = c.get("user");
   const key = c.req.path.replace("/captain/file/", "");
   if (!key) return c.json({ error: "key required", code: "MISSING_KEY" }, 400);
+
+  // Enforce IDOR protection: user can only view their own document folder unless they are an admin
+  const userFolderPrefix = `docs/${user.id}/`;
+  if (user.role !== "admin" && !key.startsWith(userFolderPrefix)) {
+    return c.json({ error: "Access denied to requested document", code: "FORBIDDEN" }, 403);
+  }
+
   const obj = await c.env.FILES.get(key);
   if (!obj) return c.json({ error: "Not found", code: "NOT_FOUND" }, 404);
   const headers = new Headers();
   headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
-  headers.set("Cache-Control", "public, max-age=3600");
+  headers.set("Cache-Control", "private, no-store");
   return new Response(obj.body, { headers });
 });
 

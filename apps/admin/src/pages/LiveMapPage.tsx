@@ -74,11 +74,15 @@ export default function LiveMapPage() {
     if (view === 'all' || view === 'captains') {
       for (const cap of captainsData) {
         if (cap.last_lat == null || cap.last_lng == null) continue;
+        const safeName = (cap.name || 'كابتن').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeMake = (cap.vehicle_make ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeModel = (cap.vehicle_model ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safePlate = (cap.vehicle_plate ?? '—').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const marker = L.circleMarker([cap.last_lat, cap.last_lng], {
           radius: 9, color: '#80b445', fillColor: '#80b445', fillOpacity: 0.9, weight: 2,
         }).bindPopup(
-          `<b>🚗 ${cap.name}</b><br/>${cap.vehicle_make ?? ''} ${cap.vehicle_model ?? ''}<br/>` +
-          `لوحة: ${cap.vehicle_plate ?? '—'}<br/>تقييم: ⭐${cap.rating_avg ?? '—'}<br/>` +
+          `<b>🚗 ${safeName}</b><br/>${safeMake} ${safeModel}<br/>` +
+          `لوحة: ${safePlate}<br/>تقييم: ⭐${cap.rating_avg ?? '—'}<br/>` +
           `آخر ظهور: ${cap.last_seen_at ? new Date(cap.last_seen_at).toLocaleTimeString('ar-EG') : '—'}`
         );
         layerRef.current.addLayer(marker);

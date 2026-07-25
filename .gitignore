@@ -24,3 +24,7 @@ build/
 *.ipa
 coverage/
 .turbo/
+google-services*.json
+*.keystore
+*.jks
+key.properties

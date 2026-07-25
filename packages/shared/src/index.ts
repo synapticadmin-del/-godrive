@@ -74,23 +74,37 @@ export function estimateDurationMin(distanceKm: number, avgSpeedKmh = 25): numbe
   return Math.max(1, Math.round((distanceKm / avgSpeedKmh) * 60));
 }
 
+export interface FareOptions {
+  surgeMultiplier?: number;
+  vehicleMultiplier?: number;
+  discount?: number;
+}
+
 export function calculateFare(
   distanceKm: number,
   durationMin: number,
   rule: PricingRule,
+  options: FareOptions = {},
 ): FareEstimate {
-  const distanceFare = distanceKm * rule.perKm;
-  const timeFare = durationMin * rule.perMin;
-  const raw =
-    rule.baseFare + distanceFare + timeFare + rule.bookingFee;
-  const total = Math.max(rule.minFare, round2(raw));
+  const surge = options.surgeMultiplier && options.surgeMultiplier > 0 ? options.surgeMultiplier : 1.0;
+  const vehicleMult = options.vehicleMultiplier && options.vehicleMultiplier > 0 ? options.vehicleMultiplier : 1.0;
+  const discount = options.discount && options.discount > 0 ? options.discount : 0;
+
+  const distanceFare = distanceKm * rule.perKm * vehicleMult;
+  const timeFare = durationMin * rule.perMin * vehicleMult;
+  const baseFare = rule.baseFare * vehicleMult;
+
+  const rawUnsurged = baseFare + distanceFare + timeFare + rule.bookingFee;
+  const rawSurged = rawUnsurged * surge;
+  const finalBeforeDiscount = Math.max(rule.minFare, round2(rawSurged));
+  const total = Math.max(0, round2(finalBeforeDiscount - discount));
   const commission = round2(total * rule.commissionRate);
 
   return {
     distanceKm: round2(distanceKm),
     durationMin,
     currency: rule.currency,
-    baseFare: rule.baseFare,
+    baseFare: round2(baseFare),
     distanceFare: round2(distanceFare),
     timeFare: round2(timeFare),
     bookingFee: rule.bookingFee,

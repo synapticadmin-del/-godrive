@@ -44,7 +44,6 @@ CREATE INDEX IF NOT EXISTS idx_wt_created ON wallet_transactions(created_at);
 -- Hold the "available" balance snapshot for fast reads (kept consistent via API).
 ALTER TABLE users ADD COLUMN wallet_balance REAL NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN wallet_updated_at TEXT;
-ALTER TABLE users ADD COLUMN password_hash TEXT;  -- for email+password auth (optional alongside OTP)
 
 -- ----------------------------------------------------------------------
 -- 3) Scheduled trips (deferred rides) + surge + waypoints

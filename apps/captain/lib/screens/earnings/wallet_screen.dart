@@ -57,9 +57,27 @@ class _WalletScreenState extends State<WalletScreen> {
               title: const Text('فودافون كاش', style: TextStyle(color: AppTokens.lightText)),
               tileColor: AppTokens.lightSurface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال طلب السحب بنجاح')));
+                try {
+                  final client = ApiClient();
+                  await client.post('/captain/wallet/payout', {
+                    'method': 'vodafone_cash',
+                    'amount': _balance,
+                  });
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تم إرسال طلب السحب بنجاح إلى فودافون كاش')),
+                    );
+                    _fetchBalance();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('فشل طلب السحب: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
               },
             ),
             const SizedBox(height: 12),
@@ -68,9 +86,27 @@ class _WalletScreenState extends State<WalletScreen> {
               title: const Text('انستا باي (InstaPay)', style: TextStyle(color: AppTokens.lightText)),
               tileColor: AppTokens.lightSurface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال طلب السحب بنجاح')));
+                try {
+                  final client = ApiClient();
+                  await client.post('/captain/wallet/payout', {
+                    'method': 'instapay',
+                    'amount': _balance,
+                  });
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تم إرسال طلب السحب بنجاح إلى انستا باي')),
+                    );
+                    _fetchBalance();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('فشل طلب السحب: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
               },
             ),
           ],

@@ -124,11 +124,16 @@ export default function CaptainsPage() {
         popupAnchor: [0, -18],
       });
 
+      const safeName = (c.name || 'كابتن').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safePhone = (c.phone || c.email || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safeMake = (c.vehicle_make || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safePlate = (c.vehicle_plate || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       const popupContent = `
         <div style="text-align: right; direction: rtl; font-family: sans-serif; padding: 4px;">
-          <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0f172a;">${c.name || 'كابتن'}</h4>
-          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">📱 ${c.phone || c.email}</p>
-          ${c.vehicle_plate ? `<p style="margin: 4px 0 0 0; font-size: 12px; font-weight: bold; color: #0ea5e9;">🚘 ${c.vehicle_make || ''} (${c.vehicle_plate})</p>` : ''}
+          <h4 style="margin: 0; font-size: 14px; font-weight: bold; color: #0f172a;">${safeName}</h4>
+          <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">📱 ${safePhone}</p>
+          ${c.vehicle_plate ? `<p style="margin: 4px 0 0 0; font-size: 12px; font-weight: bold; color: #0ea5e9;">🚘 ${safeMake} (${safePlate})</p>` : ''}
           <div style="margin-top: 6px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px; font-size: 11px; display: inline-block; font-weight: bold;">🟢 متصل الآن</div>
         </div>
       `;

@@ -333,7 +333,7 @@ authRoutes.post("/register", rateLimit({ prefix: "register", limit: 10, windowSe
     email?: string;
     name?: string;
     password?: string;
-    role?: "rider" | "captain" | "admin";
+    role?: "rider" | "captain";
   };
   if (!body.email || !body.password) {
     return c.json({ error: "email and password required", code: "VALIDATION_ERROR" }, 400);
@@ -341,22 +341,19 @@ authRoutes.post("/register", rateLimit({ prefix: "register", limit: 10, windowSe
   const email = body.email.trim().toLowerCase();
   const existing = await c.env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email).first();
   if (existing) return c.json({ error: "Email already exists", code: "EMAIL_EXISTS" }, 409);
+
+  // Enforce secure role assignment (never accept admin from public registration)
+  const assignedRole: "rider" | "captain" = body.role === "captain" ? "captain" : "rider";
+
   const pwHash = await hashPassword(body.password);
   const userId = id("usr");
   await c.env.DB.prepare(
     `INSERT INTO users (id, email, password_hash, name, role, status, phone) VALUES (?, ?, ?, ?, ?, 'active', NULL)`,
   )
-    .bind(userId, email, pwHash, body.name ?? "", body.role ?? "rider")
+    .bind(userId, email, pwHash, body.name ?? "", assignedRole)
     .run();
-  if ((body.role ?? "rider") === "captain") {
+  if (assignedRole === "captain") {
     await c.env.DB.prepare(`INSERT INTO captains (user_id, approval_status) VALUES (?, 'pending')`).bind(userId).run();
-  }
-  if ((body.role ?? "rider") === "admin") {
-    // If this is the very first admin (default credentials), allow it silently.
-    const adminCountRes = await c.env.DB.prepare(`SELECT COUNT(*) AS c FROM users WHERE role = 'admin'`).first<{ c: number }>();
-    if (adminCountRes && (adminCountRes.c ?? 0) > 1) {
-      return c.json({ error: "Admin already exists — use existing admin", code: "ADMIN_DENIED" }, 403);
-    }
   }
   const user = await c.env.DB.prepare(`SELECT * FROM users WHERE id = ?`).bind(userId).first<DbUser>();
   if (!user) return c.json({ error: "User creation failed", code: "CREATE_FAILED" }, 500);
