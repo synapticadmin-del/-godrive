@@ -37,15 +37,29 @@ class CaptainState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     token = prefs.getString('token');
     final raw = prefs.getString('user');
-    if (raw != null) user = jsonDecode(raw) as Map<String, dynamic>;
+    if (raw != null) {
+      // Corrupt cached JSON must not brick startup — the session is still
+      // recoverable from /auth/me below.
+      try {
+        user = jsonDecode(raw) as Map<String, dynamic>;
+      } catch (_) {
+        await prefs.remove('user');
+      }
+    }
     loading = false;
     notifyListeners();
+
+    await FcmService.init(onToken: registerDeviceToken);
+
     if (token != null) {
-      await FcmService.init(onToken: registerDeviceToken);
-      await refreshMe();
+      // refreshMe() must not be able to abort startup. Previously a transient
+      // network failure here threw out of bootstrap(), so startOffersPolling()
+      // never ran and the captain received no offers at all until they force
+      // quit and relaunched the app.
+      try {
+        await refreshMe();
+      } catch (_) {}
       startOffersPolling();
-    } else {
-      await FcmService.init(onToken: registerDeviceToken);
     }
   }
 
@@ -186,7 +200,20 @@ class CaptainState extends ChangeNotifier {
     final res = await _get('/auth/me');
     user = Map<String, dynamic>.from(res['user'] as Map);
     captain = res['captain'] == null ? null : Map<String, dynamic>.from(res['captain'] as Map);
-    online = captain?['is_online'] == 1;
+    // captains.is_online is an INTEGER 0/1 in D1, but tolerate a bool in case
+    // the column is ever serialised differently.
+    final isOnline = captain?['is_online'];
+    online = isOnline == 1 || isOnline == true;
+
+    // Resume location reporting when the server still has this captain marked
+    // online (e.g. the app was killed and relaunched). Without this the
+    // captain appears online to dispatch while broadcasting no position, so
+    // they sit at their last known point and stop receiving nearby offers.
+    if (online) {
+      _startLocationStream();
+    } else {
+      _stopLocationStream();
+    }
     notifyListeners();
   }
 
@@ -246,26 +273,51 @@ class CaptainState extends ChangeNotifier {
 
   /// Go online/offline. Before going online, verifies GPS is enabled and
   /// permission granted — fails gracefully with [gpsError] if not.
+  ///
+  /// Returns false (with [gpsError] populated) instead of throwing when the
+  /// request fails. The previous version let the exception escape, so a
+  /// rejected /captain/online call (e.g. 403 NOT_APPROVED) left `online`
+  /// unchanged while the UI switch had already flipped — the captain saw
+  /// themselves as online while the server had them offline and sent no rides.
   Future<bool> setOnline(bool value) async {
     if (value) {
       final ready = await checkGpsReady();
       if (!ready) return false;
     }
-    final pos = await _position();
-    await _post('/captain/online', {
-      'online': value,
-      'lat': pos.latitude,
-      'lng': pos.longitude,
-      'city': 'cairo',
-    });
-    online = value;
-    notifyListeners();
-    if (value) {
-      _startLocationStream();
-    } else {
-      _stopLocationStream();
+    try {
+      // The server requires lat/lng when going online. Going offline should
+      // still succeed even if a GPS fix cannot be obtained.
+      Position? pos;
+      try {
+        pos = await _position();
+      } catch (_) {
+        if (value) {
+          gpsError = 'تعذّر تحديد موقعك. تأكد من تفعيل GPS.';
+          notifyListeners();
+          return false;
+        }
+      }
+
+      await _post('/captain/online', {
+        'online': value,
+        if (pos != null) 'lat': pos.latitude,
+        if (pos != null) 'lng': pos.longitude,
+        'city': 'cairo',
+      });
+      online = value;
+      gpsError = null;
+      notifyListeners();
+      if (value) {
+        _startLocationStream();
+      } else {
+        _stopLocationStream();
+      }
+      return true;
+    } catch (e) {
+      gpsError = e.toString().replaceAll('Exception:', '').trim();
+      notifyListeners();
+      return false;
     }
-    return true;
   }
 
   void _startLocationStream() {
@@ -346,20 +398,29 @@ class CaptainState extends ChangeNotifier {
     if (token == null) return;
     try {
       final res = await _get('/captain/offers');
-      final trips = (res['trips'] as List?)?.cast<Map>() ?? [];
-      offers = trips.map((e) => Map<String, dynamic>.from(e)).toList();
+      final trips = (res['trips'] as List?)?.whereType<Map>() ?? [];
+      offers = trips
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((o) => !_declinedTripIds.contains(o['id']))
+          .toList();
 
       final mine = await _get('/trips');
-      final all = (mine['trips'] as List?)?.cast<Map>() ?? [];
-      final active = all.cast<Map<String, dynamic>>().where((t) {
-        final s = t['status'] as String?;
-        return t['captain_id'] == user?['id'] &&
-            ['assigned', 'arrived', 'in_progress'].contains(s);
-      }).toList();
+      final all = (mine['trips'] as List?)?.whereType<Map>() ?? [];
+      final active = all
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((t) {
+            final s = t['status'] as String?;
+            return t['captain_id'] == user?['id'] &&
+                ['assigned', 'arrived', 'in_progress'].contains(s);
+          })
+          .toList();
       activeTrip = active.isNotEmpty ? active.first : null;
+      // Clear any stale error from a previous failed poll, otherwise the UI
+      // keeps showing an error banner long after connectivity is restored.
+      error = null;
       notifyListeners();
     } catch (e) {
-      error = e.toString();
+      error = e.toString().replaceAll('Exception:', '').trim();
       notifyListeners();
     }
   }
@@ -367,14 +428,27 @@ class CaptainState extends ChangeNotifier {
   Future<void> accept(String tripId) async {
     final res = await _post('/trips/$tripId/accept');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
+    offers.removeWhere((o) => o['id'] == tripId);
+    // The captain now has a trip; previously dismissed offers are irrelevant.
+    _declinedTripIds.clear();
     notifyListeners();
+    // Report position immediately so the rider sees the captain moving without
+    // waiting for the next stream tick.
     await pushLocation();
   }
 
-  Future<void> decline(String tripId) async {
-    try {
-      await _post('/trips/$tripId/decline');
-    } catch (_) {}
+  /// Dismiss an offer locally.
+  ///
+  /// There is no POST /trips/:id/decline on the server — a captain declines
+  /// simply by not accepting, and the trip stays available to others. The old
+  /// implementation fired that request and swallowed the 404, wasting a
+  /// round-trip on every decline. The id is also remembered so the next
+  /// refreshOffers() poll does not immediately re-add the card the captain
+  /// just dismissed.
+  final Set<String> _declinedTripIds = {};
+
+  void decline(String tripId) {
+    _declinedTripIds.add(tripId);
     offers.removeWhere((o) => o['id'] == tripId);
     notifyListeners();
   }
@@ -423,12 +497,20 @@ class CaptainState extends ChangeNotifier {
   Future<void> logout() async {
     _stopLocationStream();
     offersTimer?.cancel();
+    offersTimer = null;
+    _wsDebounce?.cancel();
     offersWs?.dispose();
     offersWs = null;
+    offersWsStatus = 'idle';
     token = null;
     user = null;
     captain = null;
     activeTrip = null;
+    offers = [];
+    online = false;
+    error = null;
+    gpsError = null;
+    _declinedTripIds.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     notifyListeners();

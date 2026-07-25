@@ -19,15 +19,53 @@ class OfferCard extends StatefulWidget {
 class _OfferCardState extends State<OfferCard> {
   late int _secondsLeft;
   Timer? _timer;
+  bool _accepting = false;
+
+  /// Accepting can fail (409 TRIP_TAKEN when another captain got there first,
+  /// 403 NOT_APPROVED, network error). The old code called state.accept() as a
+  /// bare fire-and-forget, so a rejected accept looked identical to a
+  /// successful one — the card just sat there with no trip ever starting.
+  Future<void> _accept() async {
+    if (_accepting) return;
+    setState(() => _accepting = true);
+    HapticFeedback.mediumImpact();
+
+    final state = context.read<CaptainState>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await state.accept(widget.offer['id'] as String);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _accepting = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          backgroundColor: AppTokens.danger,
+        ),
+      );
+      // Drop the card: the trip is very likely gone.
+      await state.refreshOffers();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _secondsLeft = 15;
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      // The tick fired setState unconditionally; if the card left the tree
+      // between ticks (the offers list rebuilds every 20s poll) that threw
+      // "setState() called after dispose()".
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       setState(() => _secondsLeft--);
-      if (_secondsLeft <= 5) HapticFeedback.lightImpact();
-      if (_secondsLeft <= 0) t.cancel();
+      if (_secondsLeft <= 0) {
+        t.cancel();
+      } else if (_secondsLeft <= 5) {
+        HapticFeedback.lightImpact();
+      }
     });
   }
 
@@ -39,15 +77,21 @@ class _OfferCardState extends State<OfferCard> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<CaptainState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final panel = isDark ? AppTokens.darkPanel : AppTokens.lightSurface;
     final text = isDark ? AppTokens.darkText : AppTokens.lightText;
     final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
     final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
+    // /captain/offers returns raw snake_case trip rows, so the trip length is
+    // `distance_km`. The old camelCase `distanceKm` lookup never matched and
+    // the distance was silently hidden on every card. (camelCase distanceKm
+    // only appears in the WebSocket trip.offer payload.)
     final fare = (widget.offer['estimated_fare'] as num?)?.toDouble() ?? 0;
-    final distanceKm = (widget.offer['distanceKm'] as num?)?.toDouble();
+    final distanceKm = (widget.offer['distance_km'] as num?)?.toDouble() ??
+        (widget.offer['distanceKm'] as num?)?.toDouble();
+    // Not present on /captain/offers (only on /captain/nearby-requests) —
+    // rendered when available, omitted otherwise.
     final captainToPickupKm = (widget.offer['captain_to_pickup_km'] as num?)?.toDouble();
     final pickup = widget.offer['pickup_address'] ?? 'موقف الالتقاط';
     final dropoff = widget.offer['dropoff_address'] ?? 'الوجهة';
@@ -122,16 +166,21 @@ class _OfferCardState extends State<OfferCard> {
                   child: SizedBox(
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () { HapticFeedback.mediumImpact(); state.accept(widget.offer['id']); },
+                      onPressed: _accepting ? null : _accept,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTokens.primary, foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
                       ),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.check, size: 20),
-                        const SizedBox(width: 8),
-                        Text('قبول', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
-                      ]),
+                      child: _accepting
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                              const Icon(Icons.check, size: 20),
+                              const SizedBox(width: 8),
+                              Text('قبول', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
+                            ]),
                     ),
                   ),
                 ),
@@ -141,10 +190,12 @@ class _OfferCardState extends State<OfferCard> {
                   child: SizedBox(
                     height: 48,
                     child: OutlinedButton(
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        context.read<CaptainState>().decline(widget.offer['id']);
-                      },
+                      onPressed: _accepting
+                          ? null
+                          : () {
+                              HapticFeedback.lightImpact();
+                              context.read<CaptainState>().decline(widget.offer['id'] as String);
+                            },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: muted, side: BorderSide(color: border),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),

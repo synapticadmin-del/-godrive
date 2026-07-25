@@ -241,7 +241,13 @@ class _HomeTabState extends State<HomeTab> {
                 controller: ctrl,
                 padding: const EdgeInsets.all(12),
                 itemCount: offers.length,
-                itemBuilder: (_, i) => OfferCard(offer: offers[i])
+                // Keyed by trip id: without a key Flutter reuses the State of
+                // whatever card previously sat at this index, so an expiring
+                // countdown would carry over onto a brand-new offer.
+                itemBuilder: (_, i) => OfferCard(
+                  key: ValueKey(offers[i]['id']),
+                  offer: offers[i],
+                )
                     .animate()
                     .fade(delay: (50 * i).ms)
                     .slideX(begin: 0.2),
