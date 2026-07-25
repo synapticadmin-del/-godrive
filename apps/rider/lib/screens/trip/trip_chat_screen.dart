@@ -40,7 +40,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
     final text = _msgCtrl.text;
     _msgCtrl.clear();
     try {
-      await context.read<AppState>().apiPost('/safety/chat/${widget.tripId}', {'content': text});
+      await context.read<AppState>().apiPost('/safety/chat/${widget.tripId}', {'body': text});
       _fetchMessages();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
