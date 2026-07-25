@@ -93,18 +93,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () async {
-                    await ctx.read<AppState>().updateUserProfile(
-                          name: nameController.text.trim(),
-                          phone: phoneController.text.trim(),
-                        );
-                    if (ctx.mounted) {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await ctx.read<AppState>().updateUserProfile(
+                            name: nameController.text.trim(),
+                            phone: phoneController.text.trim(),
+                          );
+                      if (!ctx.mounted) return;
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(
                             isAr ? 'تم حفظ التعديلات بنجاح' : 'Profile updated successfully',
                           ),
                           backgroundColor: AppTokens.success,
+                        ),
+                      );
+                    } catch (e) {
+                      if (!ctx.mounted) return;
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(
+                          content: Text(e.toString().replaceFirst('Exception: ', '')),
+                          backgroundColor: AppTokens.danger,
                         ),
                       );
                     }
