@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -32,8 +34,15 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     try {
       final state = context.read<CaptainState>();
       final res = await state.apiGet('/captain/documents');
+      // The success path called setState without a mounted check, which throws
+      // if the captain leaves the screen while the request is in flight.
+      if (!mounted) return;
       setState(() {
-        _docs = (res['documents'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        _docs = (res['documents'] as List?)
+                ?.whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList() ??
+            [];
         _loading = false;
       });
     } catch (_) {
@@ -48,43 +57,86 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Future<void> _upload(String docType, String title) async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.camera, imageQuality: 75);
-    if (image == null) return;
+    // Camera-only forced captains to re-shoot documents they had already
+    // photographed, so the gallery is offered as well.
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: AppTokens.primary),
+              title: const Text('التقاط صورة'),
+              onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: AppTokens.accent),
+              title: const Text('اختيار من المعرض'),
+              onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final XFile? image = await _picker.pickImage(source: source, imageQuality: 75);
+    if (image == null || !mounted) return;
 
     setState(() => _uploading.add(docType));
 
-    try {
-      final state = context.read<CaptainState>();
+    final state = context.read<CaptainState>();
+    final messenger = ScaffoldMessenger.of(context);
 
-      // Step 1: upload file to R2
+    try {
+      // Step 1: upload the file to R2. The endpoint expects multipart/form-data
+      // with the file under the field name `file` and responds
+      // {ok, r2Key, url}.
       final uploadReq = http.MultipartRequest('POST', Uri.parse('${state.baseUrl}/captain/upload'));
       uploadReq.headers['Authorization'] = 'Bearer ${state.token}';
       uploadReq.files.add(await http.MultipartFile.fromPath('file', image.path));
-      final uploadRes = await uploadReq.send();
-      if (uploadRes.statusCode >= 300) throw Exception('فشل رفع الملف');
 
+      final uploadRes = await uploadReq.send();
       final uploadBody = await uploadRes.stream.bytesToString();
-      final uploadData = Uri.decodeComponent(uploadBody);
-      // Extract r2Key from JSON response
-      final r2KeyMatch = RegExp(r'"r2Key"\s*:\s*"([^"]+)"').firstMatch(uploadData);
-      final r2Key = r2KeyMatch?.group(1);
-      if (r2Key == null) throw Exception('استجابة الرفع غير صالحة');
+
+      if (uploadRes.statusCode >= 300) {
+        // Surface the server's reason (FILE_TOO_LARGE, MISSING_FILE, …)
+        // instead of a blanket failure message.
+        String reason = 'فشل رفع الملف';
+        try {
+          final err = jsonDecode(uploadBody);
+          if (err is Map && err['error'] != null) reason = err['error'].toString();
+        } catch (_) {}
+        throw Exception(reason);
+      }
+
+      // The response was previously run through Uri.decodeComponent() and
+      // scraped with a regex. That throws FormatException on any stray '%' in
+      // the body and silently mis-parses escaped characters — it is plain
+      // JSON, so decode it as JSON.
+      final decoded = jsonDecode(uploadBody);
+      final r2Key = decoded is Map ? decoded['r2Key'] as String? : null;
+      if (r2Key == null || r2Key.isEmpty) {
+        throw Exception('استجابة الرفع غير صالحة');
+      }
 
       // Step 2: register document in DB
       await state.apiPost('/captain/documents', {'type': docType, 'r2Key': r2Key});
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم رفع $title بنجاح — قيد المراجعة'), backgroundColor: AppTokens.success),
-        );
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('تم رفع $title بنجاح — قيد المراجعة'), backgroundColor: AppTokens.success),
+      );
       await _loadDocs();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: AppTokens.danger),
-        );
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('خطأ: ${e.toString().replaceAll('Exception:', '').trim()}'),
+          backgroundColor: AppTokens.danger,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _uploading.remove(docType));
     }
@@ -114,6 +166,27 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         title: Text('المستندات', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
+        actions: [
+          // MainShell renders this screen full-screen (with no nav bar) while
+          // the captain is unapproved, so without these the captain is stuck:
+          // no way to re-check approval and no way to sign out.
+          IconButton(
+            tooltip: 'تحديث حالة الحساب',
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              final state = context.read<CaptainState>();
+              await _loadDocs();
+              try {
+                await state.refreshMe();
+              } catch (_) {}
+            },
+          ),
+          IconButton(
+            tooltip: 'تسجيل الخروج',
+            icon: const Icon(Icons.logout),
+            onPressed: () => context.read<CaptainState>().logout(),
+          ),
+        ],
       ),
       body: _loading
           ? const SkeletonList(count: 4)
