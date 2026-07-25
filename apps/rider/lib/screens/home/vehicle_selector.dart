@@ -18,8 +18,11 @@ class _VehicleSelectorState extends State<VehicleSelector> {
   @override
   Widget build(BuildContext context) {
     final estimate = widget.fareEstimate;
-    final economyPrice = estimate?['estimatedFare'] ?? 0;
-    
+    final fare = estimate?['fare'];
+    final economyPrice = fare is Map
+        ? (fare['total'] as num?)?.toDouble() ?? 0.0
+        : (estimate?['estimatedFare'] as num?)?.toDouble() ?? 0.0;
+
     final vehicles = [
       {'id': 'economy', 'name': 'اقتصادي', 'icon': Icons.directions_car, 'multiplier': 1.0},
       {'id': 'comfort', 'name': 'كومفورت', 'icon': Icons.airport_shuttle, 'multiplier': 1.3},
