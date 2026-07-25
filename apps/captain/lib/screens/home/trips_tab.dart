@@ -49,8 +49,10 @@ class _TripsTabState extends State<TripsTab> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final text = isDark ? AppTokens.lightText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.lightMuted : AppTokens.lightMuted;
+    // Both branches previously resolved to the light tokens, so dark mode
+    // rendered near-black text on a near-black surface.
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -115,24 +117,28 @@ class _TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final status = trip['status'] as String? ?? '';
-    final fare = (trip['estimated_fare'] as num?)?.toDouble() ?? 0;
+    // A completed trip's real payout is final_fare; estimated_fare is only the
+    // pre-trip quote, so showing it made finished trips display the wrong
+    // amount whenever the fare was adjusted on completion.
+    final fare = (trip['final_fare'] as num?)?.toDouble() ??
+        (trip['estimated_fare'] as num?)?.toDouble() ??
+        0;
     final pickup = trip['pickup_address'] ?? 'موقف غير محدد';
     final dropoff = trip['dropoff_address'] ?? 'وجهة غير محددة';
-    final date = (trip['created_at'] ?? '').toString().substring(0, 10);
+    // substring(0, 10) throws on any timestamp shorter than 10 characters.
+    final rawDate = (trip['created_at'] ?? '').toString();
+    final date = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? AppTokens.lightPanel
-            : AppTokens.lightPanel,
+        color: isDark ? AppTokens.darkPanel : AppTokens.lightPanel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
         border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? AppTokens.lightBorder
-              : AppTokens.lightBorder,
+          color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
         ),
       ),
       child: Column(
@@ -146,7 +152,7 @@ class _TripCard extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                '$fare ج.م',
+                '${fare.toStringAsFixed(2)} ج.م',
                 style: GoogleFonts.ibmPlexSansArabic(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,

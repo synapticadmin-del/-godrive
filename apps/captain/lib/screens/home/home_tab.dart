@@ -33,6 +33,11 @@ class _HomeTabState extends State<HomeTab> {
     final isApproved = approval == 'approved';
     final activeTrip = state.activeTrip;
     final offers = state.offers;
+    // name may be null, empty, or whitespace — substring(0, 1) throws on an
+    // empty string, so the initial is derived defensively.
+    final captainName = (state.user?['name'] as String?)?.trim();
+    final hasName = captainName != null && captainName.isNotEmpty;
+    final initial = hasName ? captainName[0].toUpperCase() : 'C';
 
     return Stack(
       children: [
@@ -46,7 +51,10 @@ class _HomeTabState extends State<HomeTab> {
           top: MediaQuery.of(context).padding.top + 10,
           left: 60, // leave room for SOS FAB
           right: 16,
-          child: _buildStatusBar(panelColor, text, muted, border, state, isApproved),
+          child: _buildStatusBar(
+            panelColor, text, muted, border, state, isApproved,
+            initial, hasName ? captainName : 'كابتن',
+          ),
         ),
 
         // Approval banner
@@ -72,6 +80,7 @@ class _HomeTabState extends State<HomeTab> {
   Widget _buildStatusBar(
     Color bg, Color text, Color muted, Color border,
     CaptainState state, bool isApproved,
+    String initial, String displayName,
   ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -92,7 +101,7 @@ class _HomeTabState extends State<HomeTab> {
             backgroundColor: AppTokens.primary.withOpacity(0.15),
             radius: 16,
             child: Text(
-              state.user?['name']?.substring(0, 1) ?? 'C',
+              initial,
               style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
@@ -103,7 +112,7 @@ class _HomeTabState extends State<HomeTab> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  state.user?['name'] ?? 'كابتن',
+                  displayName,
                   style: GoogleFonts.ibmPlexSansArabic(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,

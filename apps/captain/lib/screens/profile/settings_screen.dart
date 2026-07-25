@@ -26,11 +26,18 @@ class SettingsScreen extends StatelessWidget {
     final captain = state.captain;
     final approval = captain?['approval_status'] ?? captain?['status'];
     final isApproved = approval == 'approved';
-    final rating = captain?['rating_avg']?.toString() ?? '5.0';
-    final tripCount = captain?['rating_count']?.toString() ?? '0';
-    final vehicleMake = captain?['vehicle_make'] ?? '';
-    final vehicleModel = captain?['vehicle_model'] ?? '';
-    final vehiclePlate = captain?['vehicle_plate'] ?? '';
+    // rating_avg is a REAL that can arrive as 4.6666…, so it is trimmed to one
+    // decimal rather than printed raw.
+    final ratingValue = (captain?['rating_avg'] as num?)?.toDouble() ?? 5.0;
+    final rating = ratingValue.toStringAsFixed(1);
+    final tripCount = ((captain?['rating_count'] as num?)?.toInt() ?? 0).toString();
+    final vehicleMake = (captain?['vehicle_make'] as String?) ?? '';
+    final vehicleModel = (captain?['vehicle_model'] as String?) ?? '';
+    final vehiclePlate = (captain?['vehicle_plate'] as String?) ?? '';
+    // substring(0, 1) throws when the name is an empty string.
+    final captainName = (state.user?['name'] as String?)?.trim();
+    final hasName = captainName != null && captainName.isNotEmpty;
+    final initial = hasName ? captainName[0].toUpperCase() : 'C';
 
     return Scaffold(
       backgroundColor: bg,
@@ -48,13 +55,13 @@ class SettingsScreen extends StatelessWidget {
                 radius: 32,
                 backgroundColor: AppTokens.primary.withOpacity(0.15),
                 child: Text(
-                  state.user?['name']?.substring(0, 1).toUpperCase() ?? 'C',
+                  initial,
                   style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.w800, fontSize: 24),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(state.user?['name'] ?? 'كابتن',
+                Text(hasName ? captainName : 'كابتن',
                   style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
                 const SizedBox(height: 4),
                 Row(children: [
