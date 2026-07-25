@@ -60,8 +60,14 @@ authRoutes.post(
     const phone = body.phone;
     const role = body.role;
 
-    // Turnstile anti-bot verification when a site key + secret are configured.
-    if (body.turnstileToken) {
+    // Turnstile anti-bot verification.
+    // Called unconditionally. Gating this on `if (body.turnstileToken)` meant a
+    // bot could bypass the check completely just by omitting the field.
+    // verifyTurnstile() already no-ops when TURNSTILE_SECRET_KEY is unset (so
+    // local dev is unaffected), and returns { ok: false, error: "missing_token" }
+    // when a secret IS configured but no token was supplied — which is exactly
+    // the case that previously slipped through.
+    {
       const ts = await verifyTurnstile({
         token: body.turnstileToken,
         remoteIp: c.req.header("cf-connecting-ip"),

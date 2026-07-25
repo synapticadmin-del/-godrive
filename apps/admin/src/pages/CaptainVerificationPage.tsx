@@ -50,7 +50,11 @@ export default function CaptainVerificationPage() {
     }
   };
 
-  const fileUrl = (doc: Doc) => `${API_BASE}/admin/documents/${doc.id}/file`;
+  // The endpoint is auth-protected, but an <img> cannot send an Authorization
+  // header. The API allows a ?token= credential on exactly this route (see
+  // apps/api/src/middleware/auth.ts) so the image can be fetched by the browser.
+  const fileUrl = (doc: Doc) =>
+    `${API_BASE}/admin/documents/${doc.id}/file${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 
   return (
     <div className="space-y-6">

@@ -229,7 +229,8 @@ companyRoutes.get("/portal/invoices", async (c) => {
     .bind(emp.company_id)
     .all();
   const trips = await c.env.DB.prepare(
-    `SELECT id, fare, pickup_address, dropoff_address, cost_center,
+    `SELECT id, COALESCE(final_fare, estimated_fare, 0) AS fare,
+            pickup_address, dropoff_address, cost_center,
             datetime(created_at) AS created_at, status
      FROM trips WHERE company_id = ? ORDER BY created_at DESC LIMIT 100`,
   )

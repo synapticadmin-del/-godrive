@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { DbPricing, DbTrip, DbUser } from "../lib/types";
 import { pricingUpdateSchema } from "../lib/schemas";
 import { logAudit } from "../lib/audit";
-import { nowIso } from "../lib/utils";
+import { intParam, nowIso, pctDelta, previousPeriod } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody } from "../middleware/rateLimit";
 
@@ -27,7 +27,7 @@ adminRoutes.get("/stats", async (c) => {
     `SELECT COUNT(*) as trips,
             COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv,
             COALESCE(SUM(CASE WHEN status='completed' THEN commission ELSE 0 END),0) as commission
-     FROM trips WHERE created_at >= ?`,
+     FROM trips WHERE datetime(created_at) >= datetime(?)`,
   )
     .bind(todayIso)
     .first<{ trips: number; gmv: number; commission: number }>();
@@ -65,6 +65,22 @@ adminRoutes.get("/analytics", async (c) => {
   const from = c.req.query("from") || new Date(Date.now() - 30 * 864e5).toISOString();
   const to = c.req.query("to") || nowIso();
 
+  // The admin UI sends date-only bounds ("2026-07-25"), while stored timestamps
+  // carry a time component. Comparing "2026-07-25 14:03:00" <= "2026-07-25" is
+  // false, which silently dropped the whole final day of every range.
+  // For a date-only upper bound, move to the start of the NEXT day and compare
+  // exclusively so the selected end date is fully included. A full timestamp is
+  // already precise, so it is used as-is (shifting it would over-extend by a day).
+  // The '+1 day' shift is applied by SQLite, so the bound value is passed
+  // through unchanged; only the comparison form differs.
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(to);
+  const upperBound = isDateOnly
+    ? `datetime(created_at) < datetime(?, '+1 day')`
+    : `datetime(created_at) <= datetime(?)`;
+  const upperBoundCompleted = isDateOnly
+    ? `datetime(t.completed_at) < datetime(?, '+1 day')`
+    : `datetime(t.completed_at) <= datetime(?)`;
+
   const daily = await c.env.DB.prepare(
     `SELECT date(created_at) as day,
             COUNT(*) as trips,
@@ -72,7 +88,7 @@ adminRoutes.get("/analytics", async (c) => {
             COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv,
             COALESCE(SUM(CASE WHEN status='completed' THEN commission ELSE 0 END),0) as commission
      FROM trips
-     WHERE created_at >= ? AND created_at <= ?
+     WHERE datetime(created_at) >= datetime(?) AND ${upperBound}
      GROUP BY date(created_at)
      ORDER BY day ASC`,
   )
@@ -85,7 +101,7 @@ adminRoutes.get("/analytics", async (c) => {
             COALESCE(SUM(t.final_fare),0) as gmv
      FROM trips t
      JOIN users u ON u.id = t.captain_id
-     WHERE t.status = 'completed' AND t.completed_at >= ? AND t.completed_at <= ?
+     WHERE t.status = 'completed' AND datetime(t.completed_at) >= datetime(?) AND ${upperBoundCompleted}
      GROUP BY t.captain_id
      ORDER BY trips DESC
      LIMIT 10`,
@@ -93,20 +109,92 @@ adminRoutes.get("/analytics", async (c) => {
     .bind(from, to)
     .all();
 
-  const totals = await c.env.DB.prepare(
-    `SELECT COUNT(*) as trips,
+  const totalsSql = `SELECT COUNT(*) as trips,
             SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed,
             SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) as cancelled,
-            COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv
-     FROM trips WHERE created_at >= ? AND created_at <= ?`,
-  )
+            COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv,
+            COALESCE(SUM(CASE WHEN status='completed' THEN commission ELSE 0 END),0) as commission
+     FROM trips WHERE datetime(created_at) >= datetime(?) AND ${upperBound}`;
+
+  const totals = await c.env.DB.prepare(totalsSql)
     .bind(from, to)
-    .first<{ trips: number; completed: number; cancelled: number; gmv: number }>();
+    .first<{
+      trips: number;
+      completed: number;
+      cancelled: number;
+      gmv: number;
+      commission: number;
+    }>();
 
   const completionRate =
     totals && totals.trips > 0
       ? Math.round(((totals.completed ?? 0) / totals.trips) * 1000) / 10
       : 0;
+
+  // --- Previous-period comparison -----------------------------------------
+  // The KPI cards previously rendered hard-coded literals ("+14.2%", "+8.5%",
+  // "+3.1%") beneath the label "مقارنة بالفترة السابقة" (compared to the
+  // previous period). No comparison was ever computed. These are the real
+  // numbers behind that label.
+  //
+  // The comparison window must be the SAME LENGTH as the selected one and must
+  // end exactly where it begins, otherwise the two are not comparable and the
+  // delta is meaningless. Date-only bounds include the whole end day, so the
+  // effective span is (to + 1 day) - from; a full timestamp is already exact.
+  const prev = previousPeriod(from, to);
+
+  let previousTotals: {
+    trips: number;
+    completed: number;
+    cancelled: number;
+    gmv: number;
+    commission: number;
+  } | null = null;
+
+  if (prev) {
+    // The previous window's upper bound is an exclusive instant (it is the
+    // current window's start), so it always uses the `<` form regardless of
+    // how the caller expressed `to`.
+    previousTotals = await c.env.DB.prepare(
+      `SELECT COUNT(*) as trips,
+              SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed,
+              SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) as cancelled,
+              COALESCE(SUM(CASE WHEN status='completed' THEN final_fare ELSE 0 END),0) as gmv,
+              COALESCE(SUM(CASE WHEN status='completed' THEN commission ELSE 0 END),0) as commission
+       FROM trips
+       WHERE datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)`,
+    )
+      .bind(prev.prevFrom, prev.prevToExclusive)
+      .first<{
+        trips: number;
+        completed: number;
+        cancelled: number;
+        gmv: number;
+        commission: number;
+      }>();
+  }
+
+  const prevCompletionRate =
+    previousTotals && previousTotals.trips > 0
+      ? Math.round(((previousTotals.completed ?? 0) / previousTotals.trips) * 1000) / 10
+      : 0;
+
+  // pctDelta returns null when the baseline is zero and the current value is
+  // not. A jump from nothing is not "infinity percent" — the UI renders those
+  // as "جديد" (new) rather than inventing a number.
+  const deltas = {
+    trips: pctDelta(totals?.trips, previousTotals?.trips),
+    completed: pctDelta(totals?.completed, previousTotals?.completed),
+    gmv: pctDelta(totals?.gmv, previousTotals?.gmv),
+    commission: pctDelta(totals?.commission, previousTotals?.commission),
+    // Completion rate is already a percentage, so its change is reported in
+    // percentage POINTS, not as a percentage-of-a-percentage. Mixing those two
+    // is a classic dashboard lie.
+    completionRatePoints:
+      previousTotals === null
+        ? null
+        : Math.round((completionRate - prevCompletionRate) * 10) / 10,
+  };
 
   return c.json({
     from,
@@ -114,6 +202,17 @@ adminRoutes.get("/analytics", async (c) => {
     totals: { ...totals, completionRate },
     daily: daily.results ?? [],
     topCaptains: topCaptains.results ?? [],
+    // `previous` is null when the range is unparseable or inverted. The UI must
+    // treat null as "no comparison available" and show no delta at all, rather
+    // than falling back to a placeholder figure.
+    previous: prev
+      ? {
+          from: prev.prevFrom,
+          to: prev.prevToExclusive,
+          totals: { ...previousTotals, completionRate: prevCompletionRate },
+        }
+      : null,
+    deltas,
   });
 });
 
@@ -129,15 +228,19 @@ adminRoutes.get("/audit-log", async (c) => {
 
 adminRoutes.get("/captains", async (c) => {
   const status = c.req.query("status");
-  // Clean stale online sessions older than 5 minutes
+  // Clean stale online sessions older than 5 minutes.
+  // last_seen_at is written via nowIso() ("2026-07-25T21:00:00.000Z") while
+  // datetime('now', ...) yields "2026-07-25 21:00:00". A bytewise TEXT compare
+  // put every ISO value above the threshold ('T' 0x54 > ' ' 0x20), so no stale
+  // session was ever cleared. datetime() on both sides normalises the encodings.
   await c.env.DB.prepare(
-    `UPDATE captains SET is_online = 0 WHERE is_online = 1 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))`
+    `UPDATE captains SET is_online = 0 WHERE is_online = 1 AND (last_seen_at IS NULL OR datetime(last_seen_at) < datetime('now', '-5 minutes'))`
   ).run();
 
   let sql = `
     SELECT c.*,
            CASE
-             WHEN c.is_online = 1 AND (c.last_seen_at IS NOT NULL AND c.last_seen_at >= datetime('now', '-5 minutes')) THEN 1
+             WHEN c.is_online = 1 AND (c.last_seen_at IS NOT NULL AND datetime(c.last_seen_at) >= datetime('now', '-5 minutes')) THEN 1
              ELSE 0
            END as is_online,
            u.email, u.name, u.phone, u.status as user_status, u.created_at as user_created_at

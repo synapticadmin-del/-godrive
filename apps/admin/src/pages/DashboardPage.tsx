@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatCurrency } from '../lib/utils';
 import { StatusBadge } from '../components/ui/Badge';
-import { Users, Car, Route as RouteIcon, DollarSign, TrendingUp, Activity } from 'lucide-react';
+import { Users, Car, Route as RouteIcon, DollarSign, Activity } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 
 interface Stats {
@@ -73,10 +73,39 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="إجمالي الركاب" value={(riders || 0).toLocaleString('ar-EG')} icon={<Users className="w-6 h-6" />} trend="+12%" positive />
-        <StatCard label="الكباتن المسجلين" value={(captains || 0).toLocaleString('ar-EG')} icon={<Car className="w-6 h-6" />} trend="+8%" positive />
-        <StatCard label="الرحلات النشطة" value={String(activeTrips)} icon={<RouteIcon className="w-6 h-6" />} badge={stats?.onlineCaptains ? `${stats.onlineCaptains} أونلاين` : undefined} />
-        <StatCard label="GMV اليوم" value={formatCurrency(stats?.today?.gmv ?? 0)} icon={<DollarSign className="w-6 h-6" />} trend={stats?.today?.commission ? `عمولة: ${formatCurrency(stats.today.commission)}` : ''} positive />
+        {/* NOTE: the first two cards previously showed trend="+12%" / "+8%".
+            Those were hard-coded literals — nothing computed them, and
+            /admin/stats returns only current totals with no historical
+            baseline to compare against. They have been removed rather than
+            restyled. Cards that CAN state a real fact use `footnote`, which is
+            a plain caption and makes no comparative claim. */}
+        <StatCard
+          label="إجمالي الركاب"
+          value={(riders || 0).toLocaleString('ar-EG')}
+          icon={<Users className="w-6 h-6" />}
+          loading={!stats}
+        />
+        <StatCard
+          label="الكباتن المسجلين"
+          value={(captains || 0).toLocaleString('ar-EG')}
+          icon={<Car className="w-6 h-6" />}
+          footnote={stats?.pendingCaptains ? `${stats.pendingCaptains.toLocaleString('ar-EG')} بانتظار الموافقة` : undefined}
+          loading={!stats}
+        />
+        <StatCard
+          label="الرحلات النشطة"
+          value={String(activeTrips)}
+          icon={<RouteIcon className="w-6 h-6" />}
+          badge={stats?.onlineCaptains ? `${stats.onlineCaptains} أونلاين` : undefined}
+          loading={!stats}
+        />
+        <StatCard
+          label="GMV اليوم"
+          value={formatCurrency(stats?.today?.gmv ?? 0)}
+          icon={<DollarSign className="w-6 h-6" />}
+          footnote={stats?.today?.commission ? `عمولة: ${formatCurrency(stats.today.commission)}` : undefined}
+          loading={!stats}
+        />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
@@ -159,7 +188,28 @@ export default function DashboardPage() {
               <MiniStat label="الرحلات" value={stats?.today?.trips ?? 0} color="info" />
               <MiniStat label="GMV" value={formatCurrency(stats?.today?.gmv ?? 0)} color="info" />
               <MiniStat label="العمولة" value={formatCurrency(stats?.today?.commission ?? 0)} color="info" />
-              <MiniStat label="معدل الإكمال" value={stats?.today?.trips ? `${Math.round(((stats.tripsByStatus.find(s => s.status === 'completed')?.count ?? 0) / stats.today.trips) * 100)}%` : '0%'} color="info" />
+              {/* This tile previously divided ALL-TIME completed trips
+                  (tripsByStatus, which is ungrouped by date) by TODAY's trip
+                  count, under a heading that reads "أداء اليوم" (today's
+                  performance). On any instance with history that yields
+                  nonsense — 40 completed all-time over 2 trips today rendered
+                  as "2000%".
+
+                  /admin/stats.today does not return a completed count, so a
+                  correct same-day rate cannot be derived here. Showing the
+                  average fare instead: it is genuinely today-scoped, uses only
+                  fields the endpoint actually returns, and is useful at a
+                  glance. The real completion rate lives on the analytics page,
+                  where it is computed over a well-defined range. */}
+              <MiniStat
+                label="متوسط قيمة الرحلة"
+                value={
+                  stats?.today?.trips
+                    ? formatCurrency(Math.round((stats.today.gmv ?? 0) / stats.today.trips))
+                    : formatCurrency(0)
+                }
+                color="info"
+              />
             </div>
           </div>
         </div>
@@ -168,12 +218,51 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon, trend, positive, badge }: { label: string; value: string; icon: React.ReactNode; trend?: string; positive?: boolean; badge?: string }) {
+/**
+ * Summary card for the live dashboard.
+ *
+ * `footnote` is a neutral caption for a fact the card can actually state (a
+ * pending count, today's commission). It is deliberately NOT a trend: this
+ * endpoint has no historical baseline, so any "+X% vs yesterday" rendered here
+ * would be invented. The previous version accepted a free-text `trend` string
+ * and was being passed literals; that prop no longer exists.
+ */
+function StatCard({
+  label,
+  value,
+  icon,
+  footnote,
+  badge,
+  loading = false,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  footnote?: string;
+  badge?: string;
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="bg-surface-primary border border-border-primary rounded-xl p-5" aria-busy="true">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-surface-tertiary animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 bg-surface-tertiary rounded animate-pulse w-2/3" />
+            <div className="h-6 bg-surface-tertiary rounded animate-pulse w-1/2" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-surface-primary border border-border-primary rounded-xl p-5">
+    <div className="group bg-surface-primary border border-border-primary rounded-xl p-5 transition-all duration-200 hover:border-primary-500/40 hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500">{icon}</div>
+          <div className="w-12 h-12 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500 transition-transform duration-200 group-hover:scale-105">
+            {icon}
+          </div>
           <div>
             <p className="text-sm text-text-secondary">{label}</p>
             <p className="text-2xl font-bold text-text-primary">{value}</p>
@@ -181,10 +270,9 @@ function StatCard({ label, value, icon, trend, positive, badge }: { label: strin
         </div>
         {badge && <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success-main/10 text-success-main">{badge}</span>}
       </div>
-      {trend && (
-        <div className="mt-3 pt-3 border-t border-border-primary flex items-center gap-2">
-          <TrendingUp className={`w-4 h-4 ${positive ? 'text-success-main' : 'text-error-main'}`} />
-          <span className={`text-sm font-medium ${positive ? 'text-success-main' : 'text-error-main'}`}>{trend}</span>
+      {footnote && (
+        <div className="mt-3 pt-3 border-t border-border-primary">
+          <span className="text-sm text-text-tertiary">{footnote}</span>
         </div>
       )}
     </div>

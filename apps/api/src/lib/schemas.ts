@@ -8,7 +8,7 @@ export const requestOtpSchema = z
       .max(30)
       .optional()
       .transform((s) => (s ? s.replace(/[\s-]/g, "") : s)),
-    role: z.enum(["rider", "captain"]).default("rider"),
+    role: z.enum(["rider", "captain", "admin"]).default("rider"),
     name: z.string().max(120).optional(),
     turnstileToken: z.string().max(2048).optional(),
   })
@@ -188,17 +188,55 @@ export const validatePromoSchema = z.object({
   tripEstimate: z.number().min(0).max(10000).optional(),
 });
 
-export const createPromoSchema = z.object({
-  code: z
-    .string()
-    .min(3)
-    .max(40)
-    .transform((s) => s.toUpperCase()),
-  type: z.enum(["percent", "fixed"]).default("percent"),
-  value: z.number().min(0).max(100),
-  maxUses: z.number().int().min(1).max(1_000_000).optional(),
-  expiresAt: z.string().datetime().optional(),
-});
+// Accepts either camelCase or the snake_case the admin UI actually sends, and
+// tolerates explicit nulls for "no limit" / "no expiry".
+const optionalPositiveInt = z
+  .union([z.number().int().min(1).max(1_000_000), z.null()])
+  .optional();
+
+// The admin uses <input type="date">, which yields "2026-08-01". Accept that
+// as well as a full ISO timestamp, and normalise to an ISO string so the
+// stored value is comparable with the runtime's new Date(...) checks.
+const optionalExpiry = z
+  .union([
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD")
+      // End of the chosen day, so a code is valid for the whole date picked.
+      .transform((s) => new Date(`${s}T23:59:59.999Z`).toISOString()),
+    z.string().datetime(),
+    z.null(),
+  ])
+  .optional();
+
+export const createPromoSchema = z
+  .object({
+    code: z
+      .string()
+      .min(3)
+      .max(40)
+      .transform((s) => s.toUpperCase()),
+    type: z.enum(["percent", "fixed"]).default("percent"),
+    value: z.number().min(0).max(1_000_000),
+    maxUses: optionalPositiveInt,
+    max_uses: optionalPositiveInt,
+    expiresAt: optionalExpiry,
+    expires_at: optionalExpiry,
+  })
+  // A percentage discount above 100% would make the fare negative; a fixed
+  // discount has no such ceiling, which is why the cap is per-type.
+  .refine((d) => d.type !== "percent" || d.value <= 100, {
+    message: "percent discount cannot exceed 100",
+    path: ["value"],
+  })
+  // Collapse the two accepted spellings into the canonical camelCase fields.
+  .transform((d) => ({
+    code: d.code,
+    type: d.type,
+    value: d.value,
+    maxUses: d.maxUses ?? d.max_uses ?? null,
+    expiresAt: d.expiresAt ?? d.expires_at ?? null,
+  }));
 
 export const savedPlaceSchema = z.object({
   label: z.string().min(1).max(60),

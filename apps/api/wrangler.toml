@@ -69,7 +69,15 @@ zone_name = "synapticstudio.tech"
 [vars]
 APP_NAME = "Synaptic Go"
 APP_VERSION = "0.4.0"
-DEV_OTP = "true"
+# SECURITY: this MUST stay "false".
+# This top-level block shares its worker name ("synaptic-go-api") and its D1
+# binding with [env.prod], so a bare `wrangler deploy` with no --env flag
+# publishes these values directly over production. When DEV_OTP is "true" the
+# API returns the OTP code in the HTTP response body (auth.ts:132), which lets
+# anyone log in as any user without access to the email or phone.
+# For local development run `wrangler dev`, and override this to "true" in a
+# local, untracked .dev.vars file if you need the code echoed back.
+DEV_OTP = "false"
 DEFAULT_CITY = "cairo"
 JWT_ISSUER = "synaptic-go"
 OSRM_URL = "https://router.project-osrm.org"

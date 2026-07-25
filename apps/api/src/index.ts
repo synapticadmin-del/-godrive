@@ -42,7 +42,9 @@ app.use(
       if (!origin) return "*";
       if (ALLOWED_ORIGINS.includes(origin)) return origin;
       if (origin.endsWith(".synapticstudio.tech")) return origin;
-      if (origin.endsWith(".pages.dev")) return origin;
+      // Deliberately NOT trusting all of *.pages.dev: anyone can deploy a site
+      // on that shared domain and would then be same-origin-trusted by this API.
+      // The project's own Pages deployment is listed in ALLOWED_ORIGINS above.
       return ALLOWED_ORIGINS[0];
     },
     allowHeaders: ["Content-Type", "Authorization"],
@@ -264,9 +266,9 @@ export default {
         const periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth() - 1, 1);
         for (const cmp of companies.results ?? []) {
           const sum = await env.DB.prepare(
-            `SELECT COUNT(*) AS trips, COALESCE(SUM(fare), 0) AS total
+            `SELECT COUNT(*) AS trips, COALESCE(SUM(COALESCE(final_fare, estimated_fare, 0)), 0) AS total
              FROM trips WHERE company_id = ? AND billed_to_company = 1
-               AND created_at >= ? AND created_at < ?`,
+               AND datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)`,
           )
             .bind(cmp.id, periodStart.toISOString(), periodEnd.toISOString())
             .first<{ trips: number; total: number }>();

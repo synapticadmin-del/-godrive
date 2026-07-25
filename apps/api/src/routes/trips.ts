@@ -593,9 +593,13 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
   await logEvent(c.env.DB, tripId, "completed", user.id, { finalFare, commission });
 
   // Wallet handling:
-  //  - If paying from wallet (rider): debit rider, credit captain (commission separate).
-  //  - If company-billed (B2B): no rider debit; finance is collected monthly.
-  //  - Cash: no wallet writes here — commission is logged only.
+  //  - Wallet (rider): debit the rider, credit the captain's payout.
+  //  - Company-billed (B2B): no rider debit; finance is collected monthly.
+  //  - Cash: the captain collected the fare in hand, so DEBIT the platform
+  //    commission from the captain instead of crediting a payout. Crediting
+  //    here would pay the captain twice and forfeit the commission.
+  // All wallet moves are keyed by idempotency_key (unique index idx_wt_idem)
+  // so a retried completion cannot double-apply a balance change.
   if (trip.payment_method === "wallet" && !trip.billed_to_company && trip.rider_id) {
     const idemKey = `trip_debit:${tripId}`;
     const finalFarePiastres = Math.round(finalFare * 100);
@@ -616,17 +620,48 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
       .run();
   }
   if (trip.captain_id) {
-    await c.env.DB.prepare(
-      `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, trip_id, note, status, created_at)
-       VALUES (?, ?, 'commission', 'credit', ?, ?, 'أرباح رحلة مكتملة', 'settled', datetime('now'))`,
-    )
-      .bind(id("wt"), trip.captain_id, captainPayout, tripId)
-      .run();
-    await c.env.DB.prepare(
-      `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + ?, wallet_updated_at = ? WHERE id = ?`,
-    )
-      .bind(captainPayout, nowIso(), trip.captain_id)
-      .run();
+    if (trip.payment_method === "cash") {
+      // Cash: the captain already collected the full fare in hand from the rider.
+      // The platform is owed its commission, so debit that amount from the
+      // captain's wallet instead of crediting a payout.
+      const commissionPiastres = Math.round(commission * 100);
+      if (commission > 0) {
+        const idemKey = `trip_commission_debit:${tripId}`;
+        const ins = await c.env.DB.prepare(
+          `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
+           VALUES (?, ?, 'commission', 'debit', ?, ?, ?, ?, 'عمولة المنصة على رحلة نقدية', 'settled', datetime('now'))`,
+        )
+          .bind(id("wt"), trip.captain_id, commission, commissionPiastres, tripId, idemKey)
+          .run();
+
+        // Only move the balance if this is the first time we recorded the debit.
+        if (ins.meta && ins.meta.changes === 1) {
+          await c.env.DB.prepare(
+            `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) - ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) - ?, wallet_updated_at = ? WHERE id = ?`,
+          )
+            .bind(commission, commissionPiastres, nowIso(), trip.captain_id)
+            .run();
+        }
+      }
+    } else {
+      // Non-cash: the platform collected the fare, so credit the captain's payout.
+      const payoutPiastres = Math.round(captainPayout * 100);
+      const idemKey = `trip_payout:${tripId}`;
+      const ins = await c.env.DB.prepare(
+        `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
+         VALUES (?, ?, 'commission', 'credit', ?, ?, ?, ?, 'أرباح رحلة مكتملة', 'settled', datetime('now'))`,
+      )
+        .bind(id("wt"), trip.captain_id, captainPayout, payoutPiastres, tripId, idemKey)
+        .run();
+
+      if (ins.meta && ins.meta.changes === 1) {
+        await c.env.DB.prepare(
+          `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) + ?, wallet_updated_at = ? WHERE id = ?`,
+        )
+          .bind(captainPayout, payoutPiastres, nowIso(), trip.captain_id)
+          .run();
+      }
+    }
   }
 
   const updated = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
@@ -645,13 +680,18 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
     });
   }
   if (updated?.captain_id) {
+    const isCash = trip.payment_method === "cash";
     await pushToUser({
       env: c.env,
       userId: updated.captain_id,
       topic: "trip.completed",
       title: "اكتملت الرحلة",
-      body: `أرباحك من هذه الرحلة ${captainPayout} ج.م.`,
-      data: { tripId, payout: String(captainPayout) },
+      body: isCash
+        ? `حصّلت ${finalFare} ج.م نقداً. عمولة المنصة ${commission} ج.م خُصمت من محفظتك.`
+        : `أرباحك من هذه الرحلة ${captainPayout} ج.م.`,
+      data: isCash
+        ? { tripId, collected: String(finalFare), commission: String(commission) }
+        : { tripId, payout: String(captainPayout) },
     });
   }
   return c.json({ trip: updated });
