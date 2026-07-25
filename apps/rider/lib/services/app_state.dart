@@ -43,13 +43,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> registerDeviceToken(String fcm) async {
-    if (token == null) return;
-    try {
-      await _post('/user/device', {'token': fcm, 'platform': 'android'});
-    } catch (_) {}
-  }
-
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',

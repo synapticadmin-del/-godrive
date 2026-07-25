@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../models/ride_request_model.dart';
 import '../../services/captain_state.dart';
@@ -348,10 +349,10 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                   ),
                   child: Text(
                     '${req.offeredPrice.toStringAsFixed(0)} ج.م',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.black,
-                      color: Color(0xFF6BB522),
+                      fontWeight: FontWeight.w900,
+                      color: AppTokens.primary,
                     ),
                   ),
                 ),

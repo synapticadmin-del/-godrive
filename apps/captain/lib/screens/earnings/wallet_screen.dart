@@ -172,7 +172,7 @@ class _WalletScreenState extends State<WalletScreen> {
                     const Text('سجل المعاملات', style: TextStyle(color: AppTokens.lightText, fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     if ((_wallet?['transactions'] as List? ?? []).isEmpty)
-                      const EmptyState(message: 'لا توجد معاملات سابقة بالمحفظة حتى الآن')
+                      const EmptyState(icon: Icons.account_balance_wallet_outlined, title: 'لا توجد معاملات سابقة بالمحفظة حتى الآن')
                     else
                       ...((_wallet?['transactions'] as List? ?? []).map((tx) => _buildTransactionCard(tx as Map<String, dynamic>))),
                   ],

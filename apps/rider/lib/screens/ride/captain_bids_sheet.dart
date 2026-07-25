@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_shared/flutter_shared.dart';
 
 class CaptainBidsSheet extends StatefulWidget {
   final String tripId;
@@ -189,16 +190,16 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
                                   children: [
                                     Text(
                                       '${counterPrice.toStringAsFixed(0)} ج.م',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 17,
-                                        fontWeight: FontWeight.black,
-                                        color: Color(0xFF6BB522),
+                                        fontWeight: FontWeight.w900,
+                                        color: AppTokens.primary,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
                                     ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF6BB522),
+                                        backgroundColor: AppTokens.primary,
                                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),

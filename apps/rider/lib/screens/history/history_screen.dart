@@ -74,7 +74,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => TripDetailScreen(trip: trip)),
+                            MaterialPageRoute(builder: (_) => TripDetailScreen(tripId: trip['id']?.toString() ?? '')),
                           );
                         },
                         child: Padding(

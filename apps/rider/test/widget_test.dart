@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:godrive_rider/main.dart';
+import 'package:synaptic_go_rider/main.dart';
 
 void main() {
   testWidgets('Rider app boots', (tester) async {
