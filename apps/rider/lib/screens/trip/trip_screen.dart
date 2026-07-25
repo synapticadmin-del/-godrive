@@ -9,6 +9,7 @@ import '../../services/trip_ws.dart';
 import 'trip_chat_screen.dart';
 import '../safety/sos_screen.dart';
 import '../ride/rating_sheet.dart';
+import '../ride/captain_bids_sheet.dart';
 
 /// Rider trip screen — progressive states like Uber/Careem:
 /// searching → offered → assigned → arrived → in_progress → completed
@@ -34,6 +35,18 @@ class _TripScreenState extends State<TripScreen> {
   /// path their driver was taking.
   List<LatLng> _routePoints = const [];
 
+  /// True while the captain-offers sheet is on screen.
+  ///
+  /// `trip.updated` can arrive several times in a row (every bid re-broadcasts
+  /// the trip), so without this latch each frame would stack another sheet on
+  /// top of the last one and the rider would have to dismiss a pile of them.
+  bool _bidsSheetOpen = false;
+
+  /// The offers sheet's own context, kept so it can be dismissed by route
+  /// rather than by `Navigator.pop(context)` — popping the screen's context
+  /// would tear down the trip screen itself if the sheet had already gone.
+  BuildContext? _bidsSheetContext;
+
   @override
   void initState() {
     super.initState();
@@ -51,11 +64,88 @@ class _TripScreenState extends State<TripScreen> {
       });
       _fitToRoute();
       _connectWs();
+      // A trip can already have offers waiting by the time this screen opens —
+      // the captain may have bid while the booking sheet was still closing.
+      _syncBidsSheet();
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
       }
+    }
+  }
+
+  /// Keeps the captain-offers sheet in step with the trip status.
+  ///
+  /// `offered` means at least one captain has named a price and is waiting on
+  /// an answer. Until now the screen treated that exactly like `searching` and
+  /// showed a spinner, so real offers sat unanswered on the server while the
+  /// rider assumed nobody had responded. Opening the sheet here is what closes
+  /// that gap.
+  ///
+  /// It also handles the reverse: once the trip leaves `offered` — the rider
+  /// accepted, another captain was assigned, or the request was cancelled —
+  /// the sheet is stale and gets dismissed so it cannot sit over a live trip.
+  void _syncBidsSheet() {
+    if (!mounted) return;
+
+    if (_status != 'offered') {
+      _dismissBidsSheet();
+      return;
+    }
+
+    if (_bidsSheetOpen) return;
+
+    final state = context.read<AppState>();
+    final token = state.token;
+    // Without a token the sheet's requests would 401 in a loop; the auth
+    // interceptor will already be logging the rider out in that case.
+    if (token == null) return;
+
+    _bidsSheetOpen = true;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      // Dismissing would hide live offers behind an opaque map, so the rider
+      // has to make a decision — accept one, or cancel the request outright.
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        _bidsSheetContext = sheetContext;
+        return CaptainBidsSheet(
+          tripId: widget.tripId,
+          token: token,
+          baseUrl: state.baseUrl,
+          onBidAccepted: (trip) {
+            if (!mounted) return;
+            setState(() => _trip = Map<String, dynamic>.from(trip));
+          },
+          onCancelTrip: () {
+            _dismissBidsSheet();
+            _cancelTrip();
+          },
+        );
+      },
+    ).whenComplete(() {
+      // Covers every exit path — accepted, cancelled, or dismissed by
+      // `_dismissBidsSheet` — so the latch can never stick shut.
+      _bidsSheetOpen = false;
+      _bidsSheetContext = null;
+    });
+  }
+
+  /// Closes the offers sheet if it is still mounted.
+  ///
+  /// Pops the sheet's own route rather than the screen's, so a status change
+  /// arriving just after the rider dismissed the sheet cannot pop the trip
+  /// screen out from under them.
+  void _dismissBidsSheet() {
+    final sheetContext = _bidsSheetContext;
+    _bidsSheetOpen = false;
+    _bidsSheetContext = null;
+    if (sheetContext != null && sheetContext.mounted) {
+      Navigator.of(sheetContext).pop();
     }
   }
 
@@ -101,6 +191,10 @@ class _TripScreenState extends State<TripScreen> {
         final type = ev['type'] as String?;
         if (type == 'trip.updated' && ev['trip'] is Map) {
           setState(() => _trip = Map<String, dynamic>.from(ev['trip'] as Map));
+          // The backend flips the trip to `offered` the moment a captain bids.
+          // React to it here so the offers appear while the rider is watching,
+          // instead of only on the next rebuild.
+          _syncBidsSheet();
         } else if (type == 'location.captain') {
           final lat = (ev['lat'] as num?)?.toDouble();
           final lng = (ev['lng'] as num?)?.toDouble();
@@ -115,6 +209,7 @@ class _TripScreenState extends State<TripScreen> {
   @override
   void dispose() {
     _ws?.dispose();
+    _bidsSheetContext = null;
     super.dispose();
   }
 
@@ -365,7 +460,8 @@ class _TripScreenState extends State<TripScreen> {
 
   List<Widget> _buildPanelContent(Color text, Color muted) {
     switch (_status) {
-      case 'searching': case 'offered': return _searchingContent(text, muted);
+      case 'searching': return _searchingContent(text, muted);
+      case 'offered': return _offeredContent(text, muted);
       case 'assigned': case 'arrived': return _assignedContent(text, muted);
       case 'in_progress': return _inProgressContent(text, muted);
       case 'completed': return _completedContent(text, muted);
@@ -386,6 +482,37 @@ class _TripScreenState extends State<TripScreen> {
       icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
       style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
   ];
+
+  /// Panel shown behind the offers sheet while captains are bidding.
+  ///
+  /// The sheet itself carries the decision, but it can be popped — and on a
+  /// cold restart the status may already be `offered` — so this panel keeps a
+  /// way back to the offers rather than leaving the rider on a dead screen.
+  List<Widget> _offeredContent(Color text, Color muted) {
+    final go = GoTheme.of(context);
+    return [
+      Row(children: [
+        Icon(Icons.local_offer_rounded,
+            color: go.isDark ? go.action : AppTokens.primary, size: 20),
+        const SizedBox(width: 8),
+        Expanded(child: Text('وصلت عروض من الكباتن',
+          style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
+      ]),
+      const SizedBox(height: 4),
+      Text('اختار العرض اللي يناسبك من القايمة',
+        style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+      const SizedBox(height: 20),
+      SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _syncBidsSheet,
+        icon: const Icon(Icons.visibility_outlined, size: 18), label: const Text('عرض العروض'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: go.isDark ? go.action : AppTokens.primary,
+          foregroundColor: go.isDark ? go.onAction : Colors.white))),
+      const SizedBox(height: 8),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
+        icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
+        style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
+    ];
+  }
 
   List<Widget> _assignedContent(Color text, Color muted) {
     final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
@@ -491,7 +618,8 @@ class _TripScreenState extends State<TripScreen> {
 
   Map<String, dynamic> _statusConfig(String status) {
     switch (status) {
-      case 'searching': case 'offered': return {'label': 'جارٍ البحث', 'color': AppTokens.warning, 'icon': Icons.search};
+      case 'searching': return {'label': 'جارٍ البحث', 'color': AppTokens.warning, 'icon': Icons.search};
+      case 'offered': return {'label': 'عروض متاحة', 'color': AppTokens.success, 'icon': Icons.local_offer};
       case 'assigned': return {'label': 'كابتن في الطريق', 'color': AppTokens.primary, 'icon': Icons.directions_car};
       case 'arrived': return {'label': 'وصل الكابتن', 'color': AppTokens.primary, 'icon': Icons.location_on};
       case 'in_progress': return {'label': 'الرحلة جارية', 'color': AppTokens.primary, 'icon': Icons.navigation};
