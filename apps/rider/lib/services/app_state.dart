@@ -107,6 +107,19 @@ class AppState extends ChangeNotifier {
     return Map<String, dynamic>.from(data as Map);
   }
 
+  Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) async {
+    final res = await _executeWithAuthInterceptor(() => http.patch(
+          Uri.parse('$baseUrl$path'),
+          headers: _headers,
+          body: jsonEncode(body),
+        ));
+    final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+    if (res.statusCode >= 400) {
+      throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
+    }
+    return Map<String, dynamic>.from(data as Map);
+  }
+
   Future<Map<String, dynamic>> _get(String path) async {
     final res = await _executeWithAuthInterceptor(() => http.get(
           Uri.parse('$baseUrl$path'),
@@ -298,15 +311,25 @@ class AppState extends ChangeNotifier {
 
   Future<void> updateUserProfile({
     String? name,
-    String? email,
     String? phone,
     String? avatarUrl,
   }) async {
+    final payload = <String, dynamic>{
+      if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+      if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+    };
+
+    var updatedUser = Map<String, dynamic>.from(user ?? const {});
+    if (payload.isNotEmpty) {
+      final res = await _patch('/user/profile', payload);
+      final serverUser = res['user'];
+      if (serverUser is Map) {
+        updatedUser = Map<String, dynamic>.from(serverUser);
+      }
+    }
+
     user = {
-      ...(user ?? {}),
-      if (name != null && name.isNotEmpty) 'name': name,
-      if (email != null && email.isNotEmpty) 'email': email,
-      if (phone != null && phone.isNotEmpty) 'phone': phone,
+      ...updatedUser,
       if (avatarUrl != null) 'avatarUrl': avatarUrl,
     };
     final prefs = await SharedPreferences.getInstance();
