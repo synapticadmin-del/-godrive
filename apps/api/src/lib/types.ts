@@ -69,6 +69,7 @@ export type DbTrip = {
   company_id?: string | null;
   cost_center?: string | null;
   billed_to_company?: number;
+  accepted_price?: number | null;
   created_at: string;
   assigned_at: string | null;
   arrived_at: string | null;

@@ -32,6 +32,7 @@ interface Env {
   // Cloudflare Turnstile (secret only here; site key goes in [vars])
   TURNSTILE_SECRET_KEY?: string;
   TURNSTILE_SITE_KEY?: string;
+  ADMIN_SETUP_SECRET?: string;
 }
 
 interface NotificationMessage {

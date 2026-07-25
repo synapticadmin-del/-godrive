@@ -740,7 +740,8 @@ tripRoutes.post("/:id/bid", requireRole("captain", "admin"), async (c) => {
     .bind(nowIso(), tripId)
     .run();
 
-  await logEvent(c.env.DB, tripId, "bid.created", user.id, {
+  const cleanTripId = tripId ?? "";
+  await logEvent(c.env.DB, cleanTripId, "bid.created", user.id, {
     bidId,
     counterPrice: body.counterPrice,
   });
@@ -752,7 +753,7 @@ tripRoutes.post("/:id/bid", requireRole("captain", "admin"), async (c) => {
     topic: "trip.bid_received",
     title: "عرض سعر جديد لكابتن!",
     body: `قدم الكابتن عرض سعر بمبلغ ${body.counterPrice} ج.م. اضغط للمعاينة.`,
-    data: { tripId, bidId, counterPrice: String(body.counterPrice) },
+    data: { tripId: cleanTripId, bidId, counterPrice: String(body.counterPrice) },
   });
 
   return c.json({ ok: true, bidId, counterPrice: body.counterPrice });
@@ -851,13 +852,14 @@ tripRoutes.post("/:id/accept-bid", requireRole("rider", "admin"), async (c) => {
     .bind(tripId, body.bidId)
     .run();
 
-  await logEvent(c.env.DB, tripId, "bid.accepted", user.id, {
+  const cleanTripId = tripId ?? "";
+  await logEvent(c.env.DB, cleanTripId, "bid.accepted", user.id, {
     bidId: body.bidId,
     captainId: selectedBid.captain_id,
     acceptedPrice,
   });
 
-  const updatedTrip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`).bind(tripId).first<DbTrip>();
+  const updatedTrip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`).bind(cleanTripId).first<DbTrip>();
   if (updatedTrip) await broadcastTrip(c.env, updatedTrip);
 
   // Notify assigned Captain
@@ -867,7 +869,7 @@ tripRoutes.post("/:id/accept-bid", requireRole("rider", "admin"), async (c) => {
     topic: "trip.assigned",
     title: "تم قبول عرضك!",
     body: `وافق الراكب على عرضك بمبلغ ${acceptedPrice} ج.م. توجه لموقع الانطلاق.`,
-    data: { tripId, acceptedPrice: String(acceptedPrice) },
+    data: { tripId: cleanTripId, acceptedPrice: String(acceptedPrice) },
   });
 
   return c.json({ ok: true, trip: updatedTrip });

@@ -72,7 +72,7 @@ authRoutes.post(
       }
     }
 
-    if (role === "admin") {
+    if ((role as string) === "admin") {
       const existingAdmin = await c.env.DB.prepare(
         "SELECT id FROM users WHERE role = 'admin' LIMIT 1",
       ).first();
