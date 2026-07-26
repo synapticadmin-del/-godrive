@@ -3,12 +3,14 @@ import React from 'react';
 interface GoDriveLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showText?: boolean;
+  showImage?: boolean;
   className?: string;
 }
 
 export const GoDriveLogo: React.FC<GoDriveLogoProps> = ({
   size = 'md',
   showText = true,
+  showImage = false,
   className = '',
 }) => {
   const iconSizes = {
@@ -27,12 +29,14 @@ export const GoDriveLogo: React.FC<GoDriveLogoProps> = ({
 
   return (
     <div dir="ltr" className={`inline-flex items-center gap-2.5 select-none ${className}`}>
-      {/* GoDrive App Icon from GODRIVE.png */}
-      <img
-        src="/godrive-logo.png"
-        alt="GoDrive"
-        className={`${iconSizes[size]} object-contain rounded-xl shadow-sm flex-shrink-0`}
-      />
+      {/* Optional App Icon */}
+      {showImage && (
+        <img
+          src="/godrive-logo.png"
+          alt="GoDrive"
+          className={`${iconSizes[size]} object-contain rounded-xl shadow-sm flex-shrink-0`}
+        />
+      )}
 
       {showText && (
         <div dir="ltr" className="inline-flex items-baseline font-black tracking-tight leading-none">
