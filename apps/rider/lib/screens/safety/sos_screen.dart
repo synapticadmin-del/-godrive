@@ -56,9 +56,8 @@ class _SosScreenState extends State<SosScreen> {
       Position? pos;
       try {
         pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-          timeLimit: const Duration(seconds: 8),
-        );
+          desiredAccuracy: LocationAccuracy.high,
+        ).timeout(const Duration(seconds: 8));
       } catch (_) {
         pos = await Geolocator.getLastKnownPosition();
       }
