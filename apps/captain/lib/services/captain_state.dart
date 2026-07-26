@@ -306,11 +306,23 @@ class CaptainState extends ChangeNotifier {
       });
       online = value;
       gpsError = null;
-      notifyListeners();
       if (value) {
         _startLocationStream();
       } else {
+        // Going offline must take the work off screen with it. Leaving the
+        // cards up meant a captain could still tap accept on a trip the
+        // server would now refuse (403 OFFLINE), and the countdown kept
+        // running on offers they could no longer take.
         _stopLocationStream();
+        offers = [];
+        _declinedTripIds.clear();
+        _bidTripIds.clear();
+      }
+      notifyListeners();
+      if (value) {
+        // Pull immediately rather than waiting up to 20s for the next poll —
+        // the captain just asked for work and expects to see it.
+        unawaited(refreshOffers());
       }
       return true;
     } catch (e) {
@@ -396,6 +408,16 @@ class CaptainState extends ChangeNotifier {
 
   Future<void> refreshOffers() async {
     if (token == null) return;
+    // An offline captain has no offers by definition — the server already
+    // returns an empty list, so skip the request entirely and make sure
+    // nothing stale is left on screen.
+    if (!online) {
+      if (offers.isNotEmpty) {
+        offers = [];
+        notifyListeners();
+      }
+      return;
+    }
     try {
       final res = await _get('/captain/offers');
       final trips = (res['trips'] as List?)?.whereType<Map>() ?? [];
@@ -425,7 +447,14 @@ class CaptainState extends ChangeNotifier {
     }
   }
 
+  /// Accept the rider's proposed fare as-is. Assigns the trip immediately.
+  ///
+  /// The server enforces the same online rule (403 OFFLINE), but checking here
+  /// turns a wasted round-trip into an instant, correctly-worded refusal —
+  /// and closes the race where the captain toggles offline while a card is
+  /// still on screen.
   Future<void> accept(String tripId) async {
+    if (!online) throw Exception(offlineActionMessage);
     final res = await _post('/trips/$tripId/accept');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
     offers.removeWhere((o) => o['id'] == tripId);
@@ -436,6 +465,33 @@ class CaptainState extends ChangeNotifier {
     // waiting for the next stream tick.
     await pushLocation();
   }
+
+  /// Shown whenever a trip action is attempted while offline. Matches the
+  /// server's own Arabic copy so the captain sees one consistent reason.
+  static const offlineActionMessage = 'يجب أن تكون متصلاً لاستقبال الرحلات';
+
+  /// Submit a counter-offer (bid) for [tripId] at [amount] EGP.
+  ///
+  /// Endpoint is `POST /trips/:id/bid` with `{counterPrice}` — note the
+  /// singular path and the field name; both are what `createBidSchema`
+  /// validates server-side (1..10000).
+  ///
+  /// Unlike [accept] this does *not* assign the trip: the rider still has to
+  /// choose the bid, so the offer stays in the list. It is marked locally as
+  /// bid-on so the card can show that the captain already responded rather
+  /// than inviting a duplicate bid.
+  Future<void> submitBid(String tripId, double amount) async {
+    if (!online) throw Exception(offlineActionMessage);
+    await _post('/trips/$tripId/bid', {'counterPrice': amount});
+    _bidTripIds[tripId] = amount;
+    notifyListeners();
+  }
+
+  /// Trip id → the fare this captain last bid on it.
+  final Map<String, double> _bidTripIds = {};
+
+  double? bidFor(String tripId) => _bidTripIds[tripId];
+  bool hasBidOn(String tripId) => _bidTripIds.containsKey(tripId);
 
   /// Dismiss an offer locally.
   ///
@@ -511,6 +567,7 @@ class CaptainState extends ChangeNotifier {
     error = null;
     gpsError = null;
     _declinedTripIds.clear();
+    _bidTripIds.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     notifyListeners();

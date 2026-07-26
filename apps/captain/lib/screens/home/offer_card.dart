@@ -26,10 +26,29 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 ///  * The countdown ran to zero and then simply stopped, leaving a dead card
 ///    on screen claiming to be actionable. Expiry now actively withdraws the
 ///    offer.
+///
+/// The card offers three ways out, because a fixed-price accept/reject pair
+/// throws away the negotiation the marketplace is built on: **accept the
+/// rider's fare**, **decline**, or **counter with your own price**. The
+/// counter-offer posts a bid and leaves the trip in play — the rider still
+/// has to choose it — so the card reports "bid sent" rather than vanishing.
 class OfferCard extends StatefulWidget {
-  const OfferCard({super.key, required this.offer});
+  const OfferCard({
+    super.key,
+    required this.offer,
+    this.showCountdown = true,
+    this.onDismissed,
+  });
 
   final Map<String, dynamic> offer;
+
+  /// The map sheet surfaces live pushes where the 15s window is the point.
+  /// The "Available Trips" list shows the standing queue, where a countdown
+  /// would expire every card the captain scrolled past.
+  final bool showCountdown;
+
+  /// Lets a host list drop the card from its own collection on decline.
+  final ValueChanged<String>? onDismissed;
 
   @override
   State<OfferCard> createState() => _OfferCardState();
@@ -46,14 +65,30 @@ class _OfferCardState extends State<OfferCard>
 
   Timer? _hapticTimer;
   bool _accepting = false;
+  bool _bidding = false;
   bool _expired = false;
   int _lastWholeSecond = _window;
+
+  /// Set once the captain's counter-offer is accepted by the server. The trip
+  /// is still open — the rider chooses — so the card stays, but it must stop
+  /// inviting a second identical bid.
+  double? _bidSent;
+
+  bool get _busy => _accepting || _bidding;
 
   int get _secondsLeft => (_window * (1 - _countdown.value)).ceil();
 
   @override
   void initState() {
     super.initState();
+
+    final id = widget.offer['id'];
+    if (id is String) {
+      _bidSent = context.read<CaptainState>().bidFor(id);
+    }
+
+    if (!widget.showCountdown) return;
+
     _countdown.forward();
     _countdown.addStatusListener(_onCountdownStatus);
 
@@ -88,8 +123,10 @@ class _OfferCardState extends State<OfferCard>
     super.dispose();
   }
 
+  /// **1. قبول بالسعر الحالي** — take the rider's fare as offered.
+  /// `POST /trips/:id/accept` assigns the trip outright.
   Future<void> _accept() async {
-    if (_accepting || _expired) return;
+    if (_busy || _expired) return;
     setState(() => _accepting = true);
     HapticFeedback.mediumImpact();
     _countdown.stop();
@@ -113,19 +150,88 @@ class _OfferCardState extends State<OfferCard>
     }
   }
 
+  /// **2. رفض / تخطي الرحلة** — dismiss the card locally. There is no
+  /// server-side decline: the trip simply stays available to other captains.
   void _decline() {
-    if (_accepting) return;
+    if (_busy) return;
     HapticFeedback.lightImpact();
+    _countdown.stop();
     final id = widget.offer['id'];
-    if (id is String) context.read<CaptainState>().decline(id);
+    if (id is String) {
+      context.read<CaptainState>().decline(id);
+      widget.onDismissed?.call(id);
+    }
+  }
+
+  /// **3. إرسال سعر معدل للعميل** — counter-offer.
+  ///
+  /// Opens the increment picker, then `POST /trips/:id/bid` with
+  /// `{counterPrice}`. The trip is *not* assigned — the rider still chooses —
+  /// so the card stays put and switches to a "bid sent" state rather than
+  /// disappearing and leaving the captain unsure whether it went through.
+  Future<void> _counterOffer() async {
+    if (_busy || _expired) return;
+
+    final id = widget.offer['id'];
+    if (id is! String) return;
+
+    // The countdown must not expire the card out from under an open sheet.
+    _countdown.stop();
+
+    final state = context.read<CaptainState>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final amount = await CounterOfferSheet.show(
+      context,
+      offeredPrice: _fare,
+    );
+    if (amount == null || !mounted) return;
+
+    setState(() => _bidding = true);
+    HapticFeedback.mediumImpact();
+
+    try {
+      await state.submitBid(id, amount);
+      if (!mounted) return;
+      setState(() {
+        _bidding = false;
+        _bidSent = amount;
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'تم إرسال عرضك بمبلغ ${amount.toStringAsFixed(0)} ج.م — بانتظار رد العميل',
+          ),
+          backgroundColor: AppTokens.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _bidding = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          backgroundColor: AppTokens.danger,
+        ),
+      );
+    }
   }
 
   // ---------------------------------------------------------------
   // Data access
   // ---------------------------------------------------------------
 
+  /// The number the captain is deciding on.
+  ///
+  /// In a bidding marketplace that is the rider's own proposal
+  /// (`offered_price`), not the system estimate — showing the estimate while
+  /// accepting the proposal would quote one fare and pay another. The
+  /// estimate remains the fallback for trips created outside bidding mode.
   double get _fare =>
-      (widget.offer['estimated_fare'] as num?)?.toDouble() ?? 0;
+      (widget.offer['offered_price'] as num?)?.toDouble() ??
+      (widget.offer['offeredPrice'] as num?)?.toDouble() ??
+      (widget.offer['estimated_fare'] as num?)?.toDouble() ??
+      0;
 
   /// `/captain/offers` returns raw snake_case trip rows, so trip length is
   /// `distance_km`; the camelCase form only appears on the WebSocket payload.
@@ -157,7 +263,8 @@ class _OfferCardState extends State<OfferCard>
     return AnimatedBuilder(
       animation: _countdown,
       builder: (context, _) {
-        final urgent = _secondsLeft <= 5 && !_expired;
+        final urgent =
+            widget.showCountdown && _secondsLeft <= 5 && !_expired;
         final accent = urgent ? AppTokens.danger : AppTokens.primary;
 
         return Opacity(
@@ -226,7 +333,9 @@ class _OfferCardState extends State<OfferCard>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _expired ? 'انتهت مهلة العرض' : 'رحلة جديدة',
+                  _expired
+                      ? 'انتهت مهلة العرض'
+                      : 'سعر العميل المقترح',
                   style: AppTokens.font(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
@@ -263,13 +372,15 @@ class _OfferCardState extends State<OfferCard>
               ],
             ),
           ),
-          const SizedBox(width: AppTokens.spaceSm),
-          _CountdownRing(
-            progress: 1 - _countdown.value,
-            seconds: _expired ? 0 : _secondsLeft,
-            color: accent,
-            urgent: urgent,
-          ),
+          if (widget.showCountdown) ...[
+            const SizedBox(width: AppTokens.spaceSm),
+            _CountdownRing(
+              progress: 1 - _countdown.value,
+              seconds: _expired ? 0 : _secondsLeft,
+              color: accent,
+              urgent: urgent,
+            ),
+          ],
         ],
       ),
     );
@@ -296,7 +407,7 @@ class _OfferCardState extends State<OfferCard>
       if (_durationMin != null)
         _MetaChip(
           icon: Icons.schedule_rounded,
-          label: '~${_durationMin} دقيقة',
+          label: '~$_durationMin دقيقة',
           tone: muted,
           border: border,
         ),
@@ -401,40 +512,52 @@ class _OfferCardState extends State<OfferCard>
     );
   }
 
+  /// The three ways out of this card, ranked by how often they are used.
+  ///
+  /// Accept-at-the-offered-price is the full-width primary because it is the
+  /// common case and the one that must survive a glance in traffic — and it
+  /// carries the fare in its own label, so the captain confirms the number
+  /// they are agreeing to without looking back up at the header. Counter and
+  /// decline share the row beneath it: counter is the emphasised secondary,
+  /// decline is deliberately the quietest thing on the card.
   Widget _buildActions(Color muted, Color border) {
-    final disabled = _accepting || _expired;
+    final disabled = _busy || _expired;
 
-    return Row(
+    if (_bidSent != null) return _buildBidSentState(muted, border);
+
+    return Column(
       children: [
-        Expanded(
-          flex: 5,
-          child: SizedBox(
-            height: AppTokens.primaryActionHeight,
-            child: ElevatedButton(
-              onPressed: disabled ? null : _accept,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTokens.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                ),
+        SizedBox(
+          height: AppTokens.primaryActionHeight,
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: disabled ? null : _accept,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTokens.primary,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppTokens.primary.withOpacity(0.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusMd),
               ),
-              child: _accepting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+            ),
+            child: _accepting
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_rounded, size: 21),
+                        const Icon(Icons.check_circle_rounded, size: 21),
                         const SizedBox(width: AppTokens.spaceXs),
                         Text(
-                          'قبول الرحلة',
+                          'قبول بـ ${_fare.toStringAsFixed(0)} ج.م',
                           style: AppTokens.font(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -443,29 +566,210 @@ class _OfferCardState extends State<OfferCard>
                         ),
                       ],
                     ),
-            ),
+                  ),
           ),
         ),
-        const SizedBox(width: AppTokens.spaceXs),
-        Expanded(
-          flex: 2,
-          child: SizedBox(
-            height: AppTokens.primaryActionHeight,
-            child: OutlinedButton(
-              onPressed: disabled ? null : _decline,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: muted,
-                side: BorderSide(color: border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        const SizedBox(height: AppTokens.spaceXs),
+        Row(
+          children: [
+            Expanded(
+              flex: 5,
+              child: SizedBox(
+                height: AppTokens.tapTarget,
+                child: OutlinedButton(
+                  onPressed: disabled ? null : _counterOffer,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTokens.primary,
+                    side: BorderSide(
+                      color: disabled
+                          ? border
+                          : AppTokens.primary.withOpacity(0.55),
+                      width: 1.4,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                  ),
+                  child: _bidding
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: AppTokens.primary,
+                          ),
+                        )
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.price_change_rounded, size: 19),
+                              const SizedBox(width: 6),
+                              Text(
+                                'سعر معدّل',
+                                style: AppTokens.font(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTokens.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                 ),
               ),
-              child: Text(
-                'رفض',
-                style: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: AppTokens.spaceXs),
+            Expanded(
+              flex: 3,
+              child: SizedBox(
+                height: AppTokens.tapTarget,
+                child: TextButton(
+                  onPressed: disabled ? null : _decline,
+                  style: TextButton.styleFrom(
+                    foregroundColor: muted,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                      side: BorderSide(color: border),
+                    ),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.close_rounded, size: 18, color: muted),
+                        const SizedBox(width: 5),
+                        Text(
+                          'تخطي',
+                          style: AppTokens.font(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// After a counter-offer the ball is in the rider's court. The card reports
+  /// the pending bid and keeps only the two moves that still make sense:
+  /// fall back to the original fare, or walk away.
+  Widget _buildBidSentState(Color muted, Color border) {
+    final amount = _bidSent!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceSm,
+            vertical: AppTokens.spaceSm,
           ),
+          decoration: BoxDecoration(
+            color: AppTokens.success.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+            border: Border.all(color: AppTokens.success.withOpacity(0.35)),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.hourglass_top_rounded,
+                size: 19,
+                color: AppTokens.success,
+              ),
+              const SizedBox(width: AppTokens.spaceXs),
+              Expanded(
+                child: Text(
+                  'أرسلت عرضًا بمبلغ ${amount.toStringAsFixed(0)} ج.م — بانتظار رد العميل',
+                  style: AppTokens.font(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTokens.success,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceXs),
+        Row(
+          children: [
+            Expanded(
+              flex: 5,
+              child: SizedBox(
+                height: AppTokens.tapTarget,
+                child: OutlinedButton(
+                  onPressed: _busy || _expired ? null : _accept,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTokens.primary,
+                    side: BorderSide(
+                      color: AppTokens.primary.withOpacity(0.55),
+                      width: 1.4,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                  ),
+                  child: _accepting
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: AppTokens.primary,
+                          ),
+                        )
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'قبول بـ ${_fare.toStringAsFixed(0)} ج.م بدلاً منه',
+                            style: AppTokens.font(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppTokens.primary,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppTokens.spaceXs),
+            Expanded(
+              flex: 3,
+              child: SizedBox(
+                height: AppTokens.tapTarget,
+                child: TextButton(
+                  onPressed: _busy ? null : _decline,
+                  style: TextButton.styleFrom(
+                    foregroundColor: muted,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                      side: BorderSide(color: border),
+                    ),
+                  ),
+                  child: Text(
+                    'تخطي',
+                    style: AppTokens.font(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: muted,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
