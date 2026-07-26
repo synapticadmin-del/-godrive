@@ -241,9 +241,14 @@ class _OffersSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final panel = isDark ? AppTokens.darkPanel : Colors.white;
 
-    // With no offers the sheet stays out of the way so the captain can see
-    // the map they are driving through; when work arrives it takes over.
-    final hasOffers = offers.isNotEmpty;
+    // Strict online guard: trip offer cards must NEVER render while the
+    // captain is offline. Going offline clears CaptainState.offers, but a
+    // captain can still toggle offline with cards briefly in memory, and
+    // tapping a stale offer then hits an endpoint that refuses it (403
+    // OFFLINE). Gating the whole list on `online` guarantees an offline
+    // captain falls through to the idle body — the offline status banner and
+    // the go-online control — instead of stale, un-actionable offers.
+    final hasOffers = online && offers.isNotEmpty;
 
     return Container(
       width: double.infinity,
