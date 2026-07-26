@@ -49,6 +49,15 @@ class _HomeScreenState extends State<HomeScreen>
   String _pinAddress = '';
   bool _resolvingPin = false;
 
+  /// Counter identifying the most recent reverse-geocode request.
+  ///
+  /// The debouncer stops us firing a request per frame, but it cannot recall
+  /// one already in flight. Pan, pause, pan again and two lookups race: if the
+  /// first is slower than the second it lands last and the rider ends up
+  /// looking at the previous street name while the pin sits somewhere else.
+  /// Each request captures the counter and only writes if it is still current.
+  int _pinRequestId = 0;
+
   /// Vehicle category shown in the top strip (رحلة / سفر / الشحن / تروسيكل).
   String _category = 'ride';
 
@@ -212,6 +221,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _cancelPicking() {
     _pinDebouncer.cancel();
+    // Retire any in-flight lookup so it cannot land on the next pick session.
+    _pinRequestId++;
     setState(() {
       _pickMode = PickMode.none;
       _pinAddress = '';
@@ -232,10 +243,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _resolvePinAddress(LatLng point) async {
     if (_pickMode == PickMode.none) return;
+    final requestId = ++_pinRequestId;
     setState(() => _resolvingPin = true);
 
     final address = await _locations.reverseGeocode(point);
     if (!mounted || _pickMode == PickMode.none) return;
+    // A newer pan already started its own lookup — that one owns the label now.
+    if (requestId != _pinRequestId) return;
 
     setState(() {
       _pinAddress = address ?? LocationService.coordinateLabel(point);
@@ -250,6 +264,10 @@ class _HomeScreenState extends State<HomeScreen>
         ? _pinAddress
         : LocationService.coordinateLabel(centre);
     final mode = _pickMode;
+
+    // The point is committed — a lookup still in flight is now irrelevant.
+    _pinDebouncer.cancel();
+    _pinRequestId++;
 
     setState(() {
       if (mode == PickMode.pickup) {
