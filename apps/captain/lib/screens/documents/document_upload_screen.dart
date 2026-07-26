@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'document_status_screen.dart';
 
 /// Document checklist — the first screen an unapproved captain lands on.
 ///
@@ -77,6 +78,23 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
   int get _approvedCount =>
       _docTypes.where((d) => _docStatus(d['type'] as String) == 'approved').length;
+
+  /// The admin's rejection note for [type], read from the `rejection_reason`
+  /// column that `GET /captain/documents` returns per document (added in
+  /// migration 0008). Returns null when the document was not rejected or the
+  /// admin left the note blank.
+  String? _rejectionReason(String type) {
+    final match = _docs.where((d) => d['type'] == type);
+    if (match.isEmpty) return null;
+    final reason = match.first['rejection_reason']?.toString().trim() ?? '';
+    return reason.isEmpty ? null : reason;
+  }
+
+  /// Every document an admin has rejected, in checklist order, so the captain
+  /// can be pointed straight at what needs re-uploading.
+  List<Map<String, dynamic>> get _rejectedDocs => _docTypes
+      .where((d) => _docStatus(d['type'] as String) == 'rejected')
+      .toList();
 
   Future<void> _upload(String docType, String title) async {
     // Offer gallery alongside camera — camera-only forces captains to re-shoot
@@ -233,8 +251,20 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
         actions: [
+          // A read-through status view: every document, its review state, and
+          // the admin's exact rejection reason in one place.
+          IconButton(
+            tooltip: 'حالة المستندات',
+            icon: const Icon(Icons.assignment_turned_in_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DocumentStatusScreen()),
+              );
+            },
+          ),
           // MainShell shows this screen full-screen while the captain is
-          // unapproved — these two actions are their only escape hatches.
+          // unapproved — these actions are their only escape hatches.
           IconButton(
             tooltip: 'تحديث حالة الحساب',
             icon: const Icon(Icons.refresh_rounded),
@@ -260,6 +290,13 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                 SliverToBoxAdapter(
                   child: _buildHeader(panel, text, muted, border),
                 ),
+                // Rejection feedback, front and centre: the exact reason the
+                // admin gave for every rejected document, right above the
+                // checklist so the fix is the next thing the captain does.
+                if (_rejectedDocs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _buildRejectionAlert(text, muted),
+                  ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
                     AppTokens.spaceMd,
@@ -287,6 +324,101 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  /// Prominent alert summarising every rejected document and the exact reason
+  /// the admin supplied, with a clear instruction to re-upload. Uses the design
+  /// system's "stopped"/danger pair so it reads as an action item, not decor.
+  Widget _buildRejectionAlert(Color text, Color muted) {
+    final rejected = _rejectedDocs;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppTokens.spaceMd,
+        0,
+        AppTokens.spaceMd,
+        AppTokens.spaceMd,
+      ),
+      padding: const EdgeInsets.all(AppTokens.spaceMd),
+      decoration: BoxDecoration(
+        color: AppTokens.badgeStoppedBg,
+        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        border: Border.all(color: AppTokens.danger.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.error_rounded, color: AppTokens.danger, size: 22),
+              const SizedBox(width: AppTokens.spaceXs),
+              Expanded(
+                child: Text(
+                  rejected.length == 1
+                      ? 'مستند مرفوض — يلزم إعادة رفعه'
+                      : 'بعض المستندات مرفوضة — يلزم إعادة رفعها',
+                  style: AppTokens.font(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppTokens.badgeStoppedText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTokens.spaceXs),
+          Text(
+            'راجع سبب الرفض بجانب كل مستند بالأسفل ثم اضغط "إعادة الرفع".',
+            style: AppTokens.font(fontSize: 12.5, color: muted, height: 1.5),
+          ),
+          const SizedBox(height: AppTokens.spaceSm),
+          ...rejected.map((d) {
+            final type = d['type'] as String;
+            final title = d['title'] as String;
+            final reason = _rejectionReason(type);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppTokens.spaceXs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsetsDirectional.only(top: 2),
+                        child: Icon(Icons.chevron_left_rounded,
+                            size: 18, color: AppTokens.danger),
+                      ),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: AppTokens.font(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: text,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 18, top: 2),
+                    child: Text(
+                      reason ??
+                          'لم يذكر المشرف سبباً محدداً — يرجى رفع صورة أوضح وسليمة.',
+                      style: AppTokens.font(
+                        fontSize: 12.5,
+                        color: AppTokens.badgeStoppedText,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
@@ -553,6 +685,20 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                       ],
                     ),
                   ),
+                  // The specific reason this document was rejected, inline on
+                  // the card so the captain fixing it never has to guess.
+                  if (status == 'rejected') ...[
+                    const SizedBox(height: AppTokens.space2xs),
+                    Text(
+                      _rejectionReason(type) ??
+                          'لم يذكر المشرف سبباً محدداً — يرجى رفع صورة أوضح وسليمة.',
+                      style: AppTokens.font(
+                        fontSize: 12,
+                        color: AppTokens.badgeStoppedText,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -564,7 +710,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   onPressed: isUploading ? null : () => _upload(type, title),
                   icon: const Icon(Icons.camera_alt_rounded, size: 17),
                   label: Text(
-                    'رفع',
+                    status == 'rejected' ? 'إعادة الرفع' : 'رفع',
                     style: AppTokens.font(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
