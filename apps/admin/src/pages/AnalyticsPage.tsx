@@ -3,10 +3,10 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
   BarChart3, TrendingUp, DollarSign, CheckCircle, Calendar,
-  PieChart as PieIcon, Award, ArrowUpRight, ArrowDownRight, RefreshCw, Minus, Download
+  PieChart as PieIcon, Award, ArrowUpRight, ArrowDownRight, RefreshCw, Minus, Download, Users, Zap
 } from 'lucide-react';
 import {
-  BarChart, Bar, AreaChart, Area, LineChart, Line, PieChart, Pie,
+  BarChart, Bar, AreaChart, Area, PieChart, Pie,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -21,19 +21,11 @@ interface PeriodTotals {
   completionRate: number;
 }
 
-/**
- * Percentage change vs the previous equal-length period, computed server-side.
- *
- * `null` means "no comparison available" — either the baseline was zero (growth
- * from nothing is not a percentage) or the range could not be compared. The UI
- * must render null as an explicit non-value, never as a placeholder figure.
- */
 interface AnalyticsDeltas {
   trips: number | null;
   completed: number | null;
   gmv: number | null;
   commission: number | null;
-  /** Change in completion rate, in percentage POINTS (not percent-of-percent). */
   completionRatePoints: number | null;
 }
 
@@ -69,19 +61,13 @@ const BRAND_COLORS = {
   warning: '#f59e0b',
   error: '#ef4444',
   purple: '#8b5cf6',
+  cyan: '#06b6d4',
 };
 
 const PIE_COLORS = ['#6bb522', '#ef4444', '#f59e0b', '#3b82f6'];
 
-/**
- * Format a Date as YYYY-MM-DD in the viewer's LOCAL calendar.
- *
- * Deliberately not `.toISOString().split('T')[0]`: toISOString converts to UTC
- * first, so for any positive-UTC timezone (this product operates in Cairo,
- * UTC+2/+3) a local date near midnight shifts back a day. That made "this
- * month" start on the last day of the PREVIOUS month, and made "today" resolve
- * to yesterday for the first hours of every day.
- */
+type DatePresetOption = 'today' | '7d' | '30d' | 'thisYear';
+
 function toLocalYmd(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -89,24 +75,19 @@ function toLocalYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/**
- * Build a date-only range for a preset, anchored to local midnight so the
- * boundaries line up with the days the admin actually sees.
- *
- * The ranges are inclusive of both ends: "7d" is today plus the six preceding
- * days, which is seven calendar days, matching the label.
- */
-function presetRange(preset: '7d' | '30d' | 'thisMonth'): { from: string; to: string } {
+function presetRange(preset: DatePresetOption): { from: string; to: string } {
   const now = new Date();
   const to = toLocalYmd(now);
 
-  if (preset === 'thisMonth') {
-    return { from: toLocalYmd(new Date(now.getFullYear(), now.getMonth(), 1)), to };
+  if (preset === 'today') {
+    return { from: to, to };
+  }
+
+  if (preset === 'thisYear') {
+    return { from: `${now.getFullYear()}-01-01`, to };
   }
 
   const days = preset === '7d' ? 7 : 30;
-  // Step by calendar date rather than by milliseconds so DST transitions
-  // cannot shift the boundary.
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
   return { from: toLocalYmd(start), to };
 }
@@ -114,18 +95,19 @@ function presetRange(preset: '7d' | '30d' | 'thisMonth'): { from: string; to: st
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-surface-primary border border-border-primary rounded-xl p-3 shadow-xl text-right dir-rtl">
-        <p className="font-bold text-text-primary text-xs mb-2 border-b border-border-primary pb-1 font-mono">
-          {label}
+      <div className="bg-surface-primary/95 backdrop-blur-md border border-border-primary rounded-xl p-3.5 shadow-2xl text-right dir-rtl min-w-[180px]">
+        <p className="font-bold text-text-primary text-xs mb-2 border-b border-border-primary/80 pb-1.5 font-mono flex items-center justify-between">
+          <span>التاريخ</span>
+          <span className="text-primary-500">{label}</span>
         </p>
         {payload.map((entry: any, i: number) => (
-          <div key={i} className="text-xs flex items-center justify-between gap-4 py-0.5">
-            <span className="font-bold text-text-primary font-mono">
+          <div key={i} className="text-xs flex items-center justify-between gap-4 py-1">
+            <span className="font-extrabold text-text-primary font-mono dir-ltr">
               {typeof entry.value === 'number' ? entry.value.toLocaleString('ar-EG') : entry.value}
             </span>
-            <div className="flex items-center gap-1.5 text-text-secondary">
+            <div className="flex items-center gap-1.5 text-text-secondary font-medium">
               <span>{entry.name}</span>
-              <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: entry.color }} />
+              <span className="w-2.5 h-2.5 rounded-full inline-block shadow-xs" style={{ backgroundColor: entry.color }} />
             </div>
           </div>
         ))}
@@ -142,11 +124,11 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
 
-  // Preset Date Ranges
-  const [datePreset, setDatePreset] = useState<'7d' | '30d' | 'thisMonth'>('30d');
+  // Time-range Preset Filter
+  const [datePreset, setDatePreset] = useState<DatePresetOption>('30d');
   const [dateRange, setDateRange] = useState(() => presetRange('30d'));
 
-  const applyPreset = (preset: '7d' | '30d' | 'thisMonth') => {
+  const applyPreset = (preset: DatePresetOption) => {
     setDatePreset(preset);
     setDateRange(presetRange(preset));
   };
@@ -160,9 +142,6 @@ export default function AnalyticsPage() {
         { token }
       );
 
-      // Enhance daily data with completion rates if missing.
-      // A day with no trips has NO completion rate — it is not 100% successful.
-      // The old `: 100` fallback drew a flat perfect line across empty days.
       const enhancedDaily = (res.daily || []).map((d) => {
         const compRate = d.trips > 0 ? Math.round((d.completed / d.trips) * 100) : 0;
         const cancelledCount = d.cancelled ?? Math.max(0, d.trips - d.completed);
@@ -173,9 +152,6 @@ export default function AnalyticsPage() {
         };
       });
 
-      // topCaptains was previously read unguarded at render time, so an API
-      // response that omitted it threw "Cannot read properties of undefined".
-      // `daily` was already guarded; this makes the treatment consistent.
       setData({
         ...res,
         daily: enhancedDaily,
@@ -192,37 +168,25 @@ export default function AnalyticsPage() {
     loadAnalytics();
   }, [token, dateRange.from, dateRange.to]);
 
-  // Calculated Metrics
+  // Metrics calculation
   const totalTrips = data?.totals?.trips ?? 0;
   const completedTrips = data?.totals?.completed ?? 0;
   const cancelledTrips = data?.totals?.cancelled ?? Math.max(0, totalTrips - completedTrips);
-  // No trips means no completion rate. The previous `: 100` fallback showed a
-  // perfect 100% success ring for periods that had zero activity.
   const completionRate =
     data?.totals?.completionRate ?? (totalTrips > 0 ? Math.round((completedTrips / totalTrips) * 100) : 0);
   const totalGmv = data?.totals?.gmv ?? 0;
-  // Real commission summed from trips.commission, not GMV x 0.2. The flat 20%
-  // guess ignored per-city commission_rate in pricing_rules, so the figure was
-  // wrong for every city not set to exactly 20%.
   const totalCommission = data?.totals?.commission ?? 0;
   const averageOrderValue = completedTrips > 0 ? Math.round(totalGmv / completedTrips) : 0;
 
-  // True when the selected range genuinely contains no trips. Distinct from
-  // `loading` and from an error: the request succeeded and the answer is zero.
   const isEmptyRange = !!data && totalTrips === 0 && (data.daily?.length ?? 0) === 0;
-
   const deltas = data?.deltas;
   const hasComparison = !!data?.previous;
 
-  // Pie chart data for trip status ratios
   const tripRatioData = [
     { name: 'رحلات مكتملة', value: completedTrips },
     { name: 'رحلات ملغية', value: cancelledTrips },
   ];
 
-  // CSV export — the daily series, which is the row-shaped part of this page.
-  // The KPI totals are a single aggregate row and are better read on screen;
-  // exporting the day-by-day breakdown is what makes a spreadsheet useful.
   const handleExportCsv = () => {
     if (!data) return;
     const rows = data.daily ?? [];
@@ -235,48 +199,64 @@ export default function AnalyticsPage() {
       { header: 'حجم المعاملات (GMV)', value: (d) => formatCsvNumber(d.gmv) },
       { header: 'العمولة', value: (d) => formatCsvNumber(d.commission) },
     ]);
-    setExportNotice(`تم تصدير ${n.toLocaleString('ar-EG')} يوم`);
+    setExportNotice(`تم تصدير ${n.toLocaleString('ar-EG')} يوم بنجاح`);
     window.setTimeout(() => setExportNotice(null), 4000);
   };
 
   return (
     <div className="space-y-6 animate-fade-in" dir="rtl">
-      {/* Header */}
+      {/* Header & Interactive Time-Range Controls */}
       <PageHeader
-        title="مؤشرات الأداء والتحليلات"
-        subtitle="تحليل المبيعات، معدلات إكمال الرحلات، وعوائد شبكة الكباتن"
+        title="مؤشرات الأداء والتحليلات الشاملة"
+        subtitle="متابعة الإيرادات، نمو الرحلات اليومي، وأداء شبكة الكباتن والتطبيقات"
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {/* Presets */}
-            <div className="flex items-center bg-surface-secondary p-1 rounded-lg border border-border-primary">
+            {/* Presets: Today, 7 Days, 30 Days, Year */}
+            <div className="flex items-center bg-surface-secondary/80 backdrop-blur-md p-1 rounded-xl border border-border-primary shadow-xs">
+              <button
+                onClick={() => applyPreset('today')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  datePreset === 'today'
+                    ? 'bg-primary-500 text-white shadow-md'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                اليوم
+              </button>
               <button
                 onClick={() => applyPreset('7d')}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                  datePreset === '7d' ? 'bg-primary-500 text-white shadow-xs' : 'text-text-secondary hover:text-text-primary'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  datePreset === '7d'
+                    ? 'bg-primary-500 text-white shadow-md'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 7 أيام
               </button>
               <button
                 onClick={() => applyPreset('30d')}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                  datePreset === '30d' ? 'bg-primary-500 text-white shadow-xs' : 'text-text-secondary hover:text-text-primary'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  datePreset === '30d'
+                    ? 'bg-primary-500 text-white shadow-md'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
                 30 يوم
               </button>
               <button
-                onClick={() => applyPreset('thisMonth')}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                  datePreset === 'thisMonth' ? 'bg-primary-500 text-white shadow-xs' : 'text-text-secondary hover:text-text-primary'
+                onClick={() => applyPreset('thisYear')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  datePreset === 'thisYear'
+                    ? 'bg-primary-500 text-white shadow-md'
+                    : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
-                هذا الشهر
+                هذا العام
               </button>
             </div>
 
-            {/* Custom Dates */}
-            <div className="flex items-center gap-1.5 bg-surface-primary border border-border-primary px-3 py-1.5 rounded-lg text-xs">
+            {/* Custom Dates Input */}
+            <div className="flex items-center gap-1.5 bg-surface-primary/90 backdrop-blur-md border border-border-primary px-3 py-1.5 rounded-xl text-xs shadow-xs">
               <Calendar className="w-4 h-4 text-primary-500" />
               <input
                 type="date"
@@ -295,21 +275,16 @@ export default function AnalyticsPage() {
 
             <button
               onClick={loadAnalytics}
-              className="p-2 rounded-lg bg-surface-primary border border-border-primary hover:bg-surface-hover text-text-secondary transition-colors"
+              className="p-2.5 rounded-xl bg-surface-primary border border-border-primary hover:bg-surface-hover text-text-secondary transition-all hover:scale-105 shadow-xs"
               title="تحديث البيانات"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-primary-500' : ''}`} />
             </button>
 
             <button
               onClick={handleExportCsv}
               disabled={!data || (data.daily?.length ?? 0) === 0}
-              title={
-                !data || (data.daily?.length ?? 0) === 0
-                  ? 'لا توجد بيانات للتصدير'
-                  : 'تصدير التحليلات اليومية إلى CSV'
-              }
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-surface-secondary border border-border-primary text-text-secondary hover:text-text-primary hover:border-primary-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-surface-secondary border border-border-primary text-text-secondary hover:text-text-primary hover:border-primary-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
             >
               <Download className="w-4 h-4" />
               تصدير CSV
@@ -319,30 +294,42 @@ export default function AnalyticsPage() {
       />
 
       {exportNotice && (
-        <div className="p-3 bg-success-main/10 border border-success-main/30 rounded-xl text-success-main text-sm flex items-center gap-2">
+        <div className="p-3 bg-success-main/10 border border-success-main/30 rounded-2xl text-success-main text-sm font-bold flex items-center gap-2 shadow-xs">
           <Download className="w-4 h-4 shrink-0" />
           {exportNotice}
         </div>
       )}
 
       {error && (
-        <div className="p-4 bg-error-main/10 border border-error-main/30 rounded-xl text-error-main text-sm">
+        <div className="p-4 bg-error-main/10 border border-error-main/30 rounded-2xl text-error-main text-sm font-bold">
           {error}
         </div>
       )}
 
+      {/* Loading Skeleton */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-surface-primary border border-border-primary rounded-xl p-5 animate-pulse">
-              <div className="h-4 bg-surface-tertiary rounded w-3/4 mb-3" />
-              <div className="h-8 bg-surface-tertiary rounded w-1/2" />
-            </div>
-          ))}
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-surface-primary/80 border border-border-primary rounded-2xl p-5 animate-pulse space-y-3">
+                <div className="flex justify-between items-center">
+                  <div className="h-4 bg-surface-tertiary rounded w-1/2" />
+                  <div className="w-10 h-10 bg-surface-tertiary rounded-xl" />
+                </div>
+                <div className="h-8 bg-surface-tertiary rounded w-3/4" />
+                <div className="h-3 bg-surface-tertiary rounded w-2/3" />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7 bg-surface-primary/80 border border-border-primary rounded-2xl p-6 h-80 animate-pulse" />
+            <div className="lg:col-span-5 bg-surface-primary/80 border border-border-primary rounded-2xl p-6 h-80 animate-pulse" />
+          </div>
         </div>
       ) : data ? (
         <>
-          {/* Top 4 KPI Cards */}
+          {/* Glowing KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KPI
               label="إجمالي حجم المعاملات (GMV)"
@@ -351,6 +338,7 @@ export default function AnalyticsPage() {
               icon={<DollarSign className="w-6 h-6" />}
               delta={deltas?.gmv}
               showComparison={hasComparison}
+              badgeColor="primary"
             />
 
             <KPI
@@ -360,6 +348,7 @@ export default function AnalyticsPage() {
               icon={<BarChart3 className="w-6 h-6" />}
               delta={deltas?.trips}
               showComparison={hasComparison}
+              badgeColor="cyan"
             />
 
             <KPI
@@ -370,107 +359,104 @@ export default function AnalyticsPage() {
               delta={deltas?.completionRatePoints}
               deltaUnit="points"
               showComparison={hasComparison}
+              badgeColor="success"
             />
 
             <KPI
               label="متوسط قيمة الرحلة (AOV)"
               value={`${averageOrderValue.toLocaleString('ar-EG')} ج.م`}
-              subtext="متوسط إنفاق الراكب في الرحلة"
+              subtext="متوسط إنفاق الراكب للرحلة"
               icon={<TrendingUp className="w-6 h-6" />}
-              // AOV is GMV / completed trips. Deriving its delta from the GMV
-              // delta would be wrong (both numerator and denominator move), and
-              // the API does not return a previous AOV, so no delta is claimed.
               showComparison={false}
+              badgeColor="purple"
             />
           </div>
 
-          {/* Empty range.
-              The request succeeded and the honest answer is "no trips in this
-              window". Previously the page rendered three blank charts with no
-              explanation, which is indistinguishable from a failed load. The
-              KPI cards above stay visible because zero IS the correct value. */}
+          {/* Empty State */}
           {isEmptyRange && (
-            <div className="bg-surface-primary border border-border-primary border-dashed rounded-xl p-10 text-center">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-surface-secondary flex items-center justify-center mb-4">
-                <Calendar className="w-7 h-7 text-text-tertiary" />
+            <div className="bg-surface-primary border border-border-primary border-dashed rounded-2xl p-12 text-center shadow-xs space-y-4">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-surface-secondary flex items-center justify-center text-text-tertiary">
+                <Calendar className="w-8 h-8" />
               </div>
-              <p className="text-text-primary font-bold text-base">لا توجد رحلات في هذه الفترة</p>
-              <p className="text-text-tertiary text-sm mt-1.5 max-w-md mx-auto">
-                لم يتم تسجيل أي رحلات بين {dateRange.from} و {dateRange.to}. جرّب توسيع النطاق الزمني
-                أو اختيار فترة أخرى.
-              </p>
-              <div className="flex items-center justify-center gap-2 mt-5">
+              <div>
+                <h3 className="text-base font-bold text-text-primary">لا توجد رحلات أو بيانات لهذه الفترة</h3>
+                <p className="text-xs text-text-tertiary mt-1.5 max-w-md mx-auto">
+                  لم يتم تسجيل رحلات بين {dateRange.from} و {dateRange.to}. قم باختيار نطاق زمني أكبر مثل "30 يوم" أو "هذا العام".
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 pt-2">
                 <button
                   onClick={() => applyPreset('30d')}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-surface-secondary border border-border-primary text-text-secondary hover:text-text-primary hover:border-primary-500/40 transition-all"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-primary-500 text-white hover:bg-primary-600 shadow-md transition-all"
                 >
-                  آخر 30 يوم
-                </button>
-                <button
-                  onClick={loadAnalytics}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-primary-500 text-white hover:bg-primary-600 transition-all"
-                >
-                  إعادة المحاولة
+                  عرض آخر 30 يوم
                 </button>
               </div>
             </div>
           )}
 
-          {/* Section 1: Main Charts Grid.
-              Hidden when the range is empty — an axis with no series is noise,
-              and the dashed panel above already states the situation. */}
+          {/* Charts Grid */}
           <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 ${isEmptyRange ? 'hidden' : ''}`}>
-            {/* GMV & Revenue Area Chart (7 Cols) */}
-            <div className="lg:col-span-7 bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-border-primary pb-3">
+            {/* Revenue & GMV Area Chart (7 Cols) */}
+            <div className="lg:col-span-7 bg-surface-primary/80 backdrop-blur-xl border border-border-primary/80 rounded-2xl p-6 shadow-md space-y-4">
+              <div className="flex items-center justify-between border-b border-border-primary/80 pb-4">
                 <div>
                   <h3 className="font-extrabold text-text-primary text-base flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-primary-500" />
-                    تطور حجم المعاملات اليومية (GMV)
+                    تطور الإيرادات وحجم المبيعات (GMV)
                   </h3>
-                  <p className="text-xs text-text-tertiary">متابعة الأرباح وحركة المبيعات خلال الفترة</p>
+                  <p className="text-xs text-text-tertiary">متابعة الأرباح وحركة المبيعات خلال الفترة المحددة</p>
                 </div>
-                <span className="px-2.5 py-1 bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/20 text-xs font-bold rounded-full font-mono">
+                <span className="px-3 py-1 bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-500/20 text-xs font-black rounded-xl font-mono shadow-xs">
                   {totalGmv.toLocaleString('ar-EG')} ج.م
                 </span>
               </div>
 
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.daily}>
+                  <AreaChart data={data.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gmvGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={BRAND_COLORS.primary} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={BRAND_COLORS.primary} stopOpacity={0} />
+                        <stop offset="5%" stopColor="#6bb522" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#6bb522" stopOpacity={0.0} />
                       </linearGradient>
                       <linearGradient id="commissionGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={BRAND_COLORS.charcoal} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={BRAND_COLORS.charcoal} stopOpacity={0} />
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    {/* The Tailwind class "font-mono" had been concatenated into
-                        this SVG stroke value, making it an invalid colour, so
-                        this grid silently failed to paint. Line 467 always had
-                        the correct form. */}
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border-primary))" />
-                    <XAxis dataKey="day" tick={{ fill: 'rgb(var(--text-tertiary))', fontSize: 11 }} />
-                    <YAxis tick={{ fill: 'rgb(var(--text-tertiary))', fontSize: 11 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(150, 150, 150, 0.12)" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fill: 'currentColor', opacity: 0.7, fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(150,150,150,0.2)' }}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tickFormatter={(v) => `${v.toLocaleString('ar-EG')}`}
+                      tick={{ fill: 'currentColor', opacity: 0.7, fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(150,150,150,0.2)' }}
+                    />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
+                    <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }} />
                     <Area
                       type="monotone"
                       dataKey="gmv"
                       name="حجم المبيعات (GMV)"
-                      stroke={BRAND_COLORS.primary}
+                      stroke="#6bb522"
                       strokeWidth={3}
+                      dot={{ r: 4, fill: '#6bb522', strokeWidth: 2, stroke: '#ffffff' }}
+                      activeDot={{ r: 6, strokeWidth: 0 }}
                       fill="url(#gmvGradient)"
                     />
                     <Area
                       type="monotone"
                       dataKey="commission"
                       name="صافي عمولة المنصة"
-                      stroke={BRAND_COLORS.charcoal}
-                      strokeWidth={2}
+                      stroke="#8b5cf6"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: '#8b5cf6', strokeWidth: 2, stroke: '#ffffff' }}
+                      activeDot={{ r: 5, strokeWidth: 0 }}
                       fill="url(#commissionGradient)"
                     />
                   </AreaChart>
@@ -478,9 +464,9 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Trip Status Donut / Ratio Chart (5 Cols) */}
-            <div className="lg:col-span-5 bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs flex flex-col justify-between space-y-4">
-              <div className="border-b border-border-primary pb-3">
+            {/* Trip Completion Donut (5 Cols) */}
+            <div className="lg:col-span-5 bg-surface-primary/80 backdrop-blur-xl border border-border-primary/80 rounded-2xl p-6 shadow-md flex flex-col justify-between space-y-4">
+              <div className="border-b border-border-primary/80 pb-4">
                 <h3 className="font-extrabold text-text-primary text-base flex items-center gap-2">
                   <PieIcon className="w-5 h-5 text-primary-500" />
                   توزيع نسبة إكمال الرحلات
@@ -497,7 +483,7 @@ export default function AnalyticsPage() {
                       cy="50%"
                       innerRadius={65}
                       outerRadius={95}
-                      paddingAngle={5}
+                      paddingAngle={6}
                       dataKey="value"
                     >
                       {tripRatioData.map((_, index) => (
@@ -508,22 +494,22 @@ export default function AnalyticsPage() {
                   </PieChart>
                 </ResponsiveContainer>
 
-                {/* Center Badge inside Donut */}
+                {/* Center Badge */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-2xl font-black text-text-primary font-mono">{completionRate}%</span>
-                  <span className="text-[11px] font-bold text-text-tertiary">نسبة النجاح</span>
+                  <span className="text-3xl font-black text-text-primary font-mono">{completionRate}%</span>
+                  <span className="text-xs font-bold text-text-tertiary mt-0.5">نسبة الإكمال</span>
                 </div>
               </div>
 
-              {/* Legend Summary */}
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border-primary text-center">
-                <div className="p-2 rounded-lg bg-primary-500/10 border border-primary-500/20">
+              {/* Legend Grid */}
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border-primary/80 text-center">
+                <div className="p-2.5 rounded-xl bg-primary-500/10 border border-primary-500/20">
                   <p className="text-xs text-primary-600 dark:text-primary-400 font-bold">رحلات مكتملة</p>
-                  <p className="text-base font-black font-mono text-text-primary">{completedTrips.toLocaleString('ar-EG')}</p>
+                  <p className="text-base font-black font-mono text-text-primary mt-0.5">{completedTrips.toLocaleString('ar-EG')}</p>
                 </div>
-                <div className="p-2 rounded-lg bg-error-main/10 border border-error-main/20">
+                <div className="p-2.5 rounded-xl bg-error-main/10 border border-error-main/20">
                   <p className="text-xs text-error-main font-bold">رحلات ملغية</p>
-                  <p className="text-base font-black font-mono text-text-primary">{cancelledTrips.toLocaleString('ar-EG')}</p>
+                  <p className="text-base font-black font-mono text-text-primary mt-0.5">{cancelledTrips.toLocaleString('ar-EG')}</p>
                 </div>
               </div>
             </div>
@@ -532,39 +518,60 @@ export default function AnalyticsPage() {
           {/* Section 2: Daily Trips Breakdown & Top Captains Leaderboard */}
           <div className={`grid grid-cols-1 lg:grid-cols-12 gap-6 ${isEmptyRange ? 'hidden' : ''}`}>
             {/* Daily Trips Bar Chart (7 Cols) */}
-            <div className="lg:col-span-7 bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-border-primary pb-3">
+            <div className="lg:col-span-7 bg-surface-primary/80 backdrop-blur-xl border border-border-primary/80 rounded-2xl p-6 shadow-md space-y-4">
+              <div className="flex items-center justify-between border-b border-border-primary/80 pb-4">
                 <h3 className="font-extrabold text-text-primary text-base flex items-center gap-2">
                   <BarChart3 className="w-5 h-5 text-primary-500" />
-                  عدد الرحلات اليومية (المطلوبة والمكتملة)
+                  حركة الرحلات اليومية (المطلوبة vs المكتملة)
                 </h3>
-                <span className="text-xs text-text-tertiary font-mono">آخر 30 يوم</span>
+                <span className="text-xs font-bold text-text-tertiary font-mono">النمو اليومي</span>
               </div>
 
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.daily}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border-primary))" />
-                    <XAxis dataKey="day" tick={{ fill: 'rgb(var(--text-tertiary))', fontSize: 11 }} />
-                    <YAxis tick={{ fill: 'rgb(var(--text-tertiary))', fontSize: 11 }} />
+                  <BarChart data={data.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(150, 150, 150, 0.12)" />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fill: 'currentColor', opacity: 0.7, fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(150,150,150,0.2)' }}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tickFormatter={(v) => `${v}`}
+                      tick={{ fill: 'currentColor', opacity: 0.7, fontSize: 11 }}
+                      axisLine={{ stroke: 'rgba(150,150,150,0.2)' }}
+                    />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Bar dataKey="trips" name="إجمالي المطلوبة" fill={BRAND_COLORS.charcoal} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="completed" name="المكتملة" fill={BRAND_COLORS.primary} radius={[4, 4, 0, 0]} />
+                    <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '12px' }} />
+                    <Bar
+                      dataKey="trips"
+                      name="إجمالي المطلوبة"
+                      fill="#3b82f6"
+                      barSize={24}
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="completed"
+                      name="المكتملة"
+                      fill="#6bb522"
+                      barSize={24}
+                      radius={[6, 6, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Top Captains Leaderboard (5 Cols) */}
-            <div className="lg:col-span-5 bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-4 flex flex-col">
-              <div className="flex items-center justify-between border-b border-border-primary pb-3">
+            {/* Top Captains Leaderboard Table (5 Cols) */}
+            <div className="lg:col-span-5 bg-surface-primary/80 backdrop-blur-xl border border-border-primary/80 rounded-2xl p-6 shadow-md space-y-4 flex flex-col">
+              <div className="flex items-center justify-between border-b border-border-primary/80 pb-4">
                 <h3 className="font-extrabold text-text-primary text-base flex items-center gap-2">
-                  <Award className="w-5 h-5 text-primary-500" />
+                  <Award className="w-5 h-5 text-amber-500" />
                   أفضل الكباتن تحقيقاً للإيرادات
                 </h3>
-                <span className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded-full border border-primary-500/20">
-                  الأعلى أداءً
+                <span className="text-xs font-extrabold text-primary-600 dark:text-primary-400 bg-primary-500/10 px-2.5 py-1 rounded-full border border-primary-500/20 shadow-xs">
+                  Leaderboard
                 </span>
               </div>
 
@@ -572,42 +579,42 @@ export default function AnalyticsPage() {
                 <table className="w-full text-right text-sm">
                   <thead className="border-b border-border-primary text-xs font-semibold text-text-tertiary">
                     <tr>
-                      <th className="py-2 px-3">#</th>
-                      <th className="py-2 px-3">الكابتن</th>
-                      <th className="py-2 px-3 text-center">الرحلات</th>
-                      <th className="py-2 px-3 text-left">GMV الإجمالي</th>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">الكابتن</th>
+                      <th className="py-2.5 px-3 text-center">الرحلات</th>
+                      <th className="py-2.5 px-3 text-left">GMV الإجمالي</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-primary/50">
                     {data.topCaptains.map((c, i) => (
-                      <tr key={c.captain_id} className="hover:bg-surface-hover transition-colors">
-                        <td className="py-2.5 px-3">
+                      <tr key={c.captain_id} className="hover:bg-surface-hover/70 transition-colors">
+                        <td className="py-3 px-3">
                           <span
-                            className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-bold ${
+                            className={`w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-extrabold shadow-xs ${
                               i === 0
-                                ? 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
+                                ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40'
                                 : i === 1
-                                ? 'bg-slate-400/20 text-slate-600 border border-slate-400/30'
+                                ? 'bg-slate-400/20 text-slate-400 border border-slate-400/40'
                                 : i === 2
-                                ? 'bg-amber-700/20 text-amber-800 border border-amber-700/30'
-                                : 'text-text-tertiary'
+                                ? 'bg-amber-700/20 text-amber-700 border border-amber-700/40'
+                                : 'text-text-tertiary bg-surface-secondary'
                             }`}
                           >
                             {i + 1}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3">
+                        <td className="py-3 px-3">
                           <p className="font-bold text-text-primary text-xs truncate max-w-[140px]">
                             {c.name || 'كابتن مجهول'}
                           </p>
-                          <p className="text-[10px] text-text-tertiary truncate max-w-[140px]">
+                          <p className="text-[10px] text-text-tertiary font-mono truncate max-w-[140px]">
                             {c.email}
                           </p>
                         </td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-xs">
+                        <td className="py-3 px-3 text-center font-mono font-bold text-xs">
                           {c.trips}
                         </td>
-                        <td className="py-2.5 px-3 text-left font-mono font-bold text-xs text-primary-600 dark:text-primary-400">
+                        <td className="py-3 px-3 text-left font-mono font-extrabold text-xs text-primary-600 dark:text-primary-400">
                           {c.gmv ? `${c.gmv.toLocaleString('ar-EG')} ج.م` : '0 ج.م'}
                         </td>
                       </tr>
@@ -631,23 +638,6 @@ export default function AnalyticsPage() {
   );
 }
 
-/**
- * KPI card.
- *
- * `delta` is a real percentage change computed server-side against the previous
- * equal-length period. Three distinct states, deliberately kept separate:
- *
- *   number  -> render the signed change with a direction arrow
- *   null    -> comparison exists but the baseline was zero: render "جديد" (new).
- *              Growth from nothing is not a percentage.
- *   omitted -> no comparison available at all: render no footer.
- *
- * This card previously accepted a free-text `trend` string, which is how
- * hard-coded literals like "+14.2%" ended up displayed under a "compared to the
- * previous period" label with nothing computing them. The typed `delta` makes
- * that class of mistake impossible: there is no way to pass a decorative
- * string any more.
- */
 function KPI({
   label,
   value,
@@ -657,55 +647,63 @@ function KPI({
   deltaUnit = 'percent',
   higherIsBetter = true,
   showComparison = true,
+  badgeColor = 'primary',
 }: {
   label: string;
   value: string;
   subtext?: string;
   icon: React.ReactNode;
   delta?: number | null;
-  /** 'percent' renders "12.5%"; 'points' renders "3.2 نقطة" for rate changes. */
   deltaUnit?: 'percent' | 'points';
   higherIsBetter?: boolean;
   showComparison?: boolean;
+  badgeColor?: 'primary' | 'cyan' | 'success' | 'purple';
 }) {
   const hasDelta = typeof delta === 'number';
   const isFlat = hasDelta && delta === 0;
   const isUp = hasDelta && delta > 0;
-  // A rise is not automatically good — cancellations going up is bad. Callers
-  // set higherIsBetter=false for those so the colour matches the meaning.
   const isGood = isUp === higherIsBetter;
 
   const magnitude = hasDelta ? Math.abs(delta).toLocaleString('ar-EG') : null;
   const deltaText = !hasDelta
     ? 'جديد'
     : deltaUnit === 'points'
-      ? `${magnitude} نقطة`
-      : `${magnitude}%`;
+    ? `${magnitude} نقطة`
+    : `${magnitude}%`;
 
   const toneClass = !hasDelta
     ? 'text-text-secondary'
     : isFlat
-      ? 'text-text-tertiary'
-      : isGood
-        ? 'text-primary-600 dark:text-primary-400'
-        : 'text-error-main';
+    ? 'text-text-tertiary'
+    : isGood
+    ? 'text-primary-600 dark:text-primary-400'
+    : 'text-error-main';
+
+  const badgeBgMap = {
+    primary: 'bg-primary-500/10 text-primary-500 border-primary-500/20',
+    cyan: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
+    success: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+    purple: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+  };
 
   return (
-    <div className="group bg-surface-primary border border-border-primary rounded-xl p-5 shadow-xs space-y-3 transition-all duration-200 hover:border-primary-500/40 hover:shadow-md">
+    <div className="group bg-surface-primary/80 backdrop-blur-xl border border-border-primary/80 rounded-2xl p-5 shadow-md space-y-3 transition-all duration-300 hover:border-primary-500/50 hover:shadow-xl hover:-translate-y-0.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-text-secondary">{label}</span>
-        <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500 transition-transform duration-200 group-hover:scale-105">
+        <span className="text-xs font-extrabold text-text-secondary">{label}</span>
+        <div
+          className={`w-11 h-11 rounded-2xl border flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-xs ${badgeBgMap[badgeColor]}`}
+        >
           {icon}
         </div>
       </div>
 
       <div>
         <p className="text-2xl font-black text-text-primary font-mono tracking-tight">{value}</p>
-        {subtext && <p className="text-[11px] text-text-tertiary mt-1">{subtext}</p>}
+        {subtext && <p className="text-[11px] text-text-tertiary mt-1 font-medium">{subtext}</p>}
       </div>
 
       {showComparison && (
-        <div className="pt-2 border-t border-border-primary flex items-center justify-between text-xs">
+        <div className="pt-2 border-t border-border-primary/80 flex items-center justify-between text-xs">
           <span className="text-text-tertiary text-[11px]">مقارنة بالفترة السابقة</span>
           <span className={`font-bold flex items-center gap-0.5 ${toneClass}`}>
             {isFlat ? (
