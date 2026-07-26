@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
@@ -31,26 +33,48 @@ class VehicleCategoryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
 
-    return SizedBox(
-      height: 62,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final c = _categories[index];
-          final isSelected = c.id == selected;
+    // The bar is a single frosted rail holding frosted chips. Clipping at this
+    // level lets the chips' own blur stack against the rail without the
+    // scrolling content bleeding past the rounded ends.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          height: 62,
+          decoration: BoxDecoration(
+            color: go.isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.white.withOpacity(0.45),
+            borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+            border: Border.all(
+              color: go.isDark
+                  ? Colors.white.withOpacity(0.10)
+                  : Colors.white.withOpacity(0.65),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            physics: const BouncingScrollPhysics(),
+            itemCount: _categories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final c = _categories[index];
+              final isSelected = c.id == selected;
 
-          return _CategoryChip(
-            go: go,
-            icon: c.icon,
-            label: isArabic ? c.ar : c.en,
-            selected: isSelected,
-            onTap: () => onChanged(c.id),
-          );
-        },
+              return _CategoryChip(
+                go: go,
+                icon: c.icon,
+                label: isArabic ? c.ar : c.en,
+                selected: isSelected,
+                onTap: () => onChanged(c.id),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -81,48 +105,96 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // In dark mode the selected chip uses the lime action colour; in light
-    // mode a soft green wash keeps the strip from shouting over the map.
-    final selectedBg = go.isDark ? go.action : AppTokens.primaryLight;
+    // Glassmorphism: each chip is a frosted pane rather than a solid tile, so
+    // the map keeps showing through the strip that floats above it.
+    //
+    // The selected chip is the one moment of emphasis — it takes a stronger
+    // tint, a brighter rim and a soft coloured glow, which is what separates
+    // this from a plain translucent panel.
+    final accent = go.isDark ? go.action : AppTokens.primary;
     final selectedFg = go.isDark ? go.onAction : AppTokens.primaryDark;
 
-    return Material(
-      color: selected ? selectedBg : go.surface,
-      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        onTap: onTap,
+    // Frosted fill. Dark mode leans on a light veil over near-black; light
+    // mode uses white so the blur reads as glass and not as haze.
+    final glassBase = go.isDark ? Colors.white : Colors.white;
+    final restingFill = glassBase.withOpacity(go.isDark ? 0.08 : 0.62);
+    final selectedFill = go.isDark
+        ? accent.withOpacity(0.26)
+        : accent.withOpacity(0.16);
+
+    final restingRim = glassBase.withOpacity(go.isDark ? 0.14 : 0.75);
+    final selectedRim = accent.withOpacity(go.isDark ? 0.85 : 0.60);
+
+    final borderRadius = BorderRadius.circular(AppTokens.radiusMd);
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: BackdropFilter(
+        // The blur is what turns a translucent fill into glass.
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
           width: 86,
-          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+            color: selected ? selectedFill : restingFill,
+            borderRadius: borderRadius,
             border: Border.all(
-              color: selected ? Colors.transparent : go.border,
-              width: 1,
+              color: selected ? selectedRim : restingRim,
+              width: selected ? 1.4 : 1,
             ),
+            // Glow on the active chip only; resting chips stay flat so the
+            // strip does not turn into a row of competing highlights.
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: accent.withOpacity(go.isDark ? 0.42 : 0.28),
+                      blurRadius: 16,
+                      spreadRadius: 0.5,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 23,
-                color: selected ? selectedFg : go.muted,
-              ),
-              const SizedBox(height: 5),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.ibmPlexSansArabic(
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-                  color: selected ? selectedFg : go.muted,
+          child: Material(
+            // Transparent so the frosted fill above remains visible; this
+            // exists purely to host the ink response.
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: borderRadius,
+              onTap: onTap,
+              splashColor: accent.withOpacity(0.18),
+              highlightColor: accent.withOpacity(0.08),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 23,
+                      color: selected
+                          ? (go.isDark ? selectedFg : accent)
+                          : go.muted,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.ibmPlexSansArabic(
+                        fontSize: 12,
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w500,
+                        color: selected
+                            ? (go.isDark ? selectedFg : AppTokens.primaryDark)
+                            : go.muted,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

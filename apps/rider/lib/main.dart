@@ -27,8 +27,21 @@ void main() async {
   runApp(const RiderApp());
 }
 
-class RiderApp extends StatelessWidget {
+class RiderApp extends StatefulWidget {
   const RiderApp({super.key});
+
+  @override
+  State<RiderApp> createState() => _RiderAppState();
+}
+
+class _RiderAppState extends State<RiderApp> {
+  /// The splash owns the intro; the app shell owns routing. We leave the
+  /// splash mounted until it reports that the video has played in full AND
+  /// the persisted session has finished restoring — whichever is slower.
+  /// Without this the app would cut away mid-animation as soon as
+  /// SharedPreferences returned.
+  bool _introFinished = false;
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -54,8 +67,16 @@ class RiderApp extends StatelessWidget {
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: state.themeMode,
-            home: state.loading
-                ? const SplashScreen()
+            home: (state.loading || !_introFinished)
+                ? SplashScreen(
+                    onCompleted: () {
+                      if (!_introFinished) {
+                        setState(() => _introFinished = true);
+                      }
+                    },
+                  )
+                // A restored, non-expired session lands straight on Home;
+                // LoginScreen is only reached when there is no valid session.
                 : state.token == null
                     ? const LoginScreen()
                     : const HomeScreen(),

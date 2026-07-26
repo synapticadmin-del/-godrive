@@ -8,6 +8,13 @@ import 'package:flutter_shared/flutter_shared.dart';
 class AppState extends ChangeNotifier {
   AppState({required this.role});
 
+  // Persistence keys. These names are part of the app's on-disk contract:
+  // renaming them would silently sign out every rider who already has a
+  // session stored from a previous build, so they stay fixed.
+  static const String _kAccessToken = 'token';
+  static const String _kRefreshToken = 'refreshToken';
+  static const String _kUserData = 'user';
+
   final String role;
   bool loading = true;
   String? token;
@@ -29,19 +36,166 @@ class AppState extends ChangeNotifier {
 
   String baseUrl = defaultBaseUrl;
 
+  /// Decodes the `exp` claim of a JWT without verifying its signature.
+  ///
+  /// Signature verification is the API's job — the client only needs to know
+  /// whether a stored token is already past its expiry so it can avoid
+  /// restoring a session that the server is guaranteed to reject.
+  ///
+  /// Returns `null` when the token is malformed or carries no usable `exp`,
+  /// which callers treat as "can't prove it's expired" rather than "expired".
+  static DateTime? _jwtExpiry(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return null;
+
+      // JWTs use base64url without padding; normalize before decoding.
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is! Map) return null;
+
+      final exp = payload['exp'];
+      if (exp is! num) return null;
+
+      return DateTime.fromMillisecondsSinceEpoch(
+        exp.toInt() * 1000,
+        isUtc: true,
+      );
+    } catch (_) {
+      // A token we cannot parse is not provably expired — let the API decide.
+      return null;
+    }
+  }
+
+  /// True when [jwt] carries an `exp` claim that has already passed.
+  ///
+  /// A small skew allowance keeps a token that is seconds from expiring from
+  /// being restored only to fail on the very next request.
+  static bool isTokenExpired(String? jwt) {
+    if (jwt == null || jwt.isEmpty) return true;
+    final expiry = _jwtExpiry(jwt);
+    if (expiry == null) return false; // opaque/unparseable — treat as usable
+    return DateTime.now().toUtc().isAfter(
+          expiry.subtract(const Duration(seconds: 30)),
+        );
+  }
+
+  /// Restores a previously persisted session so relaunching the app does not
+  /// force the rider back through the login screen.
+  ///
+  /// The rules that matter here:
+  ///  * A stored access token that is still valid restores the session
+  ///    immediately — `main.dart` sees a non-null [token] and goes straight to
+  ///    `HomeScreen`, skipping `LoginScreen`.
+  ///  * An expired access token is not thrown away while a refresh token
+  ///    exists; we spend one round trip trying to mint a new one.
+  ///  * Profile refresh is best-effort. If the device is offline at launch the
+  ///    cached [user] still stands, so a rider in a lift or a tunnel stays
+  ///    logged in instead of being ejected by a failed network call.
   Future<void> bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
-    token = prefs.getString('token');
-    final raw = prefs.getString('user');
-    if (raw != null) user = jsonDecode(raw) as Map<String, dynamic>;
-    if (token != null) {
-      await FcmService.init(onToken: registerDeviceToken);
-      await fetchProfile();
-    } else {
-      await FcmService.init(onToken: registerDeviceToken);
+    token = prefs.getString(_kAccessToken);
+
+    final raw = prefs.getString(_kUserData);
+    if (raw != null) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) user = Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        // Corrupt cache should never be fatal at launch.
+        await prefs.remove(_kUserData);
+      }
     }
+
+    await FcmService.init(onToken: registerDeviceToken);
+
+    if (token != null && isTokenExpired(token)) {
+      // Access token has lapsed. Try the refresh token before giving up —
+      // only a failed refresh should cost the rider their session.
+      final refreshed = await _refreshAccessToken();
+      if (!refreshed) {
+        await _clearSession();
+        loading = false;
+        notifyListeners();
+        return;
+      }
+    }
+
+    if (token != null) {
+      // Best-effort revalidation; offline launches keep the cached profile.
+      await fetchProfile();
+    }
+
     loading = false;
     notifyListeners();
+  }
+
+  /// Exchanges the stored refresh token for a fresh access token.
+  ///
+  /// Returns true when [token] now holds a usable access token. Kept separate
+  /// from the 401 interceptor so launch-time refresh and mid-session refresh
+  /// share one implementation.
+  Future<bool> _refreshAccessToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString(_kRefreshToken);
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refreshToken': refreshToken}),
+      );
+      if (res.statusCode >= 400) return false;
+
+      final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+      if (data is! Map) return false;
+
+      final fresh = (data['accessToken'] ?? data['token']) as String?;
+      if (fresh == null || fresh.isEmpty) return false;
+
+      token = fresh;
+      await prefs.setString(_kAccessToken, fresh);
+
+      // Some backends rotate the refresh token on each use; persist if sent.
+      final rotated = data['refreshToken'] as String?;
+      if (rotated != null && rotated.isNotEmpty) {
+        await prefs.setString(_kRefreshToken, rotated);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Persists a freshly issued session. Single writer for all three keys so
+  /// login, OTP verification and registration cannot drift apart.
+  Future<void> _persistSession({
+    required String? accessToken,
+    String? refreshToken,
+    Map<String, dynamic>? userData,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (accessToken != null && accessToken.isNotEmpty) {
+      await prefs.setString(_kAccessToken, accessToken);
+    }
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await prefs.setString(_kRefreshToken, refreshToken);
+    }
+    if (userData != null) {
+      await prefs.setString(_kUserData, jsonEncode(userData));
+    }
+  }
+
+  /// Drops every trace of the session from memory and disk.
+  Future<void> _clearSession() async {
+    token = null;
+    user = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kAccessToken);
+    await prefs.remove(_kRefreshToken);
+    await prefs.remove(_kUserData);
   }
 
   Future<Map<String, dynamic>?> fetchProfile() async {
@@ -55,7 +209,7 @@ class AppState extends ChangeNotifier {
           if (localAvatar is String && localAvatar.isNotEmpty) 'avatarUrl': localAvatar,
         };
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user', jsonEncode(user));
+        await prefs.setString(_kUserData, jsonEncode(user));
         notifyListeners();
       }
       return res;
@@ -73,24 +227,10 @@ class AppState extends ChangeNotifier {
   Future<http.Response> _executeWithAuthInterceptor(Future<http.Response> Function() reqFn) async {
     final res = await reqFn();
     if (res.statusCode == 401 && token != null) {
-      final prefs = await SharedPreferences.getInstance();
-      final refreshToken = prefs.getString('refreshToken');
-      if (refreshToken != null) {
-        try {
-          final refreshRes = await http.post(
-            Uri.parse('$baseUrl/auth/refresh'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'refreshToken': refreshToken}),
-          );
-          if (refreshRes.statusCode < 400) {
-            final data = jsonDecode(refreshRes.body);
-            token = (data['accessToken'] ?? data['token']) as String?;
-            if (token != null) {
-              await prefs.setString('token', token!);
-              return await reqFn(); // Retry original request with new token
-            }
-          }
-        } catch (_) {}
+      // Shares one refresh implementation with launch-time restore so both
+      // paths handle token rotation identically.
+      if (await _refreshAccessToken()) {
+        return await reqFn(); // Retry original request with the new token
       }
       await logout(); // Safe auto-logout on refresh failure
       throw Exception('Session expired. Please log in again.');
@@ -171,12 +311,12 @@ class AppState extends ChangeNotifier {
     error = null;
     final res = await _post('/auth/verify-otp', {'email': email, 'code': code});
     token = (res['accessToken'] ?? res['token']) as String?;
-    final refresh = res['refreshToken'] as String?;
     user = Map<String, dynamic>.from(res['user'] as Map);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token!);
-    if (refresh != null) await prefs.setString('refreshToken', refresh);
-    await prefs.setString('user', jsonEncode(user));
+    await _persistSession(
+      accessToken: token,
+      refreshToken: res['refreshToken'] as String?,
+      userData: user,
+    );
     await FcmService.init();
     notifyListeners();
   }
@@ -185,12 +325,12 @@ class AppState extends ChangeNotifier {
     error = null;
     final res = await _post('/auth/login', {'email': email, 'password': password});
     token = (res['accessToken'] ?? res['token']) as String?;
-    final refresh = res['refreshToken'] as String?;
     user = Map<String, dynamic>.from(res['user'] as Map);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token!);
-    if (refresh != null) await prefs.setString('refreshToken', refresh);
-    await prefs.setString('user', jsonEncode(user));
+    await _persistSession(
+      accessToken: token,
+      refreshToken: res['refreshToken'] as String?,
+      userData: user,
+    );
     await FcmService.init();
     notifyListeners();
   }
@@ -211,20 +351,19 @@ class AppState extends ChangeNotifier {
     });
     token = (res['accessToken'] ?? res['token']) as String?;
     user = Map<String, dynamic>.from(res['user'] as Map);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token!);
-    await prefs.setString('user', jsonEncode(user));
+    // Registration returns a refresh token too; persisting it here means a
+    // brand-new rider gets the same durable session as one who signs in.
+    await _persistSession(
+      accessToken: token,
+      refreshToken: res['refreshToken'] as String?,
+      userData: user,
+    );
     await FcmService.init();
     notifyListeners();
   }
 
   Future<void> logout() async {
-    token = null;
-    user = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('user');
-    await prefs.remove('refreshToken');
+    await _clearSession();
     notifyListeners();
   }
 
@@ -337,7 +476,7 @@ class AppState extends ChangeNotifier {
       if (avatarUrl != null) 'avatarUrl': avatarUrl,
     };
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user', jsonEncode(user));
+    await prefs.setString(_kUserData, jsonEncode(user));
     notifyListeners();
   }
 
