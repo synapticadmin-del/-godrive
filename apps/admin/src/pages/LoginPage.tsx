@@ -6,40 +6,22 @@ import { ArrowLeft, Mail, Shield, Loader2 } from "lucide-react";
 import GoDriveLogo from "../components/common/GoDriveLogo";
 
 export default function LoginPage() {
-  const { token, requestOtp, verifyOtp } = useAuth();
+  const { token, loginWithPassword } = useAuth();
   const [email, setEmail] = useState("admin@synapticstudio.tech");
-  const [code, setCode] = useState("");
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (token) return <Navigate to="/" replace />;
 
-  async function onRequest(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const res = await requestOtp(email.trim().toLowerCase());
-      setDevCode(res.devCode || null);
-      if (res.devCode) setCode(res.devCode);
-      setStep("code");
+      await loginWithPassword(email.trim().toLowerCase(), password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل إرسال الرمز");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function onVerify(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await verifyOtp(email.trim().toLowerCase(), code.trim());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "فشل التحقق");
+      setError(err instanceof Error ? err.message : "بيانات الدخول غير صحيحة");
     } finally {
       setLoading(false);
     }
@@ -76,73 +58,48 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Dev code */}
-          {devCode && (
-            <div className="mb-4 p-3 bg-success-main/10 border border-success-main/30 rounded-lg text-success-main text-sm animate-fade-in flex items-center justify-between">
-              <span>وضع التطوير — الرمز:</span>
-              <strong className="text-lg font-mono tracking-wider">{devCode}</strong>
-            </div>
-          )}
-
-          {/* Step: Email */}
-          {step === "email" ? (
-            <form onSubmit={onRequest} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1.5">البريد الإلكتروني</label>
-                <div className="relative">
-                  <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="admin@synapticstudio.tech"
-                    className="input pr-10"
-                    autoComplete="email"
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "إرسال رمز الدخول"}
-              </button>
-            </form>
-          ) : (
-            /* Step: Code */
-            <form onSubmit={onVerify} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1.5">رمز التحقق (OTP)</label>
+          {/* Email & Password Form */}
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">البريد الإلكتروني</label>
+              <div className="relative">
+                <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
                 <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="••••••"
-                  inputMode="numeric"
-                  maxLength={6}
-                  className="input text-center text-2xl font-mono tracking-[0.5em]"
-                  autoComplete="one-time-code"
+                  placeholder="admin@synapticstudio.tech"
+                  className="input pr-10"
+                  autoComplete="email"
                 />
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "تسجيل الدخول"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setStep("email"); setDevCode(null); }}
-                className="w-full flex items-center justify-center gap-2 text-sm text-text-tertiary hover:text-text-primary transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                رجوع
-              </button>
-            </form>
-          )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">كلمة المرور</label>
+              <div className="relative">
+                <Shield className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="input pr-10"
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "تسجيل الدخول"}
+            </button>
+          </form>
         </div>
 
         <p className="text-center mt-6 text-xs text-text-tertiary">

@@ -11,6 +11,7 @@ type User = {
 type AuthState = {
   token: string | null;
   user: User | null;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
   requestOtp: (email: string) => Promise<{ devCode?: string; message: string }>;
   verifyOtp: (email: string, code: string) => Promise<void>;
   logout: () => void;
@@ -31,6 +32,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       token,
       user,
+      async loginWithPassword(email: string, password: string) {
+        const res = await api<{ token?: string; accessToken?: string; refreshToken?: string; user: User }>("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+        if (res.user.role !== "admin") {
+          throw new Error("هذا الحساب ليس أدمن");
+        }
+        const tok = res.accessToken || res.token;
+        if (!tok) throw new Error("لم يتم إرجاع توكن الدخول");
+        localStorage.setItem(TOKEN_KEY, tok);
+        if (res.refreshToken) localStorage.setItem("sg_admin_refresh", res.refreshToken);
+        localStorage.setItem(USER_KEY, JSON.stringify(res.user));
+        setToken(tok);
+        setUser(res.user);
+      },
       async requestOtp(email: string) {
         return api<{ devCode?: string; message: string }>("/auth/request-otp", {
           method: "POST",
