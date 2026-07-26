@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
 import 'offer_card.dart';
+import 'offer_card_entrance.dart';
 import 'active_trip_panel.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -243,7 +244,12 @@ class _OffersSheet extends StatelessWidget {
 
     // With no offers the sheet stays out of the way so the captain can see
     // the map they are driving through; when work arrives it takes over.
-    final hasOffers = offers.isNotEmpty;
+    //
+    // Offers are only ever shown while online. The server keeps returning
+    // live trips from `/captain/offers` regardless of `is_online`, so without
+    // this the sheet would still fill with actionable cards after the captain
+    // clocked off.
+    final hasOffers = online && offers.isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -295,10 +301,13 @@ class _OffersSheet extends StatelessWidget {
       // Keyed by trip id: without a key Flutter reuses the State of whichever
       // card previously sat at this index, so an expiring countdown would
       // carry over onto a brand-new offer.
-      itemBuilder: (_, i) => OfferCard(
-        key: ValueKey(offers[i]['id']),
-        offer: offers[i],
-      ).animate().fadeIn(delay: (60 * i).ms).slideY(begin: 0.15, end: 0),
+      itemBuilder: (_, i) => OfferCardEntrance(
+        index: i,
+        child: OfferCard(
+          key: ValueKey(offers[i]['id']),
+          offer: offers[i],
+        ),
+      ),
     );
   }
 
@@ -334,21 +343,62 @@ class _OffersSheet extends StatelessWidget {
               style: AppTokens.font(fontSize: 13, color: muted),
             ),
           ] else ...[
-            Text(
-              isApproved ? 'أنت غير متصل حالياً' : 'حسابك قيد المراجعة',
-              style: AppTokens.font(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: text,
+            // High-contrast offline notice. Offline is a normal mode, not an
+            // error, but it is the reason the sheet is empty — saying so
+            // beats a bare "no trips" line that reads like a broken app.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppTokens.spaceSm),
+              decoration: BoxDecoration(
+                color: (isApproved ? AppTokens.warning : AppTokens.info)
+                    .withOpacity(0.10),
+                borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                border: Border.all(
+                  color: (isApproved ? AppTokens.warning : AppTokens.info)
+                      .withOpacity(0.35),
+                ),
               ),
-            ),
-            const SizedBox(height: AppTokens.space2xs),
-            Text(
-              isApproved
-                  ? 'اضغط لبدء استقبال الرحلات والأرباح'
-                  : 'سنخطرك فور اعتماد مستنداتك',
-              textAlign: TextAlign.center,
-              style: AppTokens.font(fontSize: 13, color: muted),
+              child: Row(
+                children: [
+                  Icon(
+                    isApproved
+                        ? Icons.wifi_tethering_off_rounded
+                        : Icons.hourglass_top_rounded,
+                    size: 20,
+                    color: isApproved ? AppTokens.warning : AppTokens.info,
+                  ),
+                  const SizedBox(width: AppTokens.spaceXs),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isApproved
+                              ? 'أنت غير متصل حالياً'
+                              : 'حسابك قيد المراجعة',
+                          style: AppTokens.font(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: text,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isApproved
+                              ? 'اتصل الآن لاستقبال طلبات الرحلات'
+                              : 'سنخطرك فور اعتماد مستنداتك',
+                          style: AppTokens.font(
+                            fontSize: 12.5,
+                            color: muted,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: AppTokens.spaceMd),

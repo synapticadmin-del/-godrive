@@ -12,6 +12,7 @@ import 'package:synaptic_go_captain/screens/documents/document_upload_screen.dar
 import 'package:synaptic_go_captain/screens/earnings/earnings_screen.dart';
 import 'package:synaptic_go_captain/screens/profile/settings_screen.dart';
 import 'package:synaptic_go_captain/screens/safety/sos_screen.dart';
+import 'available_trips_tab.dart';
 import 'home_tab.dart';
 import 'trips_tab.dart';
 
@@ -39,6 +40,10 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
+  /// The "رحلات متاحة" destination. Appended after the four original tabs so
+  /// their indices stay stable, even though it renders in the centre slot.
+  static const int _availableTripsIndex = 4;
+
   final MapController _mapController = MapController();
 
   int _tabIndex = 0;
@@ -287,6 +292,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   const TripsTab(),
                   const EarningsScreen(),
                   const SettingsScreen(),
+                  // Index 4, appended rather than inserted at the centre's
+                  // visual position, so the four existing destinations keep
+                  // the indices the rest of the app already passes around.
+                  AvailableTripsTab(
+                    online: state.online,
+                    busy: _togglingOnline,
+                    onToggleOnline: _toggleOnline,
+                  ),
                 ],
               ),
             ),
@@ -297,13 +310,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         bottomNavigationBar: MainBottomNav(
           currentIndex: _tabIndex,
           onTap: (index) => setState(() => _tabIndex = index),
-          onCenterTap: () {
-            if (_tabIndex != 0) {
-              setState(() => _tabIndex = 0);
-            } else {
-              _recenter();
-            }
-          },
+          // The centre slot is a real destination in the Captain app. The
+          // recentre shortcut it replaces is not lost — it is still a
+          // dedicated floating control on the map (see _buildMapControls),
+          // which is where a captain's thumb already goes for it.
+          centerDestination: NavCenterDestination(
+            index: _availableTripsIndex,
+            label: 'رحلات متاحة',
+            icon: Icons.explore_rounded,
+            // Only meaningful while online; offline the tab shows a CTA
+            // rather than a list, so a count would be a lie.
+            badgeCount: state.online ? state.offers.length : 0,
+          ),
         ),
       ),
     );

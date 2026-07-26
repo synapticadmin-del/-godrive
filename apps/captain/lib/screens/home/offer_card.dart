@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -59,12 +60,17 @@ class _OfferCardState extends State<OfferCard>
 
     // Haptic ticks in the final five seconds, driven off wall-clock rather
     // than a rebuild, so the pulse stays steady regardless of frame timing.
+    //
+    // Suppressed while offline: the card is not rendered in that state, and a
+    // phone buzzing in a captain's pocket for an offer they cannot see is
+    // worse than silence.
     _hapticTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       final left = _secondsLeft;
       if (left != _lastWholeSecond) {
         _lastWholeSecond = left;
-        if (left > 0 && left <= 5) HapticFeedback.lightImpact();
+        final online = context.read<CaptainState>().online;
+        if (online && left > 0 && left <= 5) HapticFeedback.lightImpact();
       }
     });
   }
@@ -90,11 +96,17 @@ class _OfferCardState extends State<OfferCard>
 
   Future<void> _accept() async {
     if (_accepting || _expired) return;
+
+    final state = context.read<CaptainState>();
+    // Closes the gap between the tap landing and this frame: the captain can
+    // toggle offline while the card is mid-countdown, and `/trips/:id/accept`
+    // does not check `is_online`, so the server would happily assign the trip.
+    if (!state.online) return;
+
     setState(() => _accepting = true);
     HapticFeedback.mediumImpact();
     _countdown.stop();
 
-    final state = context.read<CaptainState>();
     final messenger = ScaffoldMessenger.of(context);
     try {
       await state.accept(widget.offer['id'] as String);
@@ -148,11 +160,38 @@ class _OfferCardState extends State<OfferCard>
 
   @override
   Widget build(BuildContext context) {
+    // Strict online guard. A captain who is offline must not see trip cards
+    // at all — not greyed out, not expired, absent.
+    //
+    // This is load-bearing rather than cosmetic: neither `/captain/offers`
+    // nor `/captain/nearby-requests` filters by `is_online` server-side, so
+    // the poll keeps returning live trips after the captain goes offline. A
+    // card left on screen would then hand them a tappable "accept" for work
+    // they are not supposed to be receiving. `select` rebuilds only when the
+    // flag actually flips, rather than on every unrelated CaptainState
+    // notification (this widget rebuilds ~60fps from its own countdown as it
+    // is).
+    final online = context.select<CaptainState, bool>((s) => s.online);
+    if (!online) return const SizedBox.shrink();
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkSurface : Colors.white;
     final text = isDark ? AppTokens.darkText : AppTokens.lightText;
     final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
     final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+
+    // Frosted glass. The card floats over the map, so a translucent, blurred
+    // surface keeps the captain's surroundings faintly legible underneath
+    // instead of punching an opaque hole through the view.
+    //
+    // Opacity is kept high (0.82/0.86) rather than fashionably low: this is
+    // the highest-stakes card in the product, read in seconds, often in
+    // direct sunlight. Glass must not cost legibility.
+    final glassTop = isDark
+        ? AppTokens.darkSurface.withOpacity(0.86)
+        : Colors.white.withOpacity(0.86);
+    final glassBottom = isDark
+        ? AppTokens.darkPanel.withOpacity(0.82)
+        : Colors.white.withOpacity(0.78);
 
     return AnimatedBuilder(
       animation: _countdown,
@@ -165,31 +204,53 @@ class _OfferCardState extends State<OfferCard>
           child: Container(
             margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
             decoration: BoxDecoration(
-              color: panel,
               borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-              border: Border.all(
-                color: urgent ? AppTokens.danger.withOpacity(0.5) : border,
-                width: urgent ? 1.5 : 1,
-              ),
               boxShadow: AppTokens.shadowOffer,
             ),
             clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(accent, text, muted, urgent),
-                _buildMetaStrip(muted, border),
-                Padding(
-                  padding: const EdgeInsets.all(AppTokens.spaceMd),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [glassTop, glassBottom],
+                    ),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    border: Border.all(
+                      // A brighter rim than a flat border — glass catches
+                      // light at its edge, which is what separates it from
+                      // the surface behind it.
+                      color: urgent
+                          ? AppTokens.danger.withOpacity(0.55)
+                          : isDark
+                              ? Colors.white.withOpacity(0.14)
+                              : border.withOpacity(0.9),
+                      width: urgent ? 1.5 : 1,
+                    ),
+                  ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildRoute(text, muted, border),
-                      const SizedBox(height: AppTokens.spaceMd),
-                      _buildActions(muted, border),
+                      _buildHeader(accent, text, muted, urgent),
+                      _buildMetaStrip(muted, border),
+                      Padding(
+                        padding: const EdgeInsets.all(AppTokens.spaceMd),
+                        child: Column(
+                          children: [
+                            _buildRoute(text, muted, border),
+                            const SizedBox(height: AppTokens.spaceMd),
+                            _buildActions(muted, border),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         );

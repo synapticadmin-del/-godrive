@@ -15,4 +15,5 @@ export 'widgets/status_chip.dart';
 export 'widgets/loading_overlay.dart';
 export 'widgets/navigation_button.dart';
 export 'widgets/go_online_button.dart';
+export 'widgets/offline_gate.dart';
 export 'widgets/map_controls.dart';

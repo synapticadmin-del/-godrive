@@ -6,8 +6,13 @@ import 'package:flutter_shared/flutter_shared.dart';
 import '../../models/ride_request_model.dart';
 import '../../services/captain_state.dart';
 
+/// Nearby ride requests with bidding.
+///
+/// Gated on the captain being online. `/captain/nearby-requests` does not
+/// filter by `is_online` server-side, so without the guard an offline captain
+/// would still be served a list of live requests they could bid on.
 class NearbyRequestsScreen extends StatefulWidget {
-  const NearbyRequestsScreen({Key? key}) : super(key: key);
+  const NearbyRequestsScreen({super.key});
 
   @override
   State<NearbyRequestsScreen> createState() => _NearbyRequestsScreenState();
@@ -17,16 +22,73 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
   List<RideRequestModel> _requests = [];
   bool _loading = true;
   String? _errorMessage;
+  bool _togglingOnline = false;
+
+  /// Tracks the previous online value so going online can kick off the first
+  /// fetch, and going offline can drop a now-unusable list from memory.
+  bool? _wasOnline;
 
   @override
   void initState() {
     super.initState();
-    _fetchRequests();
+    // Deferred: reading CaptainState and calling setState is not safe until
+    // the first frame is scheduled.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final online = context.read<CaptainState>().online;
+      _wasOnline = online;
+      if (online) {
+        _fetchRequests();
+      } else {
+        setState(() => _loading = false);
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final online = context.watch<CaptainState>().online;
+    if (_wasOnline == null || online == _wasOnline) return;
+    _wasOnline = online;
+
+    if (online) {
+      _fetchRequests();
+    } else {
+      // Drop the list rather than leaving stale requests in memory behind the
+      // offline CTA — they would flash back on reconnect before the refetch.
+      setState(() {
+        _requests = [];
+        _loading = false;
+        _errorMessage = null;
+      });
+    }
+  }
+
+  Future<void> _toggleOnline(bool value) async {
+    if (_togglingOnline) return;
+    setState(() => _togglingOnline = true);
+    final state = context.read<CaptainState>();
+    final ok = await state.setOnline(value);
+    if (!mounted) return;
+    setState(() => _togglingOnline = false);
+
+    if (!ok && state.gpsError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.gpsError!),
+          backgroundColor: AppTokens.danger,
+        ),
+      );
+    }
   }
 
   Future<void> _fetchRequests() async {
     final state = context.read<CaptainState>();
     if (state.token == null) return;
+    // Never hit the endpoint while offline — the captain is not eligible for
+    // this work, and the server would return it anyway.
+    if (!state.online) return;
 
     setState(() {
       _loading = true;
@@ -69,6 +131,18 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
 
   Future<void> _submitCounterOffer(RideRequestModel req, double price) async {
     final state = context.read<CaptainState>();
+    // Guards the gap between the list rendering and the tap landing: the
+    // captain can go offline from another surface while this screen is open.
+    if (!state.online) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('اتصل بالإنترنت أولاً لتقديم عرض'),
+          backgroundColor: AppTokens.warning,
+        ),
+      );
+      return;
+    }
     try {
       final res = await http.post(
         Uri.parse('${state.baseUrl}/trips/${req.id}/bid'),
@@ -234,47 +308,65 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    final state = context.watch<CaptainState>();
+    final online = state.online;
+    final approval =
+        state.captain?['approval_status'] ?? state.captain?['status'];
+    final isApproved = approval == 'approved';
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: go.bg,
         appBar: AppBar(
           title: const Text('طلبات التوصيل القريبة (المزايدة)'),
           backgroundColor: AppTokens.primary,
           foregroundColor: Colors.white,
           actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _fetchRequests,
-              tooltip: 'تحديث العروض',
-            ),
+            // Refreshing is meaningless while offline — there is nothing this
+            // captain is eligible to receive.
+            if (online)
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _fetchRequests,
+                tooltip: 'تحديث العروض',
+              ),
           ],
         ),
-        body: RefreshIndicator(
+        // Strict online guard: the entire list is replaced by a CTA rather
+        // than being shown greyed out or empty.
+        body: !online
+            ? OfflineTripsPlaceholder(
+                online: online,
+                busy: _togglingOnline,
+                enabled: isApproved,
+                onToggleOnline: _toggleOnline,
+                title: isApproved
+                    ? 'اتصل بالإنترنت لعرض الطلبات القريبة'
+                    : null,
+                message: isApproved
+                    ? 'لن تصلك طلبات أو تتمكن من المزايدة وأنت غير متصل.'
+                    : null,
+              )
+            : RefreshIndicator(
           onRefresh: _fetchRequests,
           color: AppTokens.primary,
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF6BB522)))
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppTokens.primary),
+                )
               : _errorMessage != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: _fetchRequests,
-                            child: const Text('إعادة المحاولة'),
-                          )
-                        ],
-                      ),
+                  ? ErrorState(
+                      message: _errorMessage!,
+                      onRetry: _fetchRequests,
                     )
                   : _requests.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'لا توجد طلبات توصيل قريبة منك حالياً\nابقَ متصلاً لاستقبال التنبيهات',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 15, color: Colors.grey),
-                          ),
+                      ? const EmptyState(
+                          icon: Icons.radar_rounded,
+                          title: 'لا توجد طلبات قريبة حالياً',
+                          subtitle:
+                              'ابقَ متصلاً وفي منطقة مزدحمة لاستقبال التنبيهات',
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.all(12),
