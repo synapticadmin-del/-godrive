@@ -459,10 +459,37 @@ adminRoutes.post("/documents/:id/review", async (c) => {
     action: `document.${status}`,
     entityType: "driver_document",
     entityId: docId,
+    payload: body.reason ? JSON.stringify({ reason: body.reason }) : undefined,
     ip: c.req.header("cf-connecting-ip"),
   });
 
   return c.json({ ok: true, status });
+});
+
+// POST /admin/captains/:id/documents/:docId/reject - Reject a document with a reason payload
+adminRoutes.post("/captains/:id/documents/:docId/reject", async (c) => {
+  const user = c.get("user");
+  const captainId = c.req.param("id");
+  const docId = c.req.param("docId");
+  const body = await c.req.json().catch(() => ({}));
+  const reason = body.reason || "تم الرفض بواسطة المشرف";
+
+  await c.env.DB.prepare(
+    `UPDATE driver_documents SET status = 'rejected', reviewed_by = ?, reviewed_at = ? WHERE id = ? AND captain_id = ?`
+  )
+    .bind(user.id, nowIso(), docId, captainId)
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: user.id,
+    action: "document.rejected",
+    entityType: "driver_document",
+    entityId: docId,
+    payload: JSON.stringify({ captainId, reason }),
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  return c.json({ ok: true, status: "rejected", reason });
 });
 
 
