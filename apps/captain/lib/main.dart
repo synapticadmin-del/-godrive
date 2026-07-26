@@ -20,15 +20,25 @@ void main() async {
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // Draw behind the system bars so the map and the splash run edge to edge.
+  // Icon brightness is *not* pinned here: it was previously hardcoded to
+  // light, which rendered white status-bar icons on this app's white
+  // surfaces and left the clock and battery invisible on most screens. Each
+  // screen now declares its own overlay style to match its own canvas.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
   ));
+
   runApp(const CaptainApp());
 }
 
 class CaptainApp extends StatelessWidget {
   const CaptainApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -46,9 +56,24 @@ class CaptainApp extends StatelessWidget {
               GlobalCupertinoLocalizations.delegate,
             ],
             builder: (context, child) {
+              final media = MediaQuery.of(context);
               return Directionality(
-                textDirection: state.locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,
-                child: child!,
+                textDirection: state.locale.languageCode == 'ar'
+                    ? TextDirection.rtl
+                    : TextDirection.ltr,
+                // A driver glances at this screen in traffic. Honour the
+                // system text scale so captains who need larger type get it,
+                // but clamp the top end so the map chrome and the offer card
+                // cannot blow their layouts apart.
+                child: MediaQuery(
+                  data: media.copyWith(
+                    textScaler: media.textScaler.clamp(
+                      minScaleFactor: 0.9,
+                      maxScaleFactor: 1.3,
+                    ),
+                  ),
+                  child: child!,
+                ),
               );
             },
             theme: AppTheme.light(),
