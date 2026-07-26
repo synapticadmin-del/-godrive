@@ -253,6 +253,11 @@ captainRoutes.get("/nearby-requests", async (c) => {
     .bind(user.id)
     .first<DbCaptain>();
 
+  // Online guard: offline captains should not receive trip listings.
+  if (captain && !captain.is_online && user.role !== "admin") {
+    return c.json({ requests: [], captainLocation: { lat: captain.last_lat ?? 30.0444, lng: captain.last_lng ?? 31.2357 } });
+  }
+
   const cLat = latParam ? Number(latParam) : captain?.last_lat ?? 30.0444;
   const cLng = lngParam ? Number(lngParam) : captain?.last_lng ?? 31.2357;
 
@@ -329,14 +334,20 @@ captainRoutes.get("/nearby-requests", async (c) => {
 
 captainRoutes.get("/offers", async (c) => {
   const user = c.get("user");
-  const trips = await c.env.DB.prepare(
-    `SELECT * FROM trips WHERE status IN ('searching', 'offered')
-     ORDER BY created_at DESC LIMIT 20`,
-  ).all<DbTrip>();
 
   const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
     .bind(user.id)
     .first<DbCaptain>();
+
+  // Online guard: offline captains should not receive trip offers.
+  if (captain && !captain.is_online && user.role !== "admin") {
+    return c.json({ trips: [], captainLocation: captain });
+  }
+
+  const trips = await c.env.DB.prepare(
+    `SELECT * FROM trips WHERE status IN ('searching', 'offered')
+     ORDER BY created_at DESC LIMIT 20`,
+  ).all<DbTrip>();
 
   return c.json({ trips: trips.results ?? [], captainLocation: captain });
 });

@@ -452,6 +452,11 @@ tripRoutes.post("/:id/accept", requireRole("captain", "admin"), async (c) => {
   if (!captain || (captain.approval_status !== "approved" && user.role !== "admin")) {
     return c.json({ error: "Captain not approved", code: "NOT_APPROVED" }, 403);
   }
+  // Online guard: an offline captain must not accept trips.
+  // The client suppresses the UI, but a direct API call could still slip through.
+  if (!captain.is_online && user.role !== "admin") {
+    return c.json({ error: "يجب أن تكون متصلاً لقبول الرحلات", code: "OFFLINE" }, 403);
+  }
 
   const trip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
     .bind(tripId)
@@ -766,6 +771,14 @@ tripRoutes.post("/:id/bid", requireRole("captain", "admin"), async (c) => {
   if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
   if (!["searching", "offered"].includes(trip.status)) {
     return c.json({ error: "Trip is no longer accepting bids", code: "TRIP_CLOSED" }, 400);
+  }
+
+  // Online guard: an offline captain must not submit bids.
+  const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+    .bind(user.id)
+    .first<DbCaptain>();
+  if (captain && !captain.is_online && user.role !== "admin") {
+    return c.json({ error: "يجب أن تكون متصلاً لتقديم عرض سعر", code: "OFFLINE" }, 403);
   }
 
   const bidId = id("bid");

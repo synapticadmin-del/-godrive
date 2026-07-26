@@ -427,11 +427,12 @@ adminRoutes.post("/documents/:id/review", async (c) => {
   const docId = c.req.param("id");
   const body = await c.req.json().catch(() => ({}));
   const status = body.status === "approved" ? "approved" : "rejected";
+  const rejectionReason = status === "rejected" ? (body.reason || null) : null;
 
   await c.env.DB.prepare(
-    `UPDATE driver_documents SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?`
+    `UPDATE driver_documents SET status = ?, rejection_reason = COALESCE(?, rejection_reason), reviewed_by = ?, reviewed_at = ? WHERE id = ?`
   )
-    .bind(status, user.id, nowIso(), docId)
+    .bind(status, rejectionReason, user.id, nowIso(), docId)
     .run();
 
   const doc = await c.env.DB.prepare(`SELECT * FROM driver_documents WHERE id = ?`)
@@ -475,9 +476,9 @@ adminRoutes.post("/captains/:id/documents/:docId/reject", async (c) => {
   const reason = body.reason || "تم الرفض بواسطة المشرف";
 
   await c.env.DB.prepare(
-    `UPDATE driver_documents SET status = 'rejected', reviewed_by = ?, reviewed_at = ? WHERE id = ? AND captain_id = ?`
+    `UPDATE driver_documents SET status = 'rejected', rejection_reason = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ? AND captain_id = ?`
   )
-    .bind(user.id, nowIso(), docId, captainId)
+    .bind(reason, user.id, nowIso(), docId, captainId)
     .run();
 
   await logAudit(c.env.DB, {
