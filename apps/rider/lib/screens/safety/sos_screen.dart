@@ -18,6 +18,14 @@ class _SosScreenState extends State<SosScreen> {
   bool _loading = false;
 
   Future<void> _triggerSos() async {
+    // Resolved before the confirmation dialog — the dialog is itself an await,
+    // and every geolocation and network call after it yields again. Capturing
+    // up front means nothing here reaches back into a BuildContext that may
+    // have been disposed while the SOS was in flight.
+    final appState = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -36,8 +44,11 @@ class _SosScreenState extends State<SosScreen> {
     );
 
     if (confirm != true) return;
+    // The rider may have left the screen while the dialog was open.
+    if (!mounted) return;
 
     setState(() => _loading = true);
+
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -65,17 +76,17 @@ class _SosScreenState extends State<SosScreen> {
         throw Exception('تعذّر تحديد موقعك. حاول مجددًا في مكان مفتوح');
       }
 
-      await context.read<AppState>().apiPost('/safety/sos', {
+      await appState.apiPost('/safety/sos', {
         'tripId': widget.tripId,
         'lat': pos.latitude,
         'lng': pos.longitude,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك')));
-      Navigator.pop(context);
+      messenger.showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك')));
+      navigator.pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

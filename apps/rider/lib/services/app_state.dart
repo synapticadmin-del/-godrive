@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -382,6 +381,12 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  /// Creates a trip request.
+  ///
+  /// [vehicleTypeId] is the car class the rider picked (economy / comfort /
+  /// xl). `POST /trips` persists it as `vehicle_type_id`; omitting it stores
+  /// NULL, which is why the selection has to be threaded through rather than
+  /// held only in the sheet's local state.
   Future<Map<String, dynamic>> createTrip({
     required double pickupLat,
     required double pickupLng,
@@ -389,6 +394,7 @@ class AppState extends ChangeNotifier {
     required double dropoffLng,
     String? pickupAddress,
     String? dropoffAddress,
+    String? vehicleTypeId,
   }) {
     return _post('/trips', {
       'pickupLat': pickupLat,
@@ -399,6 +405,7 @@ class AppState extends ChangeNotifier {
       'dropoffAddress': dropoffAddress,
       'city': 'cairo',
       'paymentMethod': 'cash',
+      if (vehicleTypeId != null) 'vehicleTypeId': vehicleTypeId,
     });
   }
 

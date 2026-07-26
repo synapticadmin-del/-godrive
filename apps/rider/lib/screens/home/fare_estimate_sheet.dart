@@ -115,6 +115,10 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
         dropoffLng: widget.dropoff.longitude,
         pickupAddress: pickupAddr,
         dropoffAddress: dropoffAddr,
+        // The rider's car-class choice was collected by VehicleSelector and
+        // then dropped, so every trip was created with a null
+        // vehicle_type_id. Thread it through to the API instead.
+        vehicleTypeId: _selectedVehicle,
       );
 
       if (!mounted) return;

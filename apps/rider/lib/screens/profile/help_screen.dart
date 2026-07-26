@@ -34,7 +34,7 @@ class HelpScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [AppTokens.primary, AppTokens.primaryDark]),
+              gradient: const LinearGradient(colors: [AppTokens.primary, AppTokens.primaryDark]),
               borderRadius: BorderRadius.circular(AppTokens.radiusLg),
             ),
             child: Row(children: [
