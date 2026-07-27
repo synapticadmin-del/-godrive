@@ -46,6 +46,19 @@ class CaptainState extends ChangeNotifier {
         await prefs.remove('user');
       }
     }
+
+    // Restore the saved theme before the first post-splash frame. Without this
+    // the app fell back to ThemeMode.system on every cold start, briefly
+    // flashing the OS theme even for a captain who had explicitly chosen light
+    // or dark.
+    final savedTheme = prefs.getString(_kThemeModeKey);
+    if (savedTheme != null) {
+      themeMode = ThemeMode.values.firstWhere(
+        (m) => m.name == savedTheme,
+        orElse: () => ThemeMode.system,
+      );
+    }
+
     loading = false;
     notifyListeners();
 
@@ -238,7 +251,28 @@ class CaptainState extends ChangeNotifier {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    return Geolocator.getCurrentPosition();
+    // Two-phase acquisition. An unbounded getCurrentPosition() blocks for
+    // 10-30s on a cold start while the GPS chip resolves a fresh fix, and
+    // indoors it can hang indefinitely — which previously froze the "go
+    // online" flow and every location push behind that wait. Take the cached
+    // fix as an instant fallback, then request a fresh high-accuracy fix that
+    // fails fast on a timeout instead of hanging.
+    //
+    // geolocator 12's Geolocator.getCurrentPosition takes desiredAccuracy and
+    // timeLimit as direct named params (a LocationSettings object is the 13+
+    // signature and will not compile here); getLastKnownPosition takes none.
+    final cached = await Geolocator.getLastKnownPosition();
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 8),
+      );
+    } catch (_) {
+      // Timed out or errored — a slightly stale fix beats blocking the captain
+      // or failing the online toggle outright.
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
   /// Check GPS service is enabled before going online. Returns false (and
@@ -545,9 +579,23 @@ class CaptainState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// SharedPreferences key for the captain's chosen theme. Stored as the enum
+  /// name ('light' | 'dark' | 'system') so it round-trips without depending on
+  /// a fragile ordinal index.
+  static const _kThemeModeKey = 'themeMode';
+
   void setThemeMode(ThemeMode m) {
     themeMode = m;
     notifyListeners();
+    // Persist out-of-band so the setter stays synchronous for its UI callers.
+    // Nothing wrote this before, so every relaunch reset the app to
+    // ThemeMode.system regardless of what the captain had picked.
+    unawaited(_persistThemeMode(m));
+  }
+
+  Future<void> _persistThemeMode(ThemeMode m) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemeModeKey, m.name);
   }
 
   Future<void> logout() async {
@@ -569,7 +617,13 @@ class CaptainState extends ChangeNotifier {
     _declinedTripIds.clear();
     _bidTripIds.clear();
     final prefs = await SharedPreferences.getInstance();
+    // Signing out ends the session, not the person's display preference.
+    // prefs.clear() used to wipe the saved theme too, so a captain who had
+    // chosen dark mode was thrown back to system theme the moment they logged
+    // out. Preserve the theme across the clear.
+    final keepTheme = themeMode.name;
     await prefs.clear();
+    await prefs.setString(_kThemeModeKey, keepTheme);
     notifyListeners();
   }
 
