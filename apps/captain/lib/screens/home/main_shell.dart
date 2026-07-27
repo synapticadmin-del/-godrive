@@ -12,8 +12,8 @@ import 'package:synaptic_go_captain/screens/documents/document_upload_screen.dar
 import 'package:synaptic_go_captain/screens/earnings/earnings_screen.dart';
 import 'package:synaptic_go_captain/screens/profile/settings_screen.dart';
 import 'package:synaptic_go_captain/screens/safety/sos_screen.dart';
-import 'available_trips_tab.dart';
 import 'home_tab.dart';
+import 'nearby_requests_screen.dart';
 import 'trips_tab.dart';
 
 /// The captain's main shell: a full-bleed map with floating chrome.
@@ -40,11 +40,12 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
-  /// The "رحلات متاحة" destination. Appended after the four original tabs so
-  /// their indices stay stable, even though it renders in the centre slot.
-  static const int _availableTripsIndex = 4;
-
   final MapController _mapController = MapController();
+
+  /// The "رحلات متاحة" (Available Trips) destination. Appended after the four
+  /// original tabs so their indices stay stable, even though it renders in the
+  /// centre slot of the bottom bar.
+  static const int _availableTripsIndex = 4;
 
   int _tabIndex = 0;
   LatLng? _currentLocation;
@@ -292,14 +293,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   const TripsTab(),
                   const EarningsScreen(),
                   const SettingsScreen(),
-                  // Index 4, appended rather than inserted at the centre's
-                  // visual position, so the four existing destinations keep
-                  // the indices the rest of the app already passes around.
-                  AvailableTripsTab(
-                    online: state.online,
-                    busy: _togglingOnline,
-                    onToggleOnline: _toggleOnline,
-                  ),
+                  // Index 4 — the "رحلات متاحة" tab, wired to the standing
+                  // queue of nearby ride requests. Appended after the four
+                  // original destinations so their indices stay stable; it is
+                  // surfaced in the bottom bar's centre slot via
+                  // [centerDestination] below.
+                  const NearbyRequestsScreen(),
                 ],
               ),
             ),
@@ -310,16 +309,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         bottomNavigationBar: MainBottomNav(
           currentIndex: _tabIndex,
           onTap: (index) => setState(() => _tabIndex = index),
-          // The centre slot is a real destination in the Captain app. The
-          // recentre shortcut it replaces is not lost — it is still a
-          // dedicated floating control on the map (see _buildMapControls),
-          // which is where a captain's thumb already goes for it.
+          // The centre slot is promoted from a recentre shortcut to a real
+          // destination — "رحلات متاحة", the browsable queue of nearby
+          // requests. The recentre shortcut it replaces is not lost: it
+          // remains a dedicated floating control on the map (see
+          // _buildMapControls), where a captain's thumb already goes for it.
           centerDestination: NavCenterDestination(
             index: _availableTripsIndex,
             label: 'رحلات متاحة',
             icon: Icons.explore_rounded,
-            // Only meaningful while online; offline the tab shows a CTA
-            // rather than a list, so a count would be a lie.
+            // Live count of waiting offers, shown only while online — offline
+            // the tab presents a go-online CTA rather than a list, so a count
+            // would mislead. CaptainState clears `offers` when going offline.
             badgeCount: state.online ? state.offers.length : 0,
           ),
         ),

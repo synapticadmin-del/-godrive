@@ -108,7 +108,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTokens.lightBorder,
+                  color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
                   borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                 ),
               ),
@@ -124,7 +124,10 @@ class _WalletScreenState extends State<WalletScreen> {
             const SizedBox(height: AppTokens.space2xs),
             Text(
               'الرصيد المتاح: ${_balance.toStringAsFixed(2)} ج.م',
-              style: AppTokens.font(fontSize: 13, color: AppTokens.lightMuted),
+              style: AppTokens.font(
+                fontSize: 13,
+                color: isDark ? AppTokens.darkMuted : AppTokens.lightMuted,
+              ),
             ),
             const SizedBox(height: AppTokens.spaceMd),
             _PayoutMethodTile(
@@ -529,6 +532,7 @@ class _PayoutMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: surface,
       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
@@ -560,7 +564,7 @@ class _PayoutMethodTile extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 14,
-                color: AppTokens.lightFaint,
+                color: isDark ? AppTokens.darkFaint : AppTokens.lightFaint,
               ),
             ],
           ),

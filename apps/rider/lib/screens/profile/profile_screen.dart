@@ -188,7 +188,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               OutlinedButton.icon(
                 onPressed: () async {
                   // Fallback simulation for custom avatar link
-                  final defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                  const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
                   await ctx.read<AppState>().updateUserProfile(avatarUrl: defaultAvatar);
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
@@ -240,7 +240,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              appState.themeMode == ThemeMode.dark ? Icons.wb_sunny : Icons.nightlight_round,
+              // Visible brightness, not the enum — see AppState.
+              appState.isDarkActive ? Icons.wb_sunny : Icons.nightlight_round,
             ),
             tooltip: isAr ? 'تغيير المظهر' : 'Toggle Theme',
             onPressed: () => appState.toggleTheme(),

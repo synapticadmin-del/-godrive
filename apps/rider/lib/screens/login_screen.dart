@@ -143,7 +143,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       _ChipButton(
                         go: go,
-                        icon: appState.themeMode == ThemeMode.dark
+                        // Visible brightness, not the enum — see AppState.
+                        icon: appState.isDarkActive
                             ? Icons.light_mode_rounded
                             : Icons.dark_mode_rounded,
                         onTap: appState.toggleTheme,
@@ -459,36 +460,55 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // On the light theme the field previously sat on a grey wash with no
+    // outline and grey-on-grey placeholder text, which read as a disabled
+    // control. Light mode now gets a white well, a visible hairline and ink
+    // set in the crisp dark token so typed text has real contrast.
+    final fieldFill = go.isDark ? go.surface : AppTokens.lightPanel;
+    final fieldInk = go.isDark ? go.text : AppTokens.lightText;
+    final fieldHint = go.isDark ? go.muted : AppTokens.lightMuted;
+    final fieldIcon = go.isDark ? go.muted : AppTokens.lightMuted;
+    final restingBorder = go.isDark
+        ? BorderSide.none
+        : const BorderSide(color: AppTokens.lightBorder, width: 1.2);
+    final focusColor = go.isDark ? go.action : AppTokens.primary;
+
     return TextField(
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       onSubmitted: onSubmitted,
+      cursorColor: focusColor,
       style: GoogleFonts.ibmPlexSansArabic(
-        color: go.text,
+        color: fieldInk,
         fontSize: 15,
         fontWeight: FontWeight.w500,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.ibmPlexSansArabic(color: go.muted, fontSize: 14),
-        prefixIcon: Icon(icon, color: go.muted, size: 20),
+        hintStyle:
+            GoogleFonts.ibmPlexSansArabic(color: fieldHint, fontSize: 14),
+        labelStyle:
+            GoogleFonts.ibmPlexSansArabic(color: fieldInk, fontSize: 14),
+        floatingLabelStyle:
+            GoogleFonts.ibmPlexSansArabic(color: focusColor, fontSize: 14),
+        prefixIcon: Icon(icon, color: fieldIcon, size: 20),
         suffixIcon: suffix,
         filled: true,
-        fillColor: go.surface,
+        fillColor: fieldFill,
         contentPadding: const EdgeInsets.symmetric(vertical: 17),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-          borderSide: BorderSide.none,
+          borderSide: restingBorder,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-          borderSide: BorderSide.none,
+          borderSide: restingBorder,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-          borderSide: BorderSide(color: go.action, width: 1.5),
+          borderSide: BorderSide(color: focusColor, width: 1.8),
         ),
       ),
     );
@@ -508,10 +528,21 @@ class _PhoneField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mirrors the treatment in [_Field] so the dialling-code well and the
+    // plain fields read as one family on both themes.
+    final fieldFill = go.isDark ? go.surface : AppTokens.lightPanel;
+    final fieldInk = go.isDark ? go.text : AppTokens.lightText;
+    final fieldHint = go.isDark ? go.muted : AppTokens.lightMuted;
+    final divider = go.isDark ? go.border : AppTokens.lightBorder;
+    final focusColor = go.isDark ? go.action : AppTokens.primary;
+
     return Container(
       decoration: BoxDecoration(
-        color: go.surface,
+        color: fieldFill,
         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        border: go.isDark
+            ? null
+            : Border.all(color: AppTokens.lightBorder, width: 1.2),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
@@ -521,26 +552,27 @@ class _PhoneField extends StatelessWidget {
             style: GoogleFonts.ibmPlexSansArabic(
               fontWeight: FontWeight.w700,
               fontSize: 14,
-              color: go.text,
+              color: fieldInk,
             ),
           ),
           const SizedBox(width: 10),
-          Container(width: 1, height: 22, color: go.border),
+          Container(width: 1, height: 22, color: divider),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: controller,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
+              cursorColor: focusColor,
               style: GoogleFonts.ibmPlexSansArabic(
-                color: go.text,
+                color: fieldInk,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
                 hintText: hint,
                 hintStyle: GoogleFonts.ibmPlexSansArabic(
-                  color: go.muted,
+                  color: fieldHint,
                   fontSize: 14,
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 17),

@@ -46,6 +46,19 @@ class CaptainState extends ChangeNotifier {
         await prefs.remove('user');
       }
     }
+
+    // Restore the saved theme before the first post-splash frame. Without this
+    // the app fell back to ThemeMode.system on every cold start, briefly
+    // flashing the OS theme even for a captain who had explicitly chosen light
+    // or dark.
+    final savedTheme = prefs.getString(_kThemeModeKey);
+    if (savedTheme != null) {
+      themeMode = ThemeMode.values.firstWhere(
+        (m) => m.name == savedTheme,
+        orElse: () => ThemeMode.system,
+      );
+    }
+
     loading = false;
     notifyListeners();
 
@@ -238,7 +251,28 @@ class CaptainState extends ChangeNotifier {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    return Geolocator.getCurrentPosition();
+    // Two-phase acquisition. An unbounded getCurrentPosition() blocks for
+    // 10-30s on a cold start while the GPS chip resolves a fresh fix, and
+    // indoors it can hang indefinitely — which previously froze the "go
+    // online" flow and every location push behind that wait. Take the cached
+    // fix as an instant fallback, then request a fresh high-accuracy fix that
+    // fails fast on a timeout instead of hanging.
+    //
+    // geolocator 12's Geolocator.getCurrentPosition takes desiredAccuracy and
+    // timeLimit as direct named params (a LocationSettings object is the 13+
+    // signature and will not compile here); getLastKnownPosition takes none.
+    final cached = await Geolocator.getLastKnownPosition();
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 8),
+      );
+    } catch (_) {
+      // Timed out or errored — a slightly stale fix beats blocking the captain
+      // or failing the online toggle outright.
+      if (cached != null) return cached;
+      rethrow;
+    }
   }
 
   /// Check GPS service is enabled before going online. Returns false (and
@@ -306,11 +340,23 @@ class CaptainState extends ChangeNotifier {
       });
       online = value;
       gpsError = null;
-      notifyListeners();
       if (value) {
         _startLocationStream();
       } else {
+        // Going offline must take the work off screen with it. Leaving the
+        // cards up meant a captain could still tap accept on a trip the
+        // server would now refuse (403 OFFLINE), and the countdown kept
+        // running on offers they could no longer take.
         _stopLocationStream();
+        offers = [];
+        _declinedTripIds.clear();
+        _bidTripIds.clear();
+      }
+      notifyListeners();
+      if (value) {
+        // Pull immediately rather than waiting up to 20s for the next poll —
+        // the captain just asked for work and expects to see it.
+        unawaited(refreshOffers());
       }
       return true;
     } catch (e) {
@@ -396,6 +442,16 @@ class CaptainState extends ChangeNotifier {
 
   Future<void> refreshOffers() async {
     if (token == null) return;
+    // An offline captain has no offers by definition — the server already
+    // returns an empty list, so skip the request entirely and make sure
+    // nothing stale is left on screen.
+    if (!online) {
+      if (offers.isNotEmpty) {
+        offers = [];
+        notifyListeners();
+      }
+      return;
+    }
     try {
       final res = await _get('/captain/offers');
       final trips = (res['trips'] as List?)?.whereType<Map>() ?? [];
@@ -425,7 +481,14 @@ class CaptainState extends ChangeNotifier {
     }
   }
 
+  /// Accept the rider's proposed fare as-is. Assigns the trip immediately.
+  ///
+  /// The server enforces the same online rule (403 OFFLINE), but checking here
+  /// turns a wasted round-trip into an instant, correctly-worded refusal —
+  /// and closes the race where the captain toggles offline while a card is
+  /// still on screen.
   Future<void> accept(String tripId) async {
+    if (!online) throw Exception(offlineActionMessage);
     final res = await _post('/trips/$tripId/accept');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
     offers.removeWhere((o) => o['id'] == tripId);
@@ -436,6 +499,33 @@ class CaptainState extends ChangeNotifier {
     // waiting for the next stream tick.
     await pushLocation();
   }
+
+  /// Shown whenever a trip action is attempted while offline. Matches the
+  /// server's own Arabic copy so the captain sees one consistent reason.
+  static const offlineActionMessage = 'يجب أن تكون متصلاً لاستقبال الرحلات';
+
+  /// Submit a counter-offer (bid) for [tripId] at [amount] EGP.
+  ///
+  /// Endpoint is `POST /trips/:id/bid` with `{counterPrice}` — note the
+  /// singular path and the field name; both are what `createBidSchema`
+  /// validates server-side (1..10000).
+  ///
+  /// Unlike [accept] this does *not* assign the trip: the rider still has to
+  /// choose the bid, so the offer stays in the list. It is marked locally as
+  /// bid-on so the card can show that the captain already responded rather
+  /// than inviting a duplicate bid.
+  Future<void> submitBid(String tripId, double amount) async {
+    if (!online) throw Exception(offlineActionMessage);
+    await _post('/trips/$tripId/bid', {'counterPrice': amount});
+    _bidTripIds[tripId] = amount;
+    notifyListeners();
+  }
+
+  /// Trip id → the fare this captain last bid on it.
+  final Map<String, double> _bidTripIds = {};
+
+  double? bidFor(String tripId) => _bidTripIds[tripId];
+  bool hasBidOn(String tripId) => _bidTripIds.containsKey(tripId);
 
   /// Dismiss an offer locally.
   ///
@@ -489,9 +579,23 @@ class CaptainState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// SharedPreferences key for the captain's chosen theme. Stored as the enum
+  /// name ('light' | 'dark' | 'system') so it round-trips without depending on
+  /// a fragile ordinal index.
+  static const _kThemeModeKey = 'themeMode';
+
   void setThemeMode(ThemeMode m) {
     themeMode = m;
     notifyListeners();
+    // Persist out-of-band so the setter stays synchronous for its UI callers.
+    // Nothing wrote this before, so every relaunch reset the app to
+    // ThemeMode.system regardless of what the captain had picked.
+    unawaited(_persistThemeMode(m));
+  }
+
+  Future<void> _persistThemeMode(ThemeMode m) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemeModeKey, m.name);
   }
 
   Future<void> logout() async {
@@ -511,8 +615,15 @@ class CaptainState extends ChangeNotifier {
     error = null;
     gpsError = null;
     _declinedTripIds.clear();
+    _bidTripIds.clear();
     final prefs = await SharedPreferences.getInstance();
+    // Signing out ends the session, not the person's display preference.
+    // prefs.clear() used to wipe the saved theme too, so a captain who had
+    // chosen dark mode was thrown back to system theme the moment they logged
+    // out. Preserve the theme across the clear.
+    final keepTheme = themeMode.name;
     await prefs.clear();
+    await prefs.setString(_kThemeModeKey, keepTheme);
     notifyListeners();
   }
 

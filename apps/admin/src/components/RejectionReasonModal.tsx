@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, ImageOff, CalendarX, FileX, Edit3, Send, Loader2 } from 'lucide-react';
+import { X, AlertTriangle, ImageOff, CalendarX, FileX, Edit3, Send, Loader2, CarFront, UserX } from 'lucide-react';
 
 interface RejectionReasonModalProps {
   isOpen: boolean;
@@ -18,15 +18,27 @@ const PRESETS = [
   },
   {
     id: 'expired',
-    label: 'المستند منتهي الصلاحية',
-    description: 'تاريخ انتهاء المستند سابق لليوم',
+    label: 'بطاقة منتهية الصلاحية',
+    description: 'تاريخ انتهاء البطاقة أو المستند سابق لليوم',
     icon: CalendarX,
+  },
+  {
+    id: 'license_invalid',
+    label: 'رخصة القيادة مفقودة أو منتهية',
+    description: 'الرخصة غير مرفقة أو منتهية الصلاحية أو غير سارية',
+    icon: CarFront,
   },
   {
     id: 'mismatch',
     label: 'البيانات غير متطابقة',
     description: 'البيانات الموجودة في المستند لا تطابق بيانات الكابتن',
     icon: FileX,
+  },
+  {
+    id: 'name_mismatch',
+    label: 'اسم الكابتن غير مطابق للبطاقة',
+    description: 'الاسم المسجل في الحساب لا يتطابق مع الاسم في المستند الرسمي',
+    icon: UserX,
   },
   {
     id: 'custom',

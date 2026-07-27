@@ -1,6 +1,13 @@
 # Analysis options placeholder — run `flutter create .` later to generate platform folders.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # Output of `flutter gen-l10n`. Hand-editing it to satisfy lints is
+    # pointless because the next generation run overwrites the file, so the
+    # generated sources are excluded from analysis instead.
+    - lib/l10n/generated/**
+
 linter:
   rules:
     prefer_const_constructors: false

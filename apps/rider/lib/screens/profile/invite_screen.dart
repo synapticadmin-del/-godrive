@@ -62,7 +62,7 @@ class _InviteScreenState extends State<InviteScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [AppTokens.primary, AppTokens.primaryDark], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    gradient: const LinearGradient(colors: [AppTokens.primary, AppTokens.primaryDark], begin: Alignment.topLeft, end: Alignment.bottomRight),
                     borderRadius: BorderRadius.circular(AppTokens.radiusXl),
                   ),
                   child: Column(children: [

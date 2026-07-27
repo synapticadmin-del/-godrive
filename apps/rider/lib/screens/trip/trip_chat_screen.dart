@@ -24,13 +24,18 @@ class _TripChatScreenState extends State<TripChatScreen> {
   }
 
   Future<void> _fetchMessages() async {
+    final appState = context.read<AppState>();
     try {
-      final res = await context.read<AppState>().apiGet('/safety/chat/${widget.tripId}');
+      final res = await appState.apiGet('/safety/chat/${widget.tripId}');
+      // Leaving the chat while the fetch is in flight would otherwise call
+      // setState on a disposed State.
+      if (!mounted) return;
       setState(() {
         _messages = res['messages'] ?? [];
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _loading = false);
     }
   }
@@ -39,11 +44,19 @@ class _TripChatScreenState extends State<TripChatScreen> {
     if (_msgCtrl.text.isEmpty) return;
     final text = _msgCtrl.text;
     _msgCtrl.clear();
+
+    // Captured before the await so the error path does not touch a
+    // BuildContext that may no longer be mounted.
+    final appState = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
-      await context.read<AppState>().apiPost('/safety/chat/${widget.tripId}', {'body': text});
+      await appState.apiPost('/safety/chat/${widget.tripId}', {'body': text});
+      if (!mounted) return;
       _fetchMessages();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 

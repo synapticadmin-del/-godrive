@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,7 +19,13 @@ import 'package:video_player/video_player.dart';
 /// broken, the rider simply keeps seeing a polished logo lockup rather than
 /// discovering that something failed.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.onCompleted});
+
+  /// Invoked once the intro has run its full course.
+  ///
+  /// Optional so the screen stays usable as a plain loading state while the
+  /// session is still being restored.
+  final VoidCallback? onCompleted;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -27,6 +34,13 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   VideoPlayerController? _controller;
   bool _videoReady = false;
+
+  /// Fires once the intro has finished — either because the video played all
+  /// the way through, or because we fell back to the static lockup.
+  bool _completed = false;
+
+  /// Backstop so a stalled decoder can never strand the rider on the splash.
+  Timer? _safetyTimer;
 
   @override
   void initState() {
@@ -49,17 +63,69 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       await controller.setVolume(0); // Required for autoplay on web/iOS.
-      await controller.setLooping(true);
+
+      // Looping is what previously prevented the intro from ever "finishing".
+      // The video must run exactly once, end to end, before we hand over.
+      await controller.setLooping(false);
+
+      // Watch playback position so we can detect genuine completion.
+      controller.addListener(_onVideoTick);
+
       await controller.play();
+
+      // Never outstay the clip itself: duration plus a small grace window.
+      final duration = controller.value.duration;
+      if (duration > Duration.zero) {
+        _safetyTimer = Timer(
+          duration + const Duration(milliseconds: 750),
+          _finish,
+        );
+      } else {
+        _safetyTimer = Timer(const Duration(seconds: 5), _finish);
+      }
 
       setState(() {
         _controller = controller;
         _videoReady = true;
       });
     } catch (_) {
-      // Static lockup is already on screen — nothing further to do.
-      if (mounted) setState(() => _videoReady = false);
+      // Static lockup is already on screen. Give the brand mark a beat to be
+      // seen, then continue — a failed video must not block app entry.
+      if (mounted) {
+        setState(() => _videoReady = false);
+        _safetyTimer = Timer(const Duration(milliseconds: 1800), _finish);
+      }
     }
+  }
+
+  /// Detects the end of playback. `video_player` reports completion by leaving
+  /// [VideoPlayerValue.isPlaying] false with the position at the duration.
+  void _onVideoTick() {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    final value = controller.value;
+    final duration = value.duration;
+    if (duration <= Duration.zero) return;
+
+    if (value.position >= duration && !value.isPlaying) {
+      _finish();
+    }
+  }
+
+  /// Hands control to the app shell exactly once.
+  ///
+  /// `main.dart` owns routing — it swaps this screen for `HomeScreen` or
+  /// `LoginScreen` based on the restored session — so the splash only needs to
+  /// report that the intro is done rather than push a route itself.
+  void _finish() {
+    if (_completed || !mounted) return;
+    _completed = true;
+
+    _safetyTimer?.cancel();
+    _controller?.removeListener(_onVideoTick);
+
+    widget.onCompleted?.call();
   }
 
   Future<void> _openSynaptic() async {
@@ -75,14 +141,38 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
+    _safetyTimer?.cancel();
+    _controller?.removeListener(_onVideoTick);
     _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
+    // The intro is a fixed brand moment: the logo, the video and the wordmark
+    // are all authored against a light canvas. Following the device's dark
+    // mode here would put a light-authored video on a near-black background
+    // and invert the wordmark, so the splash is pinned to the light palette
+    // regardless of the system setting. Every descendant — including
+    // GoTheme.of(context) — resolves against this override.
+    final lightTheme = AppTheme.light();
+    final go = GoTheme.forBrightness(Brightness.light);
 
+    return Theme(
+      data: lightTheme,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        // Dark status-bar glyphs stay legible on the light splash canvas.
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+        ),
+        child: _buildSplash(go),
+      ),
+    );
+  }
+
+  Widget _buildSplash(GoTheme go) {
     return Scaffold(
       backgroundColor: go.bg,
       body: SafeArea(

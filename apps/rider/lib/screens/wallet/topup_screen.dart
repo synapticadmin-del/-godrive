@@ -23,18 +23,26 @@ class _TopupScreenState extends State<TopupScreen> {
     if (amount == null || amount <= 0) return;
 
     setState(() => _loading = true);
+
+    // Resolved before the await: the Paymob intention is a network round trip,
+    // and the navigation delegate below is invoked later still — neither
+    // should reach back through a BuildContext that may be gone by then.
+    final appState = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
-      final url = await context.read<AppState>().topUpViaPaymob(amount);
+      final url = await appState.topUpViaPaymob(amount);
       final ctrl = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(
           NavigationDelegate(
             onNavigationRequest: (request) {
               if (request.url.contains('success=true')) {
-                Navigator.pop(context, true);
+                navigator.pop(true);
                 return NavigationDecision.prevent;
               } else if (request.url.contains('success=false')) {
-                Navigator.pop(context, false);
+                navigator.pop(false);
                 return NavigationDecision.prevent;
               }
               return NavigationDecision.navigate;
@@ -42,12 +50,14 @@ class _TopupScreenState extends State<TopupScreen> {
           ),
         )
         ..loadRequest(Uri.parse(url));
+      if (!mounted) return;
       setState(() {
         _webCtrl = ctrl;
         _loading = false;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
       setState(() => _loading = false);
     }
   }
