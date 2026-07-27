@@ -143,7 +143,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       _ChipButton(
                         go: go,
-                        icon: appState.themeMode == ThemeMode.dark
+                        // Visible brightness, not the enum — see AppState.
+                        icon: appState.isDarkActive
                             ? Icons.light_mode_rounded
                             : Icons.dark_mode_rounded,
                         onTap: appState.toggleTheme,

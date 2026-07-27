@@ -49,11 +49,91 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
   bool _booking = false;
   String? _error;
 
+  /// Multipliers mirroring VehicleSelector's car classes, so the suggested
+  /// price tracks the class the rider actually picked.
+  static const Map<String, double> _classMultipliers = {
+    'economy': 1.0,
+    'comfort': 1.3,
+    'xl': 1.6,
+  };
+
+  /// Step used by the −/+ buttons, in EGP.
+  static const double _priceStep = 5;
+
+  /// Server-side bound from `createTripSchema` (`offeredPrice` is
+  /// `.min(1).max(10000)`). Clamping here means an out-of-range number is
+  /// caught before the request instead of coming back as a validation error.
+  static const double _minOffer = 1;
+  static const double _maxOffer = 10000;
+
+  /// The fare the rider is offering, in EGP.
+  ///
+  /// Seeded from the backend estimate and then owned by the rider. Null only
+  /// until the first estimate lands.
+  double? _offeredPrice;
+
+  /// True once the rider has moved the price themselves. After that the
+  /// suggestion stops overwriting their number — re-seeding on a late estimate
+  /// or a class change would silently discard what they typed.
+  bool _priceEditedByRider = false;
+
+  final TextEditingController _priceController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _route = widget.initialRoute;
     _fetchEstimate();
+  }
+
+  @override
+  void dispose() {
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  /// The system's fair-price suggestion for the current car class.
+  double? get _suggestedPrice {
+    final fare = _estimate?['fare'];
+    final base = fare is Map ? (fare['total'] as num?)?.toDouble() : null;
+    if (base == null || base <= 0) return null;
+    return base * (_classMultipliers[_selectedVehicle] ?? 1.0);
+  }
+
+  /// Seeds [_offeredPrice] from the suggestion, unless the rider has taken over.
+  void _syncSuggestedPrice() {
+    if (_priceEditedByRider) return;
+    final suggested = _suggestedPrice;
+    if (suggested == null) return;
+    _setOfferedPrice(suggested, markEdited: false);
+  }
+
+  void _setOfferedPrice(double value, {bool markEdited = true}) {
+    final rounded = value.roundToDouble().clamp(_minOffer, _maxOffer);
+    _offeredPrice = rounded;
+    if (markEdited) _priceEditedByRider = true;
+
+    final text = rounded.toStringAsFixed(0);
+    if (_priceController.text != text) {
+      _priceController.text = text;
+    }
+  }
+
+  void _nudgePrice(double delta) {
+    final current = _offeredPrice ?? _suggestedPrice;
+    if (current == null) return;
+    setState(() => _setOfferedPrice(current + delta));
+  }
+
+  /// Handles free-text entry. The rider may clear the field mid-edit, so an
+  /// unparseable value is left alone rather than snapped back to a default.
+  void _onPriceTyped(String raw) {
+    final parsed = double.tryParse(raw.trim());
+    if (parsed == null) return;
+    setState(() {
+      _offeredPrice = parsed.clamp(_minOffer, _maxOffer);
+      _priceEditedByRider = true;
+    });
   }
 
   Future<void> _fetchEstimate() async {
@@ -73,6 +153,9 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
           destination: widget.dropoff,
         );
         _loading = false;
+        // Seed the rider's offer with the system suggestion now that we have a
+        // fare to base it on.
+        _syncSuggestedPrice();
       });
     } catch (e) {
       if (!mounted) return;
@@ -119,6 +202,10 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
         // then dropped, so every trip was created with a null
         // vehicle_type_id. Thread it through to the API instead.
         vehicleTypeId: _selectedVehicle,
+        // The price the rider is offering. Without this the API falls back to
+        // its own estimate and captains only ever see a fixed system price —
+        // the rider's number never reached the negotiation.
+        offeredPrice: _offeredPrice ?? _suggestedPrice,
       );
 
       if (!mounted) return;
@@ -213,7 +300,29 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
 
         VehicleSelector(
           fareEstimate: _estimate,
-          onSelect: (val) => setState(() => _selectedVehicle = val),
+          onSelect: (val) => setState(() {
+            _selectedVehicle = val;
+            // A different class implies a different fair price. Only re-seeds
+            // while the rider has not set their own number.
+            _syncSuggestedPrice();
+          }),
+        ),
+        const SizedBox(height: 18),
+
+        // The rider's price proposal — the heart of the negotiation flow.
+        _PriceOfferCard(
+          go: go,
+          isAr: isAr,
+          offeredPrice: _offeredPrice,
+          suggestedPrice: _suggestedPrice,
+          controller: _priceController,
+          onDecrease: () => _nudgePrice(-_priceStep),
+          onIncrease: () => _nudgePrice(_priceStep),
+          onTyped: _onPriceTyped,
+          onResetToSuggested: () => setState(() {
+            _priceEditedByRider = false;
+            _syncSuggestedPrice();
+          }),
         ),
         const SizedBox(height: 18),
 
@@ -488,6 +597,235 @@ class _ErrorBody extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The rider's price proposal control.
+///
+/// This is the inDrive-style negotiation entry point: the backend suggests a
+/// fair fare, the rider accepts it or names their own number, and captains then
+/// accept that price or counter it. The rider is deliberately *not* clamped to a
+/// band around the suggestion — they may offer whatever they like within the
+/// API's absolute bounds — because the whole point is that the market, not the
+/// pricing table, settles the final figure.
+class _PriceOfferCard extends StatelessWidget {
+  const _PriceOfferCard({
+    required this.go,
+    required this.isAr,
+    required this.offeredPrice,
+    required this.suggestedPrice,
+    required this.controller,
+    required this.onDecrease,
+    required this.onIncrease,
+    required this.onTyped,
+    required this.onResetToSuggested,
+  });
+
+  final GoTheme go;
+  final bool isAr;
+  final double? offeredPrice;
+  final double? suggestedPrice;
+  final TextEditingController controller;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+  final ValueChanged<String> onTyped;
+  final VoidCallback onResetToSuggested;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = go.isDark ? go.action : AppTokens.primary;
+
+    // Only meaningful once we have a suggestion to compare against.
+    final suggestion = suggestedPrice;
+    final offer = offeredPrice;
+    final diff = (suggestion != null && offer != null)
+        ? offer - suggestion
+        : null;
+    final hasDiff = diff != null && diff.abs() >= 1;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: go.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        border: Border.all(color: accent.withOpacity(go.isDark ? 0.30 : 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.local_offer_rounded, size: 17, color: accent),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  isAr ? 'السعر الذي تقترحه' : 'Your offer',
+                  style: GoogleFonts.ibmPlexSansArabic(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: go.text,
+                  ),
+                ),
+              ),
+              if (hasDiff)
+                GestureDetector(
+                  onTap: onResetToSuggested,
+                  child: Text(
+                    isAr ? 'السعر المقترح' : 'Reset',
+                    style: GoogleFonts.ibmPlexSansArabic(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── stepper: −  [ 45 ج.م ]  + ──
+          Row(
+            children: [
+              _StepButton(
+                go: go,
+                icon: Icons.remove_rounded,
+                onTap: onDecrease,
+                semanticLabel: isAr ? 'تقليل السعر' : 'Decrease price',
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: TextField(
+                    controller: controller,
+                    onChanged: onTyped,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    textDirection: TextDirection.ltr,
+                    style: GoogleFonts.ibmPlexSansArabic(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: go.text,
+                      height: 1.1,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: true,
+                      fillColor: go.isDark ? go.panel : Colors.white,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      suffixText: isAr ? 'ج.م' : 'EGP',
+                      suffixStyle: GoogleFonts.ibmPlexSansArabic(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: go.muted,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                        borderSide: BorderSide(color: go.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                        borderSide: BorderSide(color: go.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+                        borderSide: BorderSide(color: accent, width: 1.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              _StepButton(
+                go: go,
+                icon: Icons.add_rounded,
+                onTap: onIncrease,
+                semanticLabel: isAr ? 'زيادة السعر' : 'Increase price',
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+          Text(
+            _hintText(suggestion, diff),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.ibmPlexSansArabic(
+              fontSize: 12,
+              color: go.muted,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Explains the number in context: the fair suggestion, how far the rider has
+  /// moved from it, and what that means for how fast a captain accepts.
+  String _hintText(double? suggestion, double? diff) {
+    if (suggestion == null) {
+      return isAr
+          ? 'اقترح السعر الذي يناسبك، والكابتن يوافق أو يقترح سعراً آخر.'
+          : 'Name your price — captains can accept it or counter.';
+    }
+
+    final s = suggestion.round();
+    if (diff == null || diff.abs() < 1) {
+      return isAr
+          ? 'السعر العادل المقترح $s ج.م. يمكنك تعديله، والكابتن يوافق أو يقترح سعراً آخر.'
+          : 'Suggested fair price is $s EGP. Adjust it freely — captains can accept or counter.';
+    }
+
+    if (diff > 0) {
+      return isAr
+          ? 'أعلى بـ ${diff.abs().round()} ج.م من السعر المقترح ($s ج.م) — فرصة أسرع للقبول.'
+          : '${diff.abs().round()} EGP above the suggested $s EGP — likely accepted faster.';
+    }
+    return isAr
+        ? 'أقل بـ ${diff.abs().round()} ج.م من السعر المقترح ($s ج.م) — قد يستغرق وقتاً أطول.'
+        : '${diff.abs().round()} EGP below the suggested $s EGP — may take longer to match.';
+  }
+}
+
+/// Square −/+ button used by the price stepper.
+class _StepButton extends StatelessWidget {
+  const _StepButton({
+    required this.go,
+    required this.icon,
+    required this.onTap,
+    required this.semanticLabel,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = go.isDark ? go.action : AppTokens.primary;
+
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        color: go.isDark ? go.panel : Colors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+          child: Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppTokens.radiusSm),
+              border: Border.all(color: go.border),
+            ),
+            child: Icon(icon, color: accent, size: 24),
+          ),
+        ),
       ),
     );
   }

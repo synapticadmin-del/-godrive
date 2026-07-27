@@ -240,7 +240,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              appState.themeMode == ThemeMode.dark ? Icons.wb_sunny : Icons.nightlight_round,
+              // Visible brightness, not the enum — see AppState.
+              appState.isDarkActive ? Icons.wb_sunny : Icons.nightlight_round,
             ),
             tooltip: isAr ? 'تغيير المظهر' : 'Toggle Theme',
             onPressed: () => appState.toggleTheme(),
