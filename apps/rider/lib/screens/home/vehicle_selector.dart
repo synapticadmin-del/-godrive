@@ -22,11 +22,27 @@ class VehicleCategoryStrip extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final bool isArabic;
 
+  /// Freight and tuk-tuk are temporarily suspended: they stay visible so riders
+  /// can see the service exists and is coming, but are not selectable. Removing
+  /// the chips outright would read as "this app doesn't do freight" rather than
+  /// "not yet".
   static const _categories = <_Category>[
     _Category('ride', 'رحلة', 'Ride', Icons.local_taxi_rounded),
     _Category('intercity', 'سفر', 'Intercity', Icons.luggage_rounded),
-    _Category('freight', 'الشحن', 'Freight', Icons.local_shipping_rounded),
-    _Category('tuktuk', 'تروسيكل', 'Tuk-tuk', Icons.electric_rickshaw_rounded),
+    _Category(
+      'freight',
+      'الشحن',
+      'Freight',
+      Icons.local_shipping_rounded,
+      enabled: false,
+    ),
+    _Category(
+      'tuktuk',
+      'تروسيكل',
+      'Tuk-tuk',
+      Icons.electric_rickshaw_rounded,
+      enabled: false,
+    ),
   ];
 
   @override
@@ -70,7 +86,9 @@ class VehicleCategoryStrip extends StatelessWidget {
                 icon: c.icon,
                 label: isArabic ? c.ar : c.en,
                 selected: isSelected,
-                onTap: () => onChanged(c.id),
+                enabled: c.enabled,
+                comingSoonLabel: isArabic ? 'قريباً' : 'Soon',
+                onTap: c.enabled ? () => onChanged(c.id) : null,
               );
             },
           ),
@@ -81,11 +99,14 @@ class VehicleCategoryStrip extends StatelessWidget {
 }
 
 class _Category {
-  const _Category(this.id, this.ar, this.en, this.icon);
+  const _Category(this.id, this.ar, this.en, this.icon, {this.enabled = true});
   final String id;
   final String ar;
   final String en;
   final IconData icon;
+
+  /// When false the chip renders dimmed with a "قريباً" badge and ignores taps.
+  final bool enabled;
 }
 
 class _CategoryChip extends StatelessWidget {
@@ -95,13 +116,23 @@ class _CategoryChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.enabled = true,
+    this.comingSoonLabel,
   });
 
   final GoTheme go;
   final IconData icon;
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// Null disables the ink response entirely, so a suspended service cannot be
+  /// selected even by an accidental long-press.
+  final VoidCallback? onTap;
+
+  final bool enabled;
+
+  /// Badge text for suspended services, e.g. "قريباً".
+  final String? comingSoonLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +158,11 @@ class _CategoryChip extends StatelessWidget {
 
     final borderRadius = BorderRadius.circular(AppTokens.radiusMd);
 
-    return ClipRRect(
+    // A suspended service is dimmed rather than hidden, and loses its ink
+    // response, so it reads as "not yet available" instead of "broken".
+    return Opacity(
+      opacity: enabled ? 1 : 0.42,
+      child: ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
         // The blur is what turns a translucent fill into glass.
@@ -178,15 +213,21 @@ class _CategoryChip extends StatelessWidget {
                           : go.muted,
                     ),
                     const SizedBox(height: 5),
+                    // A suspended service shows "قريباً" in place of its name:
+                    // the icon already identifies the service, so the label
+                    // slot is better spent explaining why it can't be tapped.
                     Text(
-                      label,
+                      enabled ? label : (comingSoonLabel ?? label),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.ibmPlexSansArabic(
-                        fontSize: 12,
-                        fontWeight:
-                            selected ? FontWeight.w800 : FontWeight.w500,
-                        color: selected
+                        fontSize: enabled ? 12 : 11,
+                        fontWeight: selected && enabled
+                            ? FontWeight.w800
+                            : FontWeight.w500,
+                        fontStyle:
+                            enabled ? FontStyle.normal : FontStyle.italic,
+                        color: selected && enabled
                             ? (go.isDark ? selectedFg : AppTokens.primaryDark)
                             : go.muted,
                       ),
@@ -197,6 +238,7 @@ class _CategoryChip extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

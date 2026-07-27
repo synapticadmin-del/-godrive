@@ -233,6 +233,14 @@ class _OfferCardState extends State<OfferCard>
       (widget.offer['estimated_fare'] as num?)?.toDouble() ??
       0;
 
+  /// Whether [_fare] is the rider's own proposal or a system estimate we fell
+  /// back to. Legacy trips and any created before bidding shipped carry no
+  /// offered_price; showing the estimate is fine, but labelling it as the
+  /// rider's number would quote the captain a figure nobody actually proposed.
+  bool get _fareIsRiderOffer =>
+      (widget.offer['offered_price'] as num?) != null ||
+      (widget.offer['offeredPrice'] as num?) != null;
+
   /// `/captain/offers` returns raw snake_case trip rows, so trip length is
   /// `distance_km`; the camelCase form only appears on the WebSocket payload.
   double? get _tripKm =>
@@ -335,7 +343,9 @@ class _OfferCardState extends State<OfferCard>
                 Text(
                   _expired
                       ? 'انتهت مهلة العرض'
-                      : 'سعر العميل المقترح',
+                      : (_fareIsRiderOffer
+                          ? 'سعر العميل المقترح'
+                          : 'السعر التقديري'),
                   style: AppTokens.font(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,

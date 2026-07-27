@@ -122,7 +122,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppTokens.lightBorder,
+                    color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
                     borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                   ),
                 ),
@@ -497,7 +497,10 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 8,
-                    backgroundColor: AppTokens.lightBorder,
+                    // Track colour follows the themed border passed into the
+                    // header rather than a fixed light grey, so the unfilled
+                    // portion of the bar stays visible on the dark canvas.
+                    backgroundColor: border,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       allDone ? AppTokens.success : AppTokens.primary,
                     ),
@@ -546,12 +549,18 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   }
 
   Widget _buildStepRow({required IconData icon, required String label, required bool done}) {
+    // A not-yet-done step is drawn in the faint/muted greys. Those were pinned
+    // to the light-theme values, so on the dark onboarding canvas the pending
+    // steps washed out. Resolve the pending greys against the active theme.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pendingIcon = isDark ? AppTokens.darkFaint : AppTokens.lightFaint;
+    final pendingText = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
     return Row(
       children: [
         Icon(
           done ? Icons.check_circle_rounded : icon,
           size: 18,
-          color: done ? AppTokens.success : AppTokens.lightFaint,
+          color: done ? AppTokens.success : pendingIcon,
         ),
         const SizedBox(width: AppTokens.spaceXs),
         Text(
@@ -559,7 +568,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           style: AppTokens.font(
             fontSize: 13,
             fontWeight: done ? FontWeight.w600 : FontWeight.w400,
-            color: done ? AppTokens.success : AppTokens.lightMuted,
+            color: done ? AppTokens.success : pendingText,
           ),
         ),
       ],
@@ -607,7 +616,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         cardBorder = AppTokens.danger.withOpacity(0.3);
       default:
         badgeText = muted;
-        badgeBg = AppTokens.lightSurface;
+        // The "not uploaded yet" badge uses a neutral surface tint; pinning it
+        // to lightSurface left a pale square on the dark card, so track the
+        // active theme like the approved/pending/rejected badges do.
+        badgeBg = Theme.of(context).brightness == Brightness.dark
+            ? AppTokens.darkSurface
+            : AppTokens.lightSurface;
         statusLabel = 'لم يتم الرفع بعد';
         statusIcon = Icons.cloud_upload_rounded;
         cardBorder = border;

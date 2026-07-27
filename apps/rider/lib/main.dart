@@ -20,9 +20,12 @@ void main() async {
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  // Only transparency is set here. Status-bar icon brightness depends on the
+  // active theme, so it is applied per-frame in the MaterialApp builder below.
+  // Hardcoding `Brightness.light` here left near-invisible white-on-white
+  // status icons whenever the rider was on the light theme.
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
   ));
   runApp(const RiderApp());
 }
@@ -59,9 +62,26 @@ class _RiderAppState extends State<RiderApp> {
               GlobalCupertinoLocalizations.delegate,
             ],
             builder: (context, child) {
-              return Directionality(
-                textDirection: state.locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,
-                child: child!,
+              // Status-bar icons must contrast against the app background, so
+              // they invert with the theme: light (white) icons over the dark
+              // theme, dark (black) icons over the light theme.
+              final isDark = state.isDarkActive;
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: SystemUiOverlayStyle(
+                  statusBarColor: Colors.transparent,
+                  statusBarIconBrightness:
+                      isDark ? Brightness.light : Brightness.dark,
+                  statusBarBrightness:
+                      isDark ? Brightness.dark : Brightness.light,
+                  systemNavigationBarColor:
+                      isDark ? AppTokens.nightBg : AppTokens.lightBg,
+                  systemNavigationBarIconBrightness:
+                      isDark ? Brightness.light : Brightness.dark,
+                ),
+                child: Directionality(
+                  textDirection: state.locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+                  child: child!,
+                ),
               );
             },
             theme: AppTheme.light(),

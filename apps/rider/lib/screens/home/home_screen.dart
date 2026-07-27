@@ -15,6 +15,7 @@ import '../wallet/wallet_screen.dart';
 import '../profile/profile_screen.dart';
 import 'fare_estimate_sheet.dart';
 import 'location_search_sheet.dart';
+import 'travel_mode_bottom_bar.dart';
 import 'vehicle_selector.dart';
 
 /// Which point the rider is currently choosing on the map.
@@ -61,6 +62,13 @@ class _HomeScreenState extends State<HomeScreen>
   /// Vehicle category shown in the top strip (رحلة / سفر / الشحن / تروسيكل).
   String _category = 'ride';
 
+  /// True while the rider is arranging an intercity trip rather than a city
+  /// ride. Drives which bottom bar is mounted.
+  bool get _isTravelMode => _category == 'intercity';
+
+  /// Active tab within travel mode. Ignored outside it.
+  TravelTab _travelTab = TravelTab.trip;
+
   late final AnimationController _pulseController;
   late final LocationService _locations;
   final Debouncer _pinDebouncer = Debouncer(milliseconds: 450);
@@ -86,6 +94,21 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ───────────────────────────── location ─────────────────────────────
 
+  /// Acquires the rider's position in two phases so the map is usable almost
+  /// immediately instead of sitting on "جارٍ تحديد موقعك" for a full GPS fix.
+  ///
+  /// Phase 1 — the OS's last known position. This is already cached from
+  /// whichever app used location most recently, so it returns in milliseconds
+  /// with no radio work. It can be stale by a few streets, which is completely
+  /// fine for centring a map, and it means the rider sees their neighbourhood
+  /// right away.
+  ///
+  /// Phase 2 — a real fix, which then quietly corrects phase 1.
+  ///
+  /// Previously only phase 2 existed, called with no accuracy hint and no
+  /// timeout, so a cold start blocked for the 10-30s a full satellite lock can
+  /// take (and indefinitely indoors). Now the wait is bounded and never blocks
+  /// first paint.
   Future<void> _determinePosition() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -98,30 +121,65 @@ class _HomeScreenState extends State<HomeScreen>
       }
       if (permission == LocationPermission.deniedForever) return;
 
-      final position = await Geolocator.getCurrentPosition();
+      // ── Phase 1: instant warm start from the OS cache ──
+      try {
+        final cached = await Geolocator.getLastKnownPosition();
+        if (cached != null && mounted) {
+          _applyPosition(LatLng(cached.latitude, cached.longitude));
+        }
+      } catch (_) {
+        // No cached fix available — phase 2 will supply the first position.
+      }
+
+      // ── Phase 2: authoritative fix, bounded so it cannot hang forever ──
+      final position = await Geolocator.getCurrentPosition(
+        // `medium` resolves far faster than the default `best` because it can
+        // be served from wifi/cell triangulation instead of waiting on
+        // satellites, and it is well within tolerance for a pickup pin.
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 12),
+      );
       if (!mounted) return;
 
-      final latLng = LatLng(position.latitude, position.longitude);
-      setState(() {
-        _currentLocation = latLng;
-        _pickupLocation ??= latLng;
-      });
-      _mapController.move(latLng, 15.5);
-
-      // Resolve a human-readable address for the default pickup so the rider
-      // sees a street name rather than "موقعي الحالي" with no context.
-      if (_pickupText.isEmpty) {
-        final address = await _locations.reverseGeocode(latLng);
-        if (!mounted) return;
-        final isAr = _isArabic;
-        setState(() {
-          _pickupText = address ??
-              (isAr ? 'موقعي الحالي (GPS)' : 'Current location (GPS)');
-        });
-      }
+      _applyPosition(LatLng(position.latitude, position.longitude));
+    } on TimeoutException {
+      // A slow fix is not an error: phase 1 has very likely already centred
+      // the map, and the rider can search or drop a pin regardless.
     } catch (_) {
       // Location is best-effort; the rider can still search or drop a pin.
     }
+  }
+
+  /// Centres the map on [latLng] and resolves a street name for it.
+  ///
+  /// Shared by both acquisition phases. The pickup pin is only *defaulted*
+  /// (`??=`) so a refined phase-2 fix can never yank a pickup the rider has
+  /// already chosen by hand out from under them.
+  void _applyPosition(LatLng latLng) {
+    setState(() {
+      _currentLocation = latLng;
+      _pickupLocation ??= latLng;
+    });
+    _mapController.move(latLng, 15.5);
+
+    // Resolve a human-readable address for the default pickup so the rider
+    // sees a street name rather than "موقعي الحالي" with no context.
+    if (_pickupText.isEmpty) {
+      _resolvePickupLabel(latLng);
+    }
+  }
+
+  Future<void> _resolvePickupLabel(LatLng latLng) async {
+    final address = await _locations.reverseGeocode(latLng);
+    if (!mounted) return;
+    // Guard against a slow phase-1 lookup overwriting a label that phase 2
+    // (or the rider) has since set.
+    if (_pickupText.isNotEmpty) return;
+    final isAr = _isArabic;
+    setState(() {
+      _pickupText =
+          address ?? (isAr ? 'موقعي الحالي (GPS)' : 'Current location (GPS)');
+    });
   }
 
   bool get _isArabic =>
@@ -379,13 +437,33 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       // The bottom bar is hidden while picking so the confirm button owns the
       // bottom of the screen — one clear action at a time.
+      //
+      // Otherwise the bar follows the service the rider is arranging: intercity
+      // ("سفر") is a booking-and-offers flow that only needs two destinations,
+      // while a city ride keeps the full four-destination nav.
       bottomNavigationBar: picking
           ? null
-          : MainBottomNav(
-              currentIndex: _tabIndex,
-              onTap: (index) => setState(() => _tabIndex = index),
-              onCenterTap: _onCenterTap,
-            ),
+          : _isTravelMode
+              ? TravelModeBottomBar(
+                  currentTab: _travelTab,
+                  onTabChanged: (tab) => setState(() {
+                    _travelTab = tab;
+                    // The orders tab reuses the shared history screen, which
+                    // lives at index 1 of the IndexedStack; the trip tab is the
+                    // map overlay at index 0.
+                    _tabIndex = tab == TravelTab.orders ? 1 : 0;
+                  }),
+                  onExitTravelMode: () => setState(() {
+                    _category = 'ride';
+                    _travelTab = TravelTab.trip;
+                    _tabIndex = 0;
+                  }),
+                )
+              : MainBottomNav(
+                  currentIndex: _tabIndex,
+                  onTap: (index) => setState(() => _tabIndex = index),
+                  onCenterTap: _onCenterTap,
+                ),
     );
   }
 
@@ -502,7 +580,10 @@ class _HomeScreenState extends State<HomeScreen>
             children: [
               _CircleGlassButton(
                 go: go,
-                icon: appState.themeMode == ThemeMode.dark
+                // Keyed off the *visible* brightness, not the enum: in system
+                // mode `themeMode` is neither light nor dark, so comparing the
+                // enum showed a moon icon on an already-dark screen.
+                icon: appState.isDarkActive
                     ? Icons.light_mode_rounded
                     : Icons.dark_mode_rounded,
                 tooltip: isAr ? 'تغيير المظهر' : 'Toggle theme',
@@ -538,7 +619,14 @@ class _HomeScreenState extends State<HomeScreen>
             go: go,
             isArabic: isAr,
             category: _category,
-            onCategoryChanged: (c) => setState(() => _category = c),
+            onCategoryChanged: (c) => setState(() {
+              _category = c;
+              // Entering or leaving travel mode swaps the bottom bar, so reset
+              // to that mode's first destination rather than leaving a stale
+              // index selected in a bar that no longer has it.
+              _travelTab = TravelTab.trip;
+              _tabIndex = 0;
+            }),
             pickupText: _pickupText,
             dropoffText: _dropoffText,
             route: _route,

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_shared/flutter_shared.dart';
@@ -13,6 +14,12 @@ class AppState extends ChangeNotifier {
   static const String _kAccessToken = 'token';
   static const String _kRefreshToken = 'refreshToken';
   static const String _kUserData = 'user';
+
+  /// Persisted theme preference. Stored as 'light' | 'dark' | 'system'.
+  ///
+  /// Absent means the rider has never expressed a preference, which is the
+  /// only case where we follow the OS.
+  static const String _kThemeMode = 'themeMode';
 
   final String role;
   bool loading = true;
@@ -94,6 +101,12 @@ class AppState extends ChangeNotifier {
   ///    logged in instead of being ejected by a failed network call.
   Future<void> bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Restore the persisted theme first. This runs before the awaits below so
+    // the splash and the first real frame already paint in the rider's chosen
+    // theme — otherwise the app flashes the OS theme, then snaps to theirs.
+    themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
+
     token = prefs.getString(_kAccessToken);
 
     final raw = prefs.getString(_kUserData);
@@ -387,6 +400,14 @@ class AppState extends ChangeNotifier {
   /// xl). `POST /trips` persists it as `vehicle_type_id`; omitting it stores
   /// NULL, which is why the selection has to be threaded through rather than
   /// held only in the sheet's local state.
+  /// [offeredPrice] is the fare the rider is willing to pay, in EGP.
+  ///
+  /// This is what makes the negotiation flow work. `POST /trips` stores it as
+  /// `offered_price` and broadcasts it to nearby captains, who can either
+  /// accept it or answer with a counter-offer via `POST /trips/:id/bid`.
+  /// When omitted the API silently falls back to its own estimate, which is
+  /// why every trip used to go out at a fixed system price: the rider's number
+  /// was collected in the UI and then never sent.
   Future<Map<String, dynamic>> createTrip({
     required double pickupLat,
     required double pickupLng,
@@ -395,6 +416,7 @@ class AppState extends ChangeNotifier {
     String? pickupAddress,
     String? dropoffAddress,
     String? vehicleTypeId,
+    double? offeredPrice,
   }) {
     return _post('/trips', {
       'pickupLat': pickupLat,
@@ -406,6 +428,7 @@ class AppState extends ChangeNotifier {
       'city': 'cairo',
       'paymentMethod': 'cash',
       if (vehicleTypeId != null) 'vehicleTypeId': vehicleTypeId,
+      if (offeredPrice != null) 'offeredPrice': offeredPrice,
     });
   }
 
@@ -445,19 +468,60 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setThemeMode(ThemeMode mode) {
+  /// Serialises [ThemeMode] for SharedPreferences.
+  static String _themeModeToString(ThemeMode mode) => switch (mode) {
+        ThemeMode.light => 'light',
+        ThemeMode.dark => 'dark',
+        ThemeMode.system => 'system',
+      };
+
+  /// Parses a persisted theme preference. Unknown/absent values fall back to
+  /// [ThemeMode.system] so a corrupt pref never traps the rider in one theme.
+  static ThemeMode _themeModeFromString(String? raw) => switch (raw) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
+
+  /// The brightness actually on screen right now.
+  ///
+  /// [themeMode] alone cannot answer this: while it is [ThemeMode.system] the
+  /// visible theme is whatever the OS says. Resolving through the platform
+  /// dispatcher is what lets [toggleTheme] flip away from what the rider is
+  /// actually looking at rather than from an abstract enum value.
+  bool get isDarkActive => switch (themeMode) {
+        ThemeMode.dark => true,
+        ThemeMode.light => false,
+        ThemeMode.system =>
+          SchedulerBinding.instance.platformDispatcher.platformBrightness ==
+              Brightness.dark,
+      };
+
+  /// Records an explicit theme choice and persists it.
+  ///
+  /// Persistence is what makes the choice survive a cold start: `bootstrap()`
+  /// reads this key back before the first frame, so closing the app on light
+  /// and reopening it lands on light.
+  Future<void> setThemeMode(ThemeMode mode) async {
+    if (themeMode == mode) return;
     themeMode = mode;
     notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemeMode, _themeModeToString(mode));
   }
 
-  void toggleTheme() {
-    if (themeMode == ThemeMode.dark) {
-      themeMode = ThemeMode.light;
-    } else {
-      themeMode = ThemeMode.dark;
-    }
-    notifyListeners();
-  }
+  /// Flips between light and dark.
+  ///
+  /// Deliberately keyed off [isDarkActive] rather than [themeMode]. The old
+  /// implementation compared against `ThemeMode.dark` and sent every other
+  /// value — including `system` — to dark. On a device already in dark mode
+  /// that made the first tap a no-op on screen (system → dark, identical
+  /// pixels) and only the second tap reached light. That is the "needs two
+  /// taps" bug: resolving the *visible* brightness first makes one tap always
+  /// produce one visible change.
+  Future<void> toggleTheme() =>
+      setThemeMode(isDarkActive ? ThemeMode.light : ThemeMode.dark);
 
   Future<void> updateUserProfile({
     String? name,
