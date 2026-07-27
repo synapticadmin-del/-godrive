@@ -7,20 +7,39 @@ import '../services/captain_state.dart';
 
 /// Captain sign-in / join.
 ///
-/// Reworked around three things the previous screen got wrong:
+/// ## Why this screen specifies every colour locally
 ///
-///  * **It could not tell you what was wrong.** Validation was a single
-///    "enter an email and password" snackbar fired after the fact. Fields
-///    now validate inline, on submit, next to the offending input.
-///  * **The terms checkbox was decorative.** You could register without ever
-///    ticking it. It is now enforced.
-///  * **Sign-in and join were the same form with two extra boxes.** The mode
-///    switch is now an explicit segmented control at the top, so the captain
-///    always knows which action they are about to take.
+/// The previous version drew a **light** canvas (white card, `lightBg`
+/// scaffold, `lightText`) but let its `TextFormField`s inherit
+/// `inputDecorationTheme` from the ambient `ThemeData`. Because
+/// `main.dart` runs `themeMode: state.themeMode`, a captain whose phone is
+/// in dark mode got `AppTheme.dark()` — whose input `fillColor` is
+/// `darkSurface` (#1E293B). Result: near-black navy fields sitting on a
+/// white card, with `darkMuted` hint text that all but vanished. That is the
+/// field-colour bug.
 ///
-/// Layout follows the category standard: a brand-tinted header that carries
-/// the logo, then a white card that floats over it holding the form, so the
-/// eye lands on the inputs rather than on decoration.
+/// The fix is not to patch one colour. A screen whose palette is decided
+/// half by itself and half by the ambient theme will drift again the next
+/// time the theme moves. So this screen now:
+///
+///  * commits to a **dark canvas** end to end — matching the category
+///    standard set by inDrive, where the auth screen is a dark stage and the
+///    lime action is the only bright thing on it;
+///  * declares `filled`, `fillColor`, all four border states, `hintStyle`
+///    and `errorStyle` **inline on every field**, so nothing is inherited
+///    and the render is identical whether the phone is in light or dark
+///    mode.
+///
+/// ## Layout
+///
+/// Follows the reference: a hero area up top that pages between two slides
+/// (dot indicators beneath), then the auth panel. The hero currently shows
+/// the app icon as a deliberate placeholder — swap the artwork in
+/// `_HeroSlide` for real illustrations when they are designed; nothing else
+/// needs to change.
+///
+/// Validation behaviour, Egyptian `+20` phone rules and the enforced terms
+/// checkbox are all preserved from the previous revision.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -29,11 +48,26 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // ── Palette ─────────────────────────────────────────────────────────
+  // Pinned to the night scale so the screen cannot be repainted by the
+  // ambient theme.
+  static const _bg = AppTokens.nightBg; // #0E0E10 page
+  static const _panel = AppTokens.nightPanel; // #1A1A1D auth panel
+  static const _fieldFill = AppTokens.nightSurface; // #26262B inputs
+  static const _border = AppTokens.nightBorder; // #34343B hairlines
+  static const _text = AppTokens.nightText; // #F5F5F7 body
+  static const _muted = AppTokens.nightMuted; // #9A9AA2 hints
+  static const _action = AppTokens.lime; // #C1F11D CTA
+  static const _onAction = AppTokens.onLime; // #101010 on CTA
+
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+
+  final _heroCtrl = PageController();
+  int _heroPage = 0;
 
   bool _isSignUp = false;
   bool _acceptTerms = false;
@@ -46,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _passCtrl.dispose();
+    _heroCtrl.dispose();
     super.dispose();
   }
 
@@ -88,7 +123,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _toast(e.toString().replaceAll('Exception:', '').trim(), AppTokens.danger);
+        _toast(
+            e.toString().replaceAll('Exception:', '').trim(), AppTokens.danger);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -105,113 +141,114 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Dark icons: this screen is a light canvas.
+    // Light icons: this screen is a dark canvas, unconditionally.
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: _panel,
+        systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: AppTokens.lightBg,
+        backgroundColor: _bg,
         resizeToAvoidBottomInset: true,
-        body: Stack(
-          children: [
-            const _HeaderWash(),
-            SafeArea(
-              child: CustomScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                slivers: [
-                  SliverToBoxAdapter(child: _buildHeader()),
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _buildFormCard(),
-                  ),
-                ],
+        body: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            slivers: [
+              SliverToBoxAdapter(child: _buildTopBar()),
+              SliverToBoxAdapter(child: _buildHero()),
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildAuthPanel(),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  // ── Top bar ─────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceLg,
+        AppTokens.spaceMd,
         AppTokens.spaceXs,
-        AppTokens.spaceLg,
-        AppTokens.spaceLg,
+        AppTokens.spaceMd,
+        0,
       ),
-      child: Column(
-        children: [
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: _LanguageChip(
-              onTap: () {
-                final state = context.read<CaptainState>();
-                final next = state.locale.languageCode == 'ar'
-                    ? const Locale('en', 'US')
-                    : const Locale('ar', 'EG');
-                state.setLocale(next);
-              },
-            ),
-          ),
-          const SizedBox(height: AppTokens.spaceMd),
-          Container(
-            width: 92,
-            height: 92,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: AppTokens.shadowFloating,
-            ),
-            padding: const EdgeInsets.all(14),
-            child: Image.asset(
-              'assets/images/godrive_logo.png',
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.navigation_rounded,
-                size: 44,
-                color: AppTokens.primary,
-              ),
-            ),
-          ).animate().scale(duration: 450.ms, curve: Curves.easeOutBack),
-          const SizedBox(height: AppTokens.spaceMd),
-          Text(
-            _isSignUp ? 'انضم ككابتن' : 'أهلاً بعودتك',
-            style: AppTokens.font(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: AppTokens.lightText,
-            ),
-          ),
-          const SizedBox(height: AppTokens.space2xs),
-          Text(
-            _isSignUp
-                ? 'أنشئ حسابك وابدأ الكسب مع أسطول GoDrive'
-                : 'سجّل دخولك لاستقبال الرحلات وتتبّع أرباحك',
-            textAlign: TextAlign.center,
-            style: AppTokens.font(fontSize: 14, color: AppTokens.lightMuted),
-          ),
-        ],
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: _LanguageChip(
+          onTap: () {
+            final state = context.read<CaptainState>();
+            final next = state.locale.languageCode == 'ar'
+                ? const Locale('en', 'US')
+                : const Locale('ar', 'EG');
+            state.setLocale(next);
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildFormCard() {
+  // ── Hero carousel ───────────────────────────────────────────────────
+
+  /// Two slides the captain can swipe between, with dot indicators beneath.
+  ///
+  /// The artwork slot is intentionally a placeholder: it renders the app
+  /// icon inside a rounded lime-tinted stage. When real illustrations land,
+  /// replace the artwork in `_HeroSlide` and delete the icon fallback.
+  Widget _buildHero() {
+    const slides = <_HeroCopy>[
+      _HeroCopy(
+        title: 'اكسب على طريقتك',
+        body: 'اقبل الرحلات القريبة منك، وحدّد سعرك،\nواسحب أرباحك في أي وقت.',
+      ),
+      _HeroCopy(
+        title: 'سلامتك هي أولويتنا',
+        body: 'زر الطوارئ متاح في كل رحلة،\nوكل راكب موثّق قبل الحجز.',
+      ),
+    ];
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 296,
+          child: PageView.builder(
+            controller: _heroCtrl,
+            itemCount: slides.length,
+            onPageChanged: (i) => setState(() => _heroPage = i),
+            itemBuilder: (_, i) => _HeroSlide(copy: slides[i]),
+          ),
+        ),
+        const SizedBox(height: AppTokens.spaceMd),
+        _DotIndicator(count: slides.length, active: _heroPage),
+        const SizedBox(height: AppTokens.spaceLg),
+      ],
+    );
+  }
+
+  // ── Auth panel ──────────────────────────────────────────────────────
+
+  Widget _buildAuthPanel() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(AppTokens.spaceMd, 0, AppTokens.spaceMd, 0),
-      padding: const EdgeInsets.all(AppTokens.spaceLg),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        AppTokens.spaceLg,
+        AppTokens.spaceLg,
+        AppTokens.spaceLg,
+        AppTokens.spaceLg + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: _panel,
+        borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppTokens.radiusXl),
         ),
-        border: Border.all(color: AppTokens.lightBorder),
-        boxShadow: AppTokens.shadowCard,
       ),
       child: Form(
         key: _formKey,
@@ -254,7 +291,8 @@ class _LoginScreenState extends State<LoginScreen> {
               validator: (v) {
                 final value = (v ?? '').trim();
                 if (value.isEmpty) return 'أدخل بريدك الإلكتروني';
-                final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+                final ok =
+                    RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
                 return ok ? null : 'صيغة البريد غير صحيحة';
               },
             ),
@@ -273,7 +311,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _obscurePass
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
-                  color: AppTokens.lightMuted,
+                  color: _muted,
                   size: 20,
                 ),
                 tooltip: _obscurePass ? 'إظهار كلمة السر' : 'إخفاء كلمة السر',
@@ -299,12 +337,26 @@ class _LoginScreenState extends State<LoginScreen> {
               height: AppTokens.primaryActionHeight,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _action,
+                  foregroundColor: _onAction,
+                  disabledBackgroundColor: _fieldFill,
+                  disabledForegroundColor: _muted,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                  ),
+                  textStyle: AppTokens.font(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 child: _isLoading
                     ? const SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
+                          color: _onAction,
                           strokeWidth: 2.2,
                         ),
                       )
@@ -318,7 +370,6 @@ class _LoginScreenState extends State<LoginScreen> {
             _buildSocialRow(),
             const SizedBox(height: AppTokens.spaceLg),
             _buildFooterSwitch(),
-            const SizedBox(height: AppTokens.spaceMd),
           ],
         ),
       ),
@@ -338,7 +389,9 @@ class _LoginScreenState extends State<LoginScreen> {
               height: 24,
               child: Checkbox(
                 value: _acceptTerms,
-                activeColor: AppTokens.primary,
+                activeColor: _action,
+                checkColor: _onAction,
+                side: const BorderSide(color: _border, width: 1.6),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -349,7 +402,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Expanded(
               child: Text(
                 'أوافق على شروط وأحكام الانضمام ككابتن',
-                style: AppTokens.font(fontSize: 13, color: AppTokens.lightMuted),
+                style: AppTokens.font(fontSize: 13, color: _muted),
               ),
             ),
           ],
@@ -361,15 +414,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildDivider() {
     return Row(
       children: [
-        const Expanded(child: Divider()),
+        const Expanded(child: Divider(color: _border, thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
           child: Text(
             'أو المتابعة بواسطة',
-            style: AppTokens.font(fontSize: 12, color: AppTokens.lightFaint),
+            style: AppTokens.font(fontSize: 12, color: _muted),
           ),
         ),
-        const Expanded(child: Divider()),
+        const Expanded(child: Divider(color: _border, thickness: 1)),
       ],
     );
   }
@@ -399,7 +452,7 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           _isSignUp ? 'لديك حساب بالفعل؟ ' : 'ليس لديك حساب؟ ',
-          style: AppTokens.font(fontSize: 14, color: AppTokens.lightMuted),
+          style: AppTokens.font(fontSize: 14, color: _muted),
         ),
         GestureDetector(
           onTap: () => _setMode(!_isSignUp),
@@ -408,11 +461,45 @@ class _LoginScreenState extends State<LoginScreen> {
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: AppTokens.primary,
+              color: _action,
             ),
           ),
         ),
       ],
+    );
+  }
+
+  // ── Fields ──────────────────────────────────────────────────────────
+
+  /// Every visual property is declared here rather than inherited, which is
+  /// what keeps the fields from repainting themselves when the ambient
+  /// `themeMode` changes.
+  InputDecoration _decoration({
+    required String hint,
+    Widget? prefix,
+    Widget? suffix,
+    BoxConstraints? prefixConstraints,
+  }) {
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: AppTokens.font(fontSize: 14, color: _muted),
+      filled: true,
+      fillColor: _fieldFill,
+      prefixIcon: prefix,
+      prefixIconConstraints: prefixConstraints,
+      suffixIcon: suffix,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      enabledBorder: border(_border, 1),
+      focusedBorder: border(_action, 1.8),
+      errorBorder: border(AppTokens.danger, 1.4),
+      focusedErrorBorder: border(AppTokens.danger, 1.8),
+      disabledBorder: border(_border, 1),
+      errorStyle: AppTokens.font(fontSize: 12, color: AppTokens.danger),
     );
   }
 
@@ -435,11 +522,12 @@ class _LoginScreenState extends State<LoginScreen> {
       onFieldSubmitted: onFieldSubmitted,
       validator: validator,
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      style: AppTokens.font(fontSize: 15, color: AppTokens.lightText),
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, color: AppTokens.lightMuted, size: 21),
-        suffixIcon: suffix,
+      cursorColor: _action,
+      style: AppTokens.font(fontSize: 15, color: _text),
+      decoration: _decoration(
+        hint: hint,
+        prefix: Icon(icon, color: _muted, size: 21),
+        suffix: suffix,
       ),
     );
   }
@@ -450,6 +538,7 @@ class _LoginScreenState extends State<LoginScreen> {
       keyboardType: TextInputType.phone,
       textInputAction: TextInputAction.next,
       autovalidateMode: AutovalidateMode.onUserInteraction,
+      cursorColor: _action,
       // Egyptian mobile numbers are 11 digits (01X XXXX XXXX). Anything
       // non-numeric is stripped at the source rather than rejected later.
       inputFormatters: [
@@ -464,10 +553,11 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         return null;
       },
-      style: AppTokens.font(fontSize: 15, color: AppTokens.lightText),
-      decoration: InputDecoration(
-        hintText: '01012345678',
-        prefixIcon: Padding(
+      style: AppTokens.font(fontSize: 15, color: _text),
+      decoration: _decoration(
+        hint: '01012345678',
+        prefixConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        prefix: Padding(
           padding: const EdgeInsetsDirectional.only(
             start: AppTokens.spaceMd,
             end: AppTokens.spaceXs,
@@ -482,43 +572,127 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: AppTokens.font(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppTokens.lightText,
+                  color: _text,
                 ),
               ),
               const SizedBox(width: AppTokens.spaceXs),
-              Container(width: 1, height: 22, color: AppTokens.lightBorder),
+              Container(width: 1, height: 22, color: _border),
             ],
           ),
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
       ),
     );
   }
 }
 
-/// Soft brand wash behind the header, fading into the page background.
-class _HeaderWash extends StatelessWidget {
-  const _HeaderWash();
+// ── Hero ──────────────────────────────────────────────────────────────
+
+/// Copy for one hero slide.
+class _HeroCopy {
+  const _HeroCopy({required this.title, required this.body});
+
+  final String title;
+  final String body;
+}
+
+/// One page of the hero carousel.
+///
+/// The artwork is a **placeholder**: a lime-tinted rounded stage carrying the
+/// app icon. Swap the `Image.asset` below for per-slide illustration assets
+/// once they exist — the surrounding layout, sizing and dot indicator need no
+/// changes.
+class _HeroSlide extends StatelessWidget {
+  const _HeroSlide({required this.copy});
+
+  final _HeroCopy copy;
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      height: 320,
-      child: const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppTokens.headerAccent, AppTokens.lightBg],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Artwork placeholder — reserved space for the real illustration.
+          Container(
+            width: 132,
+            height: 132,
+            decoration: BoxDecoration(
+              color: AppTokens.lime.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(color: AppTokens.lime.withOpacity(0.22)),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Image.asset(
+              'assets/images/godrive_logo.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.navigation_rounded,
+                size: 52,
+                color: AppTokens.lime,
+              ),
+            ),
+          ).animate().scale(duration: 420.ms, curve: Curves.easeOutBack),
+
+          const SizedBox(height: AppTokens.spaceLg),
+
+          Text(
+            copy.title,
+            textAlign: TextAlign.center,
+            style: AppTokens.font(
+              fontSize: 25,
+              fontWeight: FontWeight.w900,
+              color: AppTokens.nightText,
+              height: 1.25,
+            ),
           ),
-        ),
+          const SizedBox(height: AppTokens.spaceXs),
+          Text(
+            copy.body,
+            textAlign: TextAlign.center,
+            style: AppTokens.font(
+              fontSize: 14,
+              color: AppTokens.nightMuted,
+              height: 1.6,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+/// Page position for the hero carousel. The active dot stretches into a pill
+/// so position reads at a glance rather than requiring a colour comparison.
+class _DotIndicator extends StatelessWidget {
+  const _DotIndicator({required this.count, required this.active});
+
+  final int count;
+  final int active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (i) {
+        final isActive = i == active;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: isActive ? 22 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: isActive ? AppTokens.lime : AppTokens.nightBorder,
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// ── Controls ──────────────────────────────────────────────────────────
 
 /// Explicit two-state control so the captain always knows whether they are
 /// signing in or creating an account.
@@ -533,8 +707,9 @@ class _ModeSwitch extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppTokens.lightSurface,
+        color: AppTokens.nightBg,
         borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        border: Border.all(color: AppTokens.nightBorder),
       ),
       child: Row(
         children: [
@@ -556,16 +731,15 @@ class _ModeSwitch extends StatelessWidget {
           height: 42,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? Colors.white : Colors.transparent,
+            color: active ? AppTokens.lime : Colors.transparent,
             borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-            boxShadow: active ? AppTokens.shadowCard : null,
           ),
           child: Text(
             label,
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-              color: active ? AppTokens.primary : AppTokens.lightMuted,
+              color: active ? AppTokens.onLime : AppTokens.nightMuted,
             ),
           ),
         ),
@@ -589,22 +763,21 @@ class _LanguageChip extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTokens.nightPanel,
           borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-          border: Border.all(color: AppTokens.lightBorder),
-          boxShadow: AppTokens.shadowCard,
+          border: Border.all(color: AppTokens.nightBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.language_rounded, size: 17, color: AppTokens.primary),
+            const Icon(Icons.language_rounded, size: 17, color: AppTokens.lime),
             const SizedBox(width: 6),
             Text(
               isAr ? 'العربية' : 'English',
               style: AppTokens.font(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppTokens.lightText,
+                color: AppTokens.nightText,
               ),
             ),
           ],
@@ -630,18 +803,22 @@ class _SocialTile extends StatelessWidget {
     return Expanded(
       child: OutlinedButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 24, color: AppTokens.lightText),
+        icon: Icon(icon, size: 24, color: AppTokens.nightText),
         label: Text(
           label,
           style: AppTokens.font(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: AppTokens.lightText,
+            color: AppTokens.nightText,
           ),
         ),
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(AppTokens.tapTarget),
-          side: const BorderSide(color: AppTokens.lightBorder),
+          backgroundColor: AppTokens.nightSurface,
+          side: const BorderSide(color: AppTokens.nightBorder, width: 1.2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          ),
         ),
       ),
     );
