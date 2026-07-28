@@ -37,8 +37,8 @@ import 'package:flutter/widgets.dart';
 /// concatenation, so translators see the full sentence in one place.
 ///
 /// When a screen is migrated, delete its inline literals and ternaries and
-/// read from here. `earnings_screen.dart` in the Captain app is the reference
-/// migration — copy its pattern.
+/// read from here. `earnings_screen.dart` and `settings_screen.dart` in the
+/// Captain app are the reference migrations — copy their pattern.
 abstract class AppStrings {
   const AppStrings._();
 
@@ -62,6 +62,9 @@ abstract class AppStrings {
 
   /// Fallback error headline when a load fails with no specific message.
   String get genericLoadError;
+
+  /// Generic cancel action in dialogs and sheets.
+  String get cancelAction;
 
   // ──────────────────────────────────────────────────────────────────
   // Captain — Earnings screen (reference migration)
@@ -90,6 +93,97 @@ abstract class AppStrings {
 
   /// Button that navigates to the wallet / payout screen.
   String get walletAndWithdraw;
+
+  // ──────────────────────────────────────────────────────────────────
+  // Captain — Settings / profile screen
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Fallback display name when the captain's name has not loaded yet.
+  String get captainFallbackName;
+
+  /// Online status chip (captain is accepting offers).
+  String get online;
+
+  /// Offline status chip (captain is not accepting offers).
+  String get offline;
+
+  /// Status shown while the account awaits admin approval.
+  String get pendingApproval;
+
+  /// Stat card label for the captain's average rating.
+  String get ratingLabel;
+
+  /// Stat card label for the captain's trip count.
+  String get tripsLabel;
+
+  /// Stat card label for the approval state.
+  String get statusLabel;
+
+  /// Stat card value when the account is approved.
+  String get approvedValue;
+
+  /// Stat card value when the account is under review.
+  String get underReviewValue;
+
+  /// Section heading for the vehicle information card.
+  String get vehicleInfoTitle;
+
+  /// Row label for the vehicle make/model.
+  String get vehicleLabel;
+
+  /// Row label for the vehicle licence plate.
+  String get plateLabel;
+
+  /// Section heading for the documents card.
+  String get documentsTitle;
+
+  /// Navigation row that opens the document upload flow.
+  String get uploadDocuments;
+
+  /// Subtitle listing the required documents (licence, ID, background check).
+  String get uploadDocumentsSubtitle;
+
+  /// Section heading for the safety card.
+  String get safetyTitle;
+
+  /// Navigation row that opens the SOS emergency screen.
+  String get sosButton;
+
+  /// Subtitle explaining what the SOS button does.
+  String get sosSubtitle;
+
+  /// Section heading for appearance and language settings.
+  String get appearanceTitle;
+
+  /// Toggle label for dark mode.
+  String get darkMode;
+
+  /// Row label for the language picker.
+  String get languageLabel;
+
+  /// Arabic language name as shown in the picker.
+  String get arabicLanguage;
+
+  /// English language name as shown in the picker.
+  String get englishLanguage;
+
+  /// Section heading for the about card.
+  String get aboutTitle;
+
+  /// Row label for app version info.
+  String get aboutApp;
+
+  /// Row label for the privacy policy link.
+  String get privacyPolicy;
+
+  /// Logout button label (also used as the confirmation dialog title).
+  String get logout;
+
+  /// Logout confirmation dialog body.
+  String get logoutConfirmMessage;
+
+  /// Destructive confirm action in the logout dialog.
+  String get exitAction;
 }
 
 /// Egyptian-Arabic copy — the app's primary language.
@@ -104,6 +198,11 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get genericLoadError => 'حدث خطأ، حاول مرة أخرى';
+
+  @override
+  String get cancelAction => 'إلغاء';
+
+  // ── Earnings ──────────────────────────────────────────────────────
 
   @override
   String get earningsTitle => 'الأرباح';
@@ -128,6 +227,95 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get walletAndWithdraw => 'المحفظة والسحب';
+
+  // ── Settings ──────────────────────────────────────────────────────
+
+  @override
+  String get captainFallbackName => 'كابتن';
+
+  @override
+  String get online => 'متصل';
+
+  @override
+  String get offline => 'غير متصل';
+
+  @override
+  String get pendingApproval => 'بانتظار الموافقة';
+
+  @override
+  String get ratingLabel => 'التقييم';
+
+  @override
+  String get tripsLabel => 'رحلات';
+
+  @override
+  String get statusLabel => 'الحالة';
+
+  @override
+  String get approvedValue => 'معتمد';
+
+  @override
+  String get underReviewValue => 'مراجعة';
+
+  @override
+  String get vehicleInfoTitle => 'معلومات المركبة';
+
+  @override
+  String get vehicleLabel => 'المركبة';
+
+  @override
+  String get plateLabel => 'اللوحة';
+
+  @override
+  String get documentsTitle => 'المستندات';
+
+  @override
+  String get uploadDocuments => 'رفع المستندات';
+
+  @override
+  String get uploadDocumentsSubtitle => 'رخصة + بطاقة + فيش';
+
+  @override
+  String get safetyTitle => 'الأمان';
+
+  @override
+  String get sosButton => 'زر الطوارئ SOS';
+
+  @override
+  String get sosSubtitle => 'تنبيه فوري للدعم';
+
+  @override
+  String get appearanceTitle => 'المظهر واللغة';
+
+  @override
+  String get darkMode => 'الوضع الداكن';
+
+  @override
+  String get languageLabel => 'اللغة';
+
+  @override
+  String get arabicLanguage => 'العربية';
+
+  @override
+  String get englishLanguage => 'English';
+
+  @override
+  String get aboutTitle => 'معلومات';
+
+  @override
+  String get aboutApp => 'عن التطبيق';
+
+  @override
+  String get privacyPolicy => 'سياسة الخصوصية';
+
+  @override
+  String get logout => 'تسجيل الخروج';
+
+  @override
+  String get logoutConfirmMessage => 'هل أنت متأكد أنك تريد تسجيل الخروج؟';
+
+  @override
+  String get exitAction => 'خروج';
 }
 
 /// English copy.
@@ -142,6 +330,11 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get genericLoadError => 'Something went wrong, try again';
+
+  @override
+  String get cancelAction => 'Cancel';
+
+  // ── Earnings ──────────────────────────────────────────────────────
 
   @override
   String get earningsTitle => 'Earnings';
@@ -167,4 +360,94 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get walletAndWithdraw => 'Wallet & payout';
+
+  // ── Settings ──────────────────────────────────────────────────────
+
+  @override
+  String get captainFallbackName => 'Captain';
+
+  @override
+  String get online => 'Online';
+
+  @override
+  String get offline => 'Offline';
+
+  @override
+  String get pendingApproval => 'Pending approval';
+
+  @override
+  String get ratingLabel => 'Rating';
+
+  @override
+  String get tripsLabel => 'Trips';
+
+  @override
+  String get statusLabel => 'Status';
+
+  @override
+  String get approvedValue => 'Approved';
+
+  @override
+  String get underReviewValue => 'In review';
+
+  @override
+  String get vehicleInfoTitle => 'Vehicle information';
+
+  @override
+  String get vehicleLabel => 'Vehicle';
+
+  @override
+  String get plateLabel => 'Plate';
+
+  @override
+  String get documentsTitle => 'Documents';
+
+  @override
+  String get uploadDocuments => 'Upload documents';
+
+  @override
+  String get uploadDocumentsSubtitle => 'Licence + ID + background check';
+
+  @override
+  String get safetyTitle => 'Safety';
+
+  @override
+  String get sosButton => 'SOS emergency button';
+
+  @override
+  String get sosSubtitle => 'Instant alert to support';
+
+  @override
+  String get appearanceTitle => 'Appearance & language';
+
+  @override
+  String get darkMode => 'Dark mode';
+
+  @override
+  String get languageLabel => 'Language';
+
+  @override
+  String get arabicLanguage => 'العربية';
+
+  @override
+  String get englishLanguage => 'English';
+
+  @override
+  String get aboutTitle => 'About';
+
+  @override
+  String get aboutApp => 'About the app';
+
+  @override
+  String get privacyPolicy => 'Privacy policy';
+
+  @override
+  String get logout => 'Log out';
+
+  @override
+  String get logoutConfirmMessage =>
+      'Are you sure you want to log out?';
+
+  @override
+  String get exitAction => 'Log out';
 }
