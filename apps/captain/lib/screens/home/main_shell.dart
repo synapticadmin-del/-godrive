@@ -71,6 +71,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   String? _routeTripId;
 
   StreamSubscription<Position>? _positionSub;
+  StreamSubscription<void>? _navStartSub;
+
+  /// True while in-app turn-by-turn navigation is active — the camera hugs
+  /// the captain at a tight zoom and a banner shows the next destination.
+  bool _navigating = false;
 
   @override
   void initState() {
@@ -80,12 +85,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       if (mounted) context.read<CaptainState>().refreshMe();
     });
     _initLocation();
+    _listenForNavigation();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _positionSub?.cancel();
+    _navStartSub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -96,6 +103,30 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     context.read<CaptainState>().handleAppLifecycleState(state);
+  }
+
+  /// Listen for in-app navigation requests from the active trip panel. When
+  /// the captain taps "تنقّل للراكب", the shell flips to the map tab, forces
+  /// follow-me at a tighter zoom, and marks the navigation session active so
+  /// the camera hugs the captain and a banner shows the destination.
+  void _listenForNavigation() {
+    _navStartSub = context.read<CaptainState>().navigationStart.listen((_) {
+      if (!mounted) return;
+      final target = context.read<CaptainState>().navigationTarget;
+      if (target == null) return;
+      setState(() {
+        _tabIndex = _mapIndex;
+        _followMe = true;
+        _navigating = true;
+      });
+      // Zoom in tighter than the default follow zoom so the captain sees
+      // street-level turns, then keep following as GPS updates arrive.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_mapReady && _currentLocation != null) {
+          _mapController.move(_currentLocation!, 17.0);
+        }
+      });
+    });
   }
 
   // -------------------------------------------------------------------
@@ -169,7 +200,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       _locating = false;
     });
     if (recenter && _mapReady) {
-      _mapController.move(point, _mapController.camera.zoom);
+      // In navigation mode hug the captain at the tighter nav zoom; otherwise
+      // keep the current zoom so a casual pan is not yanked back.
+      final zoom = _navigating ? 17.0 : _mapController.camera.zoom;
+      _mapController.move(point, zoom);
     }
   }
 
@@ -344,6 +378,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     _syncRoute(state);
 
+    // End navigation mode when the trip is gone (completed or cancelled).
+    if (_navigating && state.navigationTarget == null) {
+      _navigating = false;
+    }
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -382,6 +421,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
 
             if (onMapTab) _buildMapControls(state),
+            if (onMapTab && _navigating && state.navigationTarget != null)
+              _buildNavigationBanner(state, go),
           ],
         ),
         bottomNavigationBar: MainBottomNav(
@@ -567,6 +608,66 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A slim banner pinned to the top of the map during in-app navigation,
+  /// naming the destination and offering a way out. It stays clear of the
+  /// trip panel at the bottom so both are readable at a glance.
+  Widget _buildNavigationBanner(CaptainState state, GoTheme go) {
+    final target = state.navigationTarget!;
+    final toPickup = target['toPickup'] == true;
+    final label = toPickup ? 'الطريق إلى الراكب' : 'الطريق إلى الوجهة';
+
+    return PositionedDirectional(
+      top: AppTokens.spaceMd,
+      start: AppTokens.spaceMd,
+      end: AppTokens.spaceMd,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceMd,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: go.panel,
+            borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+            border: Border.all(color: go.border),
+            boxShadow: AppTokens.shadowFloating,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.navigation_rounded, color: AppTokens.primary, size: 20),
+              const SizedBox(width: AppTokens.spaceSm),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTokens.font(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: go.text,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  context.read<CaptainState>().stopInAppNavigation();
+                  setState(() => _navigating = false);
+                },
+                child: Text(
+                  'إنهاء',
+                  style: AppTokens.font(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTokens.danger,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
