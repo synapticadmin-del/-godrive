@@ -197,7 +197,7 @@ class _FallbackLockup extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           'GoDrive',
-          style: AppTokens.fontLatin(
+          style: AppTokens.font(
             fontSize: 27,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
@@ -245,7 +245,7 @@ class _WordmarkBlock extends StatelessWidget {
       children: [
         Text(
           'GoDrive',
-          style: AppTokens.fontLatin(
+          style: AppTokens.font(
             fontSize: 28,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
@@ -297,7 +297,7 @@ class _CreatedByBadge extends StatelessWidget {
         children: [
           Text(
             strings.createdByLabel,
-            style: AppTokens.fontLatin(
+            style: AppTokens.font(
               fontSize: 12,
               color: go.muted,
               fontWeight: FontWeight.w500,
@@ -332,7 +332,7 @@ class _CreatedByBadge extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 strings.synapticStudioLabel,
-                style: AppTokens.fontLatin(
+                style: AppTokens.font(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: accent,

@@ -347,6 +347,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> login({required String email, required String password}) =>
+      loginWithEmail(email: email, password: password);
+
   Future<void> registerWithEmail({
     required String email,
     required String password,
@@ -373,6 +376,14 @@ class AppState extends ChangeNotifier {
     await FcmService.init();
     notifyListeners();
   }
+
+  Future<void> register({
+    required String email,
+    required String password,
+    required String name,
+    required String phone,
+  }) =>
+      registerWithEmail(email: email, password: password, name: name, phone: phone);
 
   Future<void> logout() async {
     await _clearSession();
