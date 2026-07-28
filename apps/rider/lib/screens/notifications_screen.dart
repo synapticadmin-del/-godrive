@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// In-app notifications center — shows recent push + in-app notifications.
@@ -10,24 +9,35 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final List<_Notif> _items = [
-    _Notif(icon: Icons.local_taxi, color: AppTokens.primary, title: 'رحلة مكتملة', body: 'وصلت بسلامة. الأجرة 45 ج.م.', time: 'منذ 5 دقائق', unread: true),
-    _Notif(icon: Icons.local_offer, color: AppTokens.accent, title: 'عرض جديد', body: 'خصم 20% على رحلتك القادمة بكود GO20', time: 'منذ ساعة', unread: true),
-    _Notif(icon: Icons.account_balance_wallet, color: AppTokens.success, title: 'تم شحن المحفظة', body: 'تم إضافة 100 ج.م إلى محفظتك.', time: 'منذ 3 ساعات', unread: false),
-    _Notif(icon: Icons.star, color: AppTokens.accent, title: 'قيّم رحلتك', body: 'كيف كانت رحلتك مع الكابتن أحمد؟', time: 'أمس', unread: false),
-  ];
+  /// Seed copy lives in [AppStrings] like every other rider screen; the list
+  /// itself is local state so "mark all read" can flip the unread flags.
+  List<_Notif> _items = [];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_items.isEmpty) {
+      final strings = AppStrings.of(context);
+      _items = [
+        _Notif(icon: Icons.local_taxi, color: AppTokens.primary, title: strings.notifTripCompletedTitle, body: strings.notifTripCompletedBody, time: strings.notifTimeMinutesAgo, unread: true),
+        _Notif(icon: Icons.local_offer, color: AppTokens.accent, title: strings.notifPromoTitle, body: strings.notifPromoBody, time: strings.notifTimeHourAgo, unread: true),
+        _Notif(icon: Icons.account_balance_wallet, color: AppTokens.success, title: strings.notifWalletTopupTitle, body: strings.notifWalletTopupBody, time: strings.notifTimeHoursAgo, unread: false),
+        _Notif(icon: Icons.star, color: AppTokens.accent, title: strings.notifRateTripTitle, body: strings.notifRateTripBody, time: strings.notifTimeYesterday, unread: false),
+      ];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
+      backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('الإشعارات', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        title: Text(strings.notificationsTitle, style: AppTokens.font(fontWeight: FontWeight.w700)),
+        backgroundColor: go.panel,
+        foregroundColor: go.text,
         actions: [
           TextButton(
             onPressed: () {
@@ -37,12 +47,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 }
               });
             },
-            child: Text('تعليم الكل كمقروء', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: AppTokens.primary)),
+            child: Text(strings.markAllRead, style: AppTokens.font(fontSize: 12, color: go.isDark ? go.action : AppTokens.primary)),
           ),
         ],
       ),
       body: _items.isEmpty
-          ? const EmptyState(icon: Icons.notifications_none, title: 'لا توجد إشعارات', subtitle: 'ستظهر إشعاراتك هنا')
+          ? _EmptyNotifications(title: strings.noNotifications, subtitle: strings.notificationsWillAppearHere)
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _items.length,
@@ -52,9 +62,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: n.unread ? n.color.withOpacity(0.05) : panel,
+                    color: n.unread ? n.color.withOpacity(0.05) : go.panel,
                     borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                    border: Border.all(color: n.unread ? n.color.withOpacity(0.2) : border),
+                    border: Border.all(color: n.unread ? n.color.withOpacity(0.2) : go.border),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +82,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(n.title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: text)),
+                                Text(n.title, style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w700, color: go.text)),
                                 if (n.unread) ...[
                                   const SizedBox(width: 6),
                                   Container(width: 8, height: 8, decoration: BoxDecoration(color: n.color, shape: BoxShape.circle)),
@@ -80,9 +90,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(n.body, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted, height: 1.4)),
+                            Text(n.body, style: AppTokens.font(fontSize: 13, color: go.muted, height: 1.4)),
                             const SizedBox(height: 4),
-                            Text(n.time, style: GoogleFonts.ibmPlexSansArabic(fontSize: 11, color: muted.withOpacity(0.7))),
+                            Text(n.time, style: AppTokens.font(fontSize: 11, color: go.muted.withOpacity(0.7))),
                           ],
                         ),
                       ),
@@ -91,6 +101,55 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 );
               },
             ),
+    );
+  }
+}
+
+/// Branded empty state: the packaged illustration when present, with the
+/// shared [EmptyState] icon circle as a guaranteed fallback.
+class _EmptyNotifications extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const _EmptyNotifications({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/empty_notifications.png',
+              width: 160,
+              height: 160,
+              errorBuilder: (_, __, ___) => Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppTokens.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.notifications_none, size: 32, color: AppTokens.primary),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: go.text),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 13, color: go.muted, height: 1.4),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

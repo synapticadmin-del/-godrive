@@ -330,6 +330,9 @@ abstract class AppStrings {
   /// Empty-state title when the wallet has no transactions yet.
   String get noTransactionsYet;
 
+  /// Empty-state subtitle under [noTransactionsYet] for the rider wallet.
+  String get transactionsWillAppearHere;
+
   /// Fallback note for a credit transaction with no note.
   String get creditNoteFallback;
 
@@ -717,6 +720,9 @@ abstract class AppStrings {
   /// Empty-state body when the rider has no trip history.
   String get noPastTrips;
 
+  /// Empty-state hint under [noPastTrips] telling the rider where trips show up.
+  String get noPastTripsHint;
+
   /// Status chip for a completed trip in history.
   String get tripCompleted;
 
@@ -795,6 +801,42 @@ abstract class AppStrings {
 
   /// Empty-state subtitle under noNotifications.
   String get notificationsWillAppearHere;
+
+  /// Demo notification: completed-trip title.
+  String get notifTripCompletedTitle;
+
+  /// Demo notification: completed-trip body with the fare.
+  String get notifTripCompletedBody;
+
+  /// Demo notification: promo title.
+  String get notifPromoTitle;
+
+  /// Demo notification: promo body with the discount code.
+  String get notifPromoBody;
+
+  /// Demo notification: wallet top-up title.
+  String get notifWalletTopupTitle;
+
+  /// Demo notification: wallet top-up body.
+  String get notifWalletTopupBody;
+
+  /// Demo notification: rate-your-trip title.
+  String get notifRateTripTitle;
+
+  /// Demo notification: rate-your-trip body.
+  String get notifRateTripBody;
+
+  /// Relative timestamp: a few minutes ago.
+  String get notifTimeMinutesAgo;
+
+  /// Relative timestamp: about an hour ago.
+  String get notifTimeHourAgo;
+
+  /// Relative timestamp: a few hours ago.
+  String get notifTimeHoursAgo;
+
+  /// Relative timestamp: yesterday.
+  String get notifTimeYesterday;
 
   // ── Rider — Saved places
 
@@ -1634,6 +1676,10 @@ class AppStringsAr extends AppStrings {
   @override
   String get noTransactionsYet => 'لا توجد معاملات سابقة بالمحفظة حتى الآن';
 
+  /// Empty-state subtitle under [noTransactionsYet] for the rider wallet.
+  @override
+  String get transactionsWillAppearHere => 'ستظهر معاملاتك هنا';
+
   @override
   String get creditNoteFallback => 'إضافة رصيد';
 
@@ -2028,6 +2074,10 @@ class AppStringsAr extends AppStrings {
   @override
   String get noPastTrips => 'لا توجد رحلات سابقة';
 
+  /// Empty-state hint under [noPastTrips] telling the rider where trips show up.
+  @override
+  String get noPastTripsHint => 'ستظهر رحلاتك المكتملة هنا';
+
   /// Status chip for a completed trip in history.
   @override
   String get tripCompleted => 'مكتملة';
@@ -2131,6 +2181,54 @@ class AppStringsAr extends AppStrings {
   /// Empty-state subtitle under noNotifications.
   @override
   String get notificationsWillAppearHere => 'ستظهر إشعاراتك هنا';
+
+  /// Demo notification: completed-trip title.
+  @override
+  String get notifTripCompletedTitle => 'رحلة مكتملة';
+
+  /// Demo notification: completed-trip body with the fare.
+  @override
+  String get notifTripCompletedBody => 'وصلت بسلامة. الأجرة 45 ج.م.';
+
+  /// Demo notification: promo title.
+  @override
+  String get notifPromoTitle => 'عرض جديد';
+
+  /// Demo notification: promo body with the discount code.
+  @override
+  String get notifPromoBody => 'خصم 20% على رحلتك القادمة بكود GO20';
+
+  /// Demo notification: wallet top-up title.
+  @override
+  String get notifWalletTopupTitle => 'تم شحن المحفظة';
+
+  /// Demo notification: wallet top-up body.
+  @override
+  String get notifWalletTopupBody => 'تم إضافة 100 ج.م إلى محفظتك.';
+
+  /// Demo notification: rate-your-trip title.
+  @override
+  String get notifRateTripTitle => 'قيّم رحلتك';
+
+  /// Demo notification: rate-your-trip body.
+  @override
+  String get notifRateTripBody => 'كيف كانت رحلتك مع الكابتن أحمد؟';
+
+  /// Relative timestamp: a few minutes ago.
+  @override
+  String get notifTimeMinutesAgo => 'منذ 5 دقائق';
+
+  /// Relative timestamp: about an hour ago.
+  @override
+  String get notifTimeHourAgo => 'منذ ساعة';
+
+  /// Relative timestamp: a few hours ago.
+  @override
+  String get notifTimeHoursAgo => 'منذ 3 ساعات';
+
+  /// Relative timestamp: yesterday.
+  @override
+  String get notifTimeYesterday => 'أمس';
 
   // ── Rider — Saved places ────────────────────────────────────────
 
@@ -3137,6 +3235,10 @@ class AppStringsEn extends AppStrings {
   @override
   String get noTransactionsYet => 'No wallet transactions yet';
 
+  /// Empty-state subtitle under [noTransactionsYet] for the rider wallet.
+  @override
+  String get transactionsWillAppearHere => 'Your transactions will appear here';
+
   @override
   String get creditNoteFallback => 'Balance added';
 
@@ -3534,6 +3636,10 @@ class AppStringsEn extends AppStrings {
   @override
   String get noPastTrips => 'No past trips';
 
+  /// Empty-state hint under [noPastTrips] telling the rider where trips show up.
+  @override
+  String get noPastTripsHint => 'Your completed trips will appear here';
+
   /// Status chip for a completed trip in history.
   @override
   String get tripCompleted => 'Completed';
@@ -3637,6 +3743,54 @@ class AppStringsEn extends AppStrings {
   /// Empty-state subtitle under noNotifications.
   @override
   String get notificationsWillAppearHere => 'Your notifications will appear here';
+
+  /// Demo notification: completed-trip title.
+  @override
+  String get notifTripCompletedTitle => 'Trip completed';
+
+  /// Demo notification: completed-trip body with the fare.
+  @override
+  String get notifTripCompletedBody => 'You arrived safely. Fare: EGP 45.';
+
+  /// Demo notification: promo title.
+  @override
+  String get notifPromoTitle => 'New offer';
+
+  /// Demo notification: promo body with the discount code.
+  @override
+  String get notifPromoBody => '20% off your next trip with code GO20';
+
+  /// Demo notification: wallet top-up title.
+  @override
+  String get notifWalletTopupTitle => 'Wallet topped up';
+
+  /// Demo notification: wallet top-up body.
+  @override
+  String get notifWalletTopupBody => 'EGP 100 was added to your wallet.';
+
+  /// Demo notification: rate-your-trip title.
+  @override
+  String get notifRateTripTitle => 'Rate your trip';
+
+  /// Demo notification: rate-your-trip body.
+  @override
+  String get notifRateTripBody => 'How was your trip with Captain Ahmed?';
+
+  /// Relative timestamp: a few minutes ago.
+  @override
+  String get notifTimeMinutesAgo => '5 min ago';
+
+  /// Relative timestamp: about an hour ago.
+  @override
+  String get notifTimeHourAgo => '1 hour ago';
+
+  /// Relative timestamp: a few hours ago.
+  @override
+  String get notifTimeHoursAgo => '3 hours ago';
+
+  /// Relative timestamp: yesterday.
+  @override
+  String get notifTimeYesterday => 'Yesterday';
 
   // ── Rider — Saved places ────────────────────────────────────────
 
