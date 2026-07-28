@@ -19,7 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameController = TextEditingController(text: user?['name'] ?? '');
     final phoneController = TextEditingController(text: user?['phone'] ?? '');
     final emailController = TextEditingController(text: user?['email'] ?? '');
-    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final strings = AppStrings.of(context);
 
     showModalBottomSheet(
       context: context,
@@ -55,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: AppTokens.spaceMd),
                 Text(
-                  isAr ? 'تعديل البيانات الشخصية' : 'Edit Profile Information',
+                  strings.editProfileInfoTitle,
                   style: AppTokens.font(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -66,7 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(
-                    labelText: isAr ? 'الاسم الكامل' : 'Full Name',
+                    labelText: strings.fullNameLabel,
                     prefixIcon: const Icon(Icons.person_outline),
                   ),
                 ),
@@ -75,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    labelText: isAr ? 'رقم الهاتف' : 'Phone Number',
+                    labelText: strings.phoneNumberLabel,
                     prefixIcon: const Icon(Icons.phone_outlined),
                   ),
                 ),
@@ -84,9 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: emailController,
                   readOnly: true,
                   decoration: InputDecoration(
-                    labelText: isAr
-                        ? 'البريد الإلكتروني (غير قابل للتعديل)'
-                        : 'Email Address (read only)',
+                    labelText: strings.emailReadOnlyLabel,
                     prefixIcon: const Icon(Icons.email_outlined),
                     suffixIcon: const Icon(Icons.lock_outline),
                   ),
@@ -104,11 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.pop(ctx);
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(
-                            isAr
-                                ? 'تم حفظ التعديلات بنجاح'
-                                : 'Profile updated successfully',
-                          ),
+                          content: Text(strings.profileUpdatedSuccess),
                           backgroundColor: AppTokens.success,
                         ),
                       );
@@ -125,7 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     }
                   },
                   child: Text(
-                    isAr ? 'حفظ التعديلات' : 'Save Changes',
+                    strings.saveChangesAction,
                     style: AppTokens.font(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -142,7 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showAvatarPickerModal(BuildContext context) {
-    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final strings = AppStrings.of(context);
     final avatars = [
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
       'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
@@ -167,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isAr ? 'تغيير الصورة الشخصية' : 'Change Profile Picture',
+                strings.changeProfilePictureTitle,
                 style: AppTokens.font(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -205,7 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(
-                  isAr ? 'اختيار صورة جديدة' : 'Choose New Photo',
+                  strings.chooseNewPhotoAction,
                   style: AppTokens.font(),
                 ),
               ),
@@ -232,7 +226,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final appState = context.watch<AppState>();
     final user = appState.user;
     final balance = appState.walletBalance ?? 0.0;
-    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final strings = AppStrings.of(context);
     final avatarUrl = user?['avatarUrl'] as String?;
     final go = GoTheme.of(context);
 
@@ -244,25 +238,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : (email.isNotEmpty ? email[0].toUpperCase() : 'U');
     final displayName = rawName.isNotEmpty
         ? rawName
-        : (email.isNotEmpty
-            ? email.split('@').first
-            : (isAr ? 'مستخدم' : 'User'));
+        : (email.isNotEmpty ? email.split('@').first : strings.fallbackUserName);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isAr ? 'الملف الشخصي' : 'Profile'),
+        title: Text(strings.profileTitle),
         actions: [
           IconButton(
             icon: Icon(
               // Visible brightness, not the enum — see AppState.
               appState.isDarkActive ? Icons.wb_sunny : Icons.nightlight_round,
             ),
-            tooltip: isAr ? 'تغيير المظهر' : 'Toggle Theme',
+            tooltip: strings.toggleThemeTooltip,
             onPressed: () => appState.toggleTheme(),
           ),
           IconButton(
             icon: const Icon(Icons.language),
-            tooltip: isAr ? 'English' : 'العربية',
+            tooltip: strings.toggleLanguageTooltip,
             onPressed: () => appState.toggleLanguage(),
           ),
         ],
@@ -347,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () => _showEditProfileModal(context, user),
               icon: const Icon(Icons.edit_outlined, size: 18),
               label: Text(
-                isAr ? 'تعديل البيانات' : 'Edit Details',
+                strings.editDetailsAction,
                 style: AppTokens.font(fontWeight: FontWeight.w600),
               ),
             ),
@@ -374,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isAr ? 'الرصيد المتاح' : 'Available Balance',
+                      strings.availableBalanceLabel,
                       style: AppTokens.font(
                         color: Colors.white.withOpacity(0.82),
                         fontSize: 14,
@@ -382,7 +374,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: AppTokens.space2xs),
                     Text(
-                      '${balance.toStringAsFixed(2)} ${isAr ? "ج.م" : "EGP"}',
+                      '${balance.toStringAsFixed(2)} ${strings.egp}',
                       style: AppTokens.money(
                         color: Colors.white,
                         fontSize: 24,
@@ -399,7 +391,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                   icon: const Icon(Icons.add, size: 18, color: AppTokens.primary),
                   label: Text(
-                    isAr ? 'المحفظة' : 'Wallet',
+                    strings.walletTitle,
                     style: AppTokens.font(
                       color: AppTokens.primary,
                       fontWeight: FontWeight.bold,
@@ -422,25 +414,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildMenuItem(
             context,
             Icons.history_rounded,
-            isAr ? 'رحلاتي' : 'My Trips',
+            strings.myTripsLabel,
             const HistoryScreen(),
           ),
           _buildMenuItem(
             context,
             Icons.bookmark_border_rounded,
-            isAr ? 'الأماكن المحفوظة' : 'Saved Places',
+            strings.savedPlacesLabel,
             const SavedPlacesScreen(),
           ),
           _buildMenuItem(
             context,
             Icons.account_balance_wallet_outlined,
-            isAr ? 'المحفظة' : 'Wallet',
+            strings.walletTitle,
             const WalletScreen(),
           ),
           _buildMenuItem(
             context,
             Icons.settings_outlined,
-            isAr ? 'الإعدادات' : 'Settings',
+            strings.settingsTitle,
             const SettingsScreen(),
           ),
         ],

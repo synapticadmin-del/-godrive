@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// In-app notifications center — shows recent push + in-app notifications.
@@ -19,15 +18,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('الإشعارات', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        title: Text(strings.notificationsTitle, style: AppTokens.font(fontWeight: FontWeight.w700)),
         actions: [
           TextButton(
             onPressed: () {
@@ -37,12 +33,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 }
               });
             },
-            child: Text('تعليم الكل كمقروء', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: AppTokens.primary)),
+            child: Text(strings.markAllRead, style: AppTokens.font(fontSize: 12, color: AppTokens.primary)),
           ),
         ],
       ),
       body: _items.isEmpty
-          ? const EmptyState(icon: Icons.notifications_none, title: 'لا توجد إشعارات', subtitle: 'ستظهر إشعاراتك هنا')
+          ? EmptyState(icon: Icons.notifications_none, title: strings.noNotifications, subtitle: strings.notificationsWillAppearHere)
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _items.length,
@@ -52,9 +48,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: n.unread ? n.color.withOpacity(0.05) : panel,
+                    color: n.unread ? n.color.withOpacity(0.05) : go.panel,
                     borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                    border: Border.all(color: n.unread ? n.color.withOpacity(0.2) : border),
+                    border: Border.all(color: n.unread ? n.color.withOpacity(0.2) : go.border),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +68,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(n.title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: text)),
+                                Text(n.title, style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w700, color: go.text)),
                                 if (n.unread) ...[
                                   const SizedBox(width: 6),
                                   Container(width: 8, height: 8, decoration: BoxDecoration(color: n.color, shape: BoxShape.circle)),
@@ -80,9 +76,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(n.body, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted, height: 1.4)),
+                            Text(n.body, style: AppTokens.font(fontSize: 13, color: go.muted, height: 1.4)),
                             const SizedBox(height: 4),
-                            Text(n.time, style: GoogleFonts.ibmPlexSansArabic(fontSize: 11, color: muted.withOpacity(0.7))),
+                            Text(n.time, style: AppTokens.font(fontSize: 11, color: go.muted.withOpacity(0.7))),
                           ],
                         ),
                       ),

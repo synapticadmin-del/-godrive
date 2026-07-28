@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Schedule a ride for a later time — date + time picker + summary.
@@ -16,6 +15,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   TimeOfDay _selectedTime = TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 2)));
 
   Future<void> _pickDate() async {
+    final strings = AppStrings.of(context);
     final now = DateTime.now();
     final max = now.add(const Duration(days: 30));
     final picked = await showDatePicker(
@@ -23,7 +23,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       initialDate: _selectedDate,
       firstDate: now,
       lastDate: max,
-      helpText: 'اختر تاريخ الرحلة',
+      helpText: strings.schedulePickDateHelp,
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
@@ -31,10 +31,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Future<void> _pickTime() async {
+    final strings = AppStrings.of(context);
     final picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime,
-      helpText: 'اختر وقت الرحلة',
+      helpText: strings.schedulePickTimeHelp,
     );
     if (picked != null) {
       setState(() => _selectedTime = picked);
@@ -50,14 +51,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text('جدولة رحلة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(
+        title: Text(
+          strings.scheduleTitle,
+          style: AppTokens.font(fontWeight: FontWeight.w700),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -74,49 +77,77 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               child: Row(children: [
                 const Icon(Icons.info_outline, color: AppTokens.primary, size: 20),
                 const SizedBox(width: 10),
-                Expanded(child: Text(
-                  'سيتم إرسال كابتن تلقائيًا قبل موعد رحلتك بـ 10 دقائق.',
-                  style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: AppTokens.primary),
-                )),
+                Expanded(
+                  child: Text(
+                    strings.scheduleInfoNote,
+                    style: AppTokens.font(fontSize: 13, color: AppTokens.primary),
+                  ),
+                ),
               ]),
             ),
             const SizedBox(height: 24),
             // Date picker
-            Text('التاريخ', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: muted)),
+            Text(
+              strings.scheduleDateLabel,
+              style: AppTokens.font(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: go.muted,
+              ),
+            ),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _pickDate,
               child: Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
+                decoration: BoxDecoration(
+                  color: go.panel,
+                  borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                  border: Border.all(color: go.border),
+                ),
                 child: Row(children: [
                   const Icon(Icons.calendar_today, color: AppTokens.primary, size: 22),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(
-                    '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                    style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, color: text),
-                  )),
-                  Icon(Icons.chevron_right, color: muted, size: 20),
+                  Expanded(
+                    child: Text(
+                      '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                      style: AppTokens.font(fontSize: 16, color: go.text),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: go.muted, size: 20),
                 ]),
               ),
             ),
             const SizedBox(height: 16),
             // Time picker
-            Text('الوقت', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: muted)),
+            Text(
+              strings.scheduleTimeLabel,
+              style: AppTokens.font(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: go.muted,
+              ),
+            ),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _pickTime,
               child: Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
+                decoration: BoxDecoration(
+                  color: go.panel,
+                  borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                  border: Border.all(color: go.border),
+                ),
                 child: Row(children: [
                   const Icon(Icons.access_time, color: AppTokens.primary, size: 22),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(
-                    '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                    style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, color: text),
-                  )),
-                  Icon(Icons.chevron_right, color: muted, size: 20),
+                  Expanded(
+                    child: Text(
+                      '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+                      style: AppTokens.font(fontSize: 16, color: go.text),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: go.muted, size: 20),
                 ]),
               ),
             ),
@@ -124,22 +155,40 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             // Summary
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
+              decoration: BoxDecoration(
+                color: go.panel,
+                borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                border: Border.all(color: go.border),
+              ),
               child: Row(children: [
                 const Icon(Icons.schedule, color: AppTokens.primary),
                 const SizedBox(width: 8),
-                Expanded(child: Text('موعد الرحلة: $_formattedDateTime', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: text))),
+                Expanded(
+                  child: Text(
+                    strings.scheduleSummaryLine(_formattedDateTime),
+                    style: AppTokens.font(fontSize: 13, color: go.text),
+                  ),
+                ),
               ]),
             ),
             const SizedBox(height: 16),
             // Confirm
             SizedBox(
-              width: double.infinity, height: 52,
+              width: double.infinity,
+              height: 52,
               child: ElevatedButton(
                 onPressed: widget.onConfirm,
-                style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd))),
-                child: Text('جدولة الرحلة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTokens.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                  ),
+                ),
+                child: Text(
+                  strings.scheduleConfirmAction,
+                  style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ],

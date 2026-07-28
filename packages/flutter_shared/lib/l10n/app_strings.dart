@@ -688,6 +688,648 @@ abstract class AppStrings {
 
   /// Destructive confirm action in the logout dialog.
   String get exitAction;
+
+  // ── Rider — Wallet & top-up
+
+  /// Label above the wallet balance amount.
+  String get availableBalance;
+
+  /// Fallback title for a wallet transaction with no description.
+  String get transactionFallback;
+
+  /// App-bar title of the top-up screen and wallet top-up button.
+  String get topUpTitle;
+
+  /// App-bar title of the Paymob payment WebView screen.
+  String get paymentTitle;
+
+  /// Instruction above the top-up amount text field.
+  String get topUpAmountPrompt;
+
+  /// Primary button that starts the Paymob top-up flow.
+  String get continuePayment;
+
+  // ── Rider — Trip history
+
+  /// App-bar title of the ride history screen.
+  String get tripHistoryTitle;
+
+  /// Empty-state body when the rider has no trip history.
+  String get noPastTrips;
+
+  /// Status chip for a completed trip in history.
+  String get tripCompleted;
+
+  /// Status chip for a cancelled trip in history.
+  String get tripCancelled;
+
+  /// App-bar title of the trip detail screen.
+  String get tripDetailTitle;
+
+  /// Empty-state title when the requested trip does not exist.
+  String get tripNotFound;
+
+  /// Section heading for the trip route card.
+  String get tripRouteTitle;
+
+  /// Route-card meta showing the trip distance in kilometres.
+  String tripDistanceKmLine(String km);
+
+  /// Route-card meta showing the trip duration in minutes.
+  String tripDurationMinutes(int minutes);
+
+  /// Section heading for the fare breakdown card.
+  String get tripFareDetailsTitle;
+
+  /// Fare-breakdown row for the applied discount.
+  String get tripDiscountLabel;
+
+  /// Fare-breakdown row for the final total.
+  String get tripTotalLabel;
+
+  // ── Rider — Safety & SOS
+
+  /// Title of the SOS confirmation dialog.
+  String get sosWarningTitle;
+
+  /// Body of the SOS confirmation dialog.
+  String get sosConfirmMessage;
+
+  /// Destructive confirm button in the SOS dialog.
+  String get sosConfirmAction;
+
+  /// Error when device location services are disabled during SOS.
+  String get sosLocationServiceError;
+
+  /// Error when location permission is denied during SOS.
+  String get sosLocationPermissionError;
+
+  /// Error when GPS position cannot be resolved during SOS.
+  String get sosLocationUnavailableError;
+
+  /// Snack-bar after a successful SOS post.
+  String get sosSentSuccess;
+
+  /// Error when the share-trip endpoint returns no URL.
+  String get shareTripError;
+
+  /// Prefix of the share sheet message; the URL is appended.
+  String get shareTripMessage;
+
+  /// Hint under the SOS panic button.
+  String get sosEmergencyOnlyHint;
+
+  /// Button that shares the live-trip tracking link.
+  String get shareTripDetails;
+
+  // ── Rider — Notifications
+
+  /// App-bar title of the notifications center.
+  String get notificationsTitle;
+
+  /// Action that clears all unread notification badges.
+  String get markAllRead;
+
+  /// Empty-state title when there are no notifications.
+  String get noNotifications;
+
+  /// Empty-state subtitle under noNotifications.
+  String get notificationsWillAppearHere;
+
+  // ── Rider — Saved places
+
+  /// App-bar title of the saved places screen.
+  String get savedPlacesTitle;
+
+  /// Fallback label when a saved place has no name.
+  String get placeFallback;
+
+  /// Empty-state title when no places are saved.
+  String get noSavedPlaces;
+
+  /// Empty-state subtitle prompting to add home/work.
+  String get addHomeWorkHint;
+
+  /// App-bar title of the map-based location picker.
+  String get pickLocationTitle;
+
+  /// Hint inside the place-name text field.
+  String get placeNameHint;
+
+  /// Hint shown before the reverse-geocoded address resolves.
+  String get moveMapToPick;
+
+  /// Primary button that confirms the picked place.
+  String get savePlace;
+
+  /// Snack-bar when the device-location action in the search sheet fails.
+  String get locationPermissionDenied;
+
+  // ── Rider — Captain offers (bids sheet)
+
+  /// Generic retry action shown after a failed load (e.g. the bids sheet error state).
+  String get retryAction;
+
+  /// Offline error body shown when a network call fails with no connectivity.
+  String get checkConnectionError;
+
+  /// Toast shown when a request fails due to a connection problem.
+  String get connectionRetryError;
+
+  /// Bids-sheet error when the offers request returns a non-200 status; {code} is the HTTP status code.
+  String bidsLoadErrorWithCode(String code);
+
+  /// Fallback toast when accepting a captain's bid fails and the server sent no message.
+  String get bidAcceptFailedError;
+
+  /// Header title of the captain offers (bids) sheet.
+  String get bidsChooseCaptainTitle;
+
+  /// Subtitle under the bids-sheet title reassuring the rider about captain verification.
+  String get bidsAllCaptainsVerified;
+
+  /// Destructive button in the bids-sheet header that cancels the whole trip request.
+  String get bidsCancelRequestAction;
+
+  /// Fallback captain display name on a bid card when the API sends no name.
+  String get bidsCaptainFallback;
+
+  /// Bid-card chip showing how many minutes until the captain can arrive.
+  String bidsEtaMinutes(String minutes);
+
+  /// Bid-card meta showing the captain's completed trip count next to the rating.
+  String bidsTripCount(int count);
+
+  /// Primary button on a bid card that accepts the captain's offer.
+  String get bidAcceptAction;
+
+  /// Secondary button on a bid card that dismisses the captain's offer.
+  String get bidDeclineAction;
+
+  /// Bids-sheet title while waiting for the first captain offer to arrive.
+  String get bidsSearchingTitle;
+
+  /// Bids-sheet subtitle under the searching title.
+  String get bidsSearchingSubtitle;
+
+  // ── Rider — Payment methods
+
+  /// App-bar title of the payment methods screen.
+  String get paymentMethodsTitle;
+
+  /// Payment method row: pay the captain in cash.
+  String get paymentCashTitle;
+
+  /// Subtitle under the cash payment method row.
+  String get paymentCashSubtitle;
+
+  /// Payment method row: pay from the in-app wallet balance.
+  String get paymentWalletTitle;
+
+  /// Subtitle under the wallet payment method showing the current balance.
+  String paymentWalletBalanceLine(String balance);
+
+  /// Button on the wallet payment row that navigates to the wallet top-up screen.
+  String get paymentTopUpAction;
+
+  /// Payment method row: pay with a bank card.
+  String get paymentCardTitle;
+
+  /// Subtitle under the bank-card payment method row.
+  String get paymentCardSubtitle;
+
+  /// Button on the bank-card payment row that starts the add-card flow.
+  String get paymentAddAction;
+
+  /// Toast shown when the rider taps add-card before the Paymob flow is live.
+  String get paymentCardComingSoonToast;
+
+  /// Section heading above the payment methods explanatory note.
+  String get paymentNoteTitle;
+
+  /// Explanatory note at the bottom of the payment methods screen.
+  String get paymentNoteBody;
+
+  // ── Rider — Promo codes
+
+  /// App-bar title of the promo codes screen.
+  String get promoTitle;
+
+  /// Hint text inside the promo-code entry field.
+  String get promoCodeHint;
+
+  /// Button that validates and applies the entered promo code.
+  String get promoApplyAction;
+
+  /// Success toast after a promo code validates; {amount} is the discount.
+  String promoAppliedToast(String amount);
+
+  /// Error toast when the entered promo code fails validation.
+  String get promoInvalidToast;
+
+  /// Empty-state title when the rider has no active promo codes.
+  String get promoEmptyTitle;
+
+  /// Empty-state subtitle prompting the rider to enter a code.
+  String get promoEmptySubtitle;
+
+  /// Promo card value line for a percentage discount.
+  String promoDiscountPercent(int percent);
+
+  /// Promo card value line for a fixed-amount discount.
+  String promoDiscountFixed(String amount);
+
+  /// Promo card line showing the code's expiry date.
+  String promoExpiresLine(String date);
+
+  // ── Rider — Rating sheet
+
+  /// Title of the post-trip rating sheet.
+  String get ratingTitle;
+
+  /// Subtitle under the rating title naming the captain being rated.
+  String ratingCaptainLine(String name);
+
+  /// Hint text inside the optional rating comment field.
+  String get ratingCommentHint;
+
+  /// Primary button that submits the star rating.
+  String get ratingSubmitAction;
+
+  /// Quiet button that dismisses the rating sheet without rating.
+  String get ratingSkipAction;
+
+  /// Quick rating tag: the captain drove safely.
+  String get ratingTagSafeDriving;
+
+  /// Quick rating tag: the captain was polite.
+  String get ratingTagPoliteCaptain;
+
+  /// Quick rating tag: the car was clean.
+  String get ratingTagCleanCar;
+
+  /// Quick rating tag: the captain was punctual.
+  String get ratingTagOnTime;
+
+  /// Quick rating tag: the in-car music was pleasant.
+  String get ratingTagComfortableMusic;
+
+  /// Toast prefix when submitting a rating fails; {error} is the exception.
+  String ratingErrorPrefix(String error);
+
+  // ── Rider — Schedule a ride
+
+  /// App-bar title of the ride scheduling screen.
+  String get scheduleTitle;
+
+  /// Help text on the date picker when scheduling a ride.
+  String get schedulePickDateHelp;
+
+  /// Help text on the time picker when scheduling a ride.
+  String get schedulePickTimeHelp;
+
+  /// Info card explaining how scheduled rides are dispatched.
+  String get scheduleInfoNote;
+
+  /// Label above the date selector on the scheduling screen.
+  String get scheduleDateLabel;
+
+  /// Label above the time selector on the scheduling screen.
+  String get scheduleTimeLabel;
+
+  /// Summary line showing the chosen scheduled date and time.
+  String scheduleSummaryLine(String dateTime);
+
+  /// Primary button that confirms the scheduled ride.
+  String get scheduleConfirmAction;
+
+  // ── Rider — Home & map picking
+
+  /// Label for the option that resolves the pickup from the device GPS fix.
+  String get currentLocationGps;
+
+  /// Name of the language the toggle will switch TO (shown in the current locale's other language).
+  String get otherLanguageName;
+
+  /// Tooltip on the floating theme-toggle button (home + login).
+  String get toggleThemeTooltip;
+
+  /// Tooltip for the floating button that recentres the map on the device location.
+  String get myLocationTooltip;
+
+  /// Tooltip for back buttons.
+  String get backTooltip;
+
+  /// Tooltip/helper for the pickup field on the home screen.
+  String get setPickupPoint;
+
+  /// Tooltip/helper for the destination field on the home screen.
+  String get setDestinationPoint;
+
+  /// Hint shown in the empty pickup field on the home screen.
+  String get whereFromHint;
+
+  /// Hint shown in the empty destination field on the home screen.
+  String get whereToHint;
+
+  /// Tooltip for the button that swaps the two trip endpoints.
+  String get swapLocationsTooltip;
+
+  /// Primary action that confirms the point being set via map pan.
+  String get continueAction;
+
+  /// Inline status while the route between the two points is being fetched.
+  String get calculatingRoute;
+
+  /// Marker for values (distance/ETA/fare) that are approximate.
+  String get approximateLabel;
+
+  /// Instruction banner shown while the map-pan point-selection mode is active.
+  String get moveMapToSetPoint;
+
+  /// SnackBar shown after confirming the pickup point on the map.
+  String get confirmPickup;
+
+  /// SnackBar shown after confirming the destination point on the map.
+  String get confirmDestination;
+
+  // ── Rider — Location search sheet
+
+  /// Message shown when the places search endpoint fails.
+  String get searchUnavailable;
+
+  /// Label for the pickup end of the trip.
+  String get pickupPointLabel;
+
+  /// Label for the destination end of the trip.
+  String get destinationLabel;
+
+  /// Hint inside the search sheet field when resolving the pickup.
+  String get searchPickupHint;
+
+  /// Hint inside the search sheet field when resolving the destination.
+  String get searchDestinationHint;
+
+  /// Empty state when a places query returns no results.
+  String get noPlacesFound;
+
+  /// Suggestion shown under the no-results empty state.
+  String get trySimplerNameOrMap;
+
+  /// Section heading above the places search results.
+  String get resultsSection;
+
+  /// Section heading above the popular-places list in the search sheet.
+  String get popularPlacesSection;
+
+  /// Button that switches from search to map-pan point selection.
+  String get setOnMapAction;
+
+  /// Sub-line explaining the set-on-map fallback when search cannot find a place.
+  String get setOnMapSubtitle;
+
+  /// Address label used for a point resolved from the device GPS fix.
+  String get myCurrentLocation;
+
+  /// Button in the search sheet that fills the point from GPS.
+  String get useDeviceLocation;
+
+  // ── Rider — Travel mode bar
+
+  /// Tooltip for returning to the rides tab.
+  String get backToRidesTooltip;
+
+  /// Bottom-bar tab that opens the trip-planning flow.
+  String get travelTabTrip;
+
+  /// Bottom-bar tab that opens the orders/activity list.
+  String get travelTabOrders;
+
+  // ── Rider — Login & sign-up
+
+  /// Label on the language chip — names the language it will switch to.
+  String get languageChipLabel;
+
+  /// Headline on the sign-in form.
+  String get loginWelcomeBackTitle;
+
+  /// Headline on the sign-up form.
+  String get loginCreateAccountTitle;
+
+  /// Sub-line under the sign-in headline.
+  String get loginSignInSubtitle;
+
+  /// Sub-line under the sign-up headline.
+  String get loginSignUpSubtitle;
+
+  /// Hint for the full-name field on the sign-up form.
+  String get loginFullNameHint;
+
+  /// Hint for the phone field on the sign-up form.
+  String get loginPhoneHint;
+
+  /// Hint for the email field on the login screen.
+  String get loginEmailHint;
+
+  /// Hint for the password field on the login screen.
+  String get loginPasswordHint;
+
+  /// Checkbox label for accepting the terms on the sign-up form.
+  String get loginTermsLabel;
+
+  /// Primary button on the sign-in form.
+  String get loginSignInAction;
+
+  /// Primary button on the sign-up form.
+  String get loginCreateAccountAction;
+
+  /// Generic sign-up action label.
+  String get loginSignUpAction;
+
+  /// Link that switches the sign-up form back to sign-in.
+  String get loginAlreadyHaveAccount;
+
+  /// Link that switches the sign-in form to sign-up.
+  String get loginNoAccount;
+
+  /// Validation message for the email/password fields.
+  String get loginEnterEmailPassword;
+
+  /// Validation message for the name/phone fields.
+  String get loginEnterValidNamePhone;
+
+  /// SnackBar shown when signing up without accepting the terms.
+  String get loginMustAcceptTerms;
+
+  // ── Rider — Fare estimate sheet
+
+  /// Title of the fare-estimate bottom sheet.
+  String get tripDetailsTitle;
+
+  /// Label for the payment method row on the fare sheet.
+  String get paymentMethodLabel;
+
+  /// Cash payment method label.
+  String get paymentCash;
+
+  /// Primary button that dispatches the ride request with the rider's offer.
+  String get requestRideAction;
+
+  /// Fallback label when the pickup address is not yet resolved.
+  String get pickupPointFallback;
+
+  /// Fallback label when the destination address is not yet resolved.
+  String get destinationPointFallback;
+
+  /// Label for the system-suggested fare on the fare sheet.
+  String get estimatedLabel;
+
+  /// Status shown while the fare estimate is being fetched.
+  String get calculatingFare;
+
+  /// Error shown when the fare estimate request fails.
+  String get fareLoadError;
+
+  /// Retry button on the fare error state.
+  String get tryAgainAction;
+
+  /// Label above the rider's editable fare offer.
+  String get yourOfferLabel;
+
+  /// Button that resets the rider's offer to the suggested fare.
+  String get resetToSuggestedAction;
+
+  /// Accessibility label for the offer minus button.
+  String get decreasePriceSemantic;
+
+  /// Accessibility label for the offer plus button.
+  String get increasePriceSemantic;
+
+  /// Hint shown when no suggested fare is available to anchor the offer.
+  String get offerHintNoSuggestion;
+
+  /// Hint when the rider's offer equals the suggested fare.
+  String offerHintFairPrice(int s);
+
+  /// Hint when the rider's offer is above the suggested fare.
+  String offerHintAbove(int d, int s);
+
+  /// Hint when the rider's offer is below the suggested fare.
+  String offerHintBelow(int d, int s);
+
+  // ── Rider — Profile & settings
+
+  /// Title of the edit-profile bottom sheet.
+  String get editProfileInfoTitle;
+
+  /// Label for the full-name field in the edit-profile sheet.
+  String get fullNameLabel;
+
+  /// Label for the phone field in the edit-profile sheet.
+  String get phoneNumberLabel;
+
+  /// Label for the locked email field in the edit-profile sheet.
+  String get emailReadOnlyLabel;
+
+  /// SnackBar shown after the profile is saved successfully.
+  String get profileUpdatedSuccess;
+
+  /// Primary save button in the edit-profile sheet.
+  String get saveChangesAction;
+
+  /// Title of the avatar-picker bottom sheet.
+  String get changeProfilePictureTitle;
+
+  /// Button in the avatar picker to choose a new photo.
+  String get chooseNewPhotoAction;
+
+  /// Fallback display name when the profile has no name or email.
+  String get fallbackUserName;
+
+  /// AppBar title of the profile screen.
+  String get profileTitle;
+
+  /// Tooltip for the language toggle action (shows the target language).
+  String get toggleLanguageTooltip;
+
+  /// Button under the profile header that opens the edit-profile sheet.
+  String get editDetailsAction;
+
+  /// Label over the wallet balance on the profile wallet card.
+  String get availableBalanceLabel;
+
+  /// Profile menu item that opens the trip history screen.
+  String get myTripsLabel;
+
+  /// Profile menu item that opens the saved-places screen.
+  String get savedPlacesLabel;
+
+  /// AppBar title of the settings screen and its profile menu item.
+  String get settingsTitle;
+
+  /// Theme-mode dropdown option that follows the device setting.
+  String get themeSystem;
+
+  /// Theme-mode dropdown option for the light theme.
+  String get themeLight;
+
+  /// Theme-mode dropdown option for the dark theme.
+  String get themeDark;
+
+  // ── Rider — Help & invite
+
+  /// AppBar title of the help screen.
+  String get helpCenterTitle;
+
+  /// Headline on the help screen contact-support card.
+  String get needHelpTitle;
+
+  /// Sub-line under the help contact-support headline.
+  String get supportAvailableBody;
+
+  /// Button on the help card that contacts support.
+  String get contactAction;
+
+  /// SnackBar shown after tapping the help contact button.
+  String get supportContactSoonMessage;
+
+  /// Section heading above the FAQ list on the help screen.
+  String get faqTitle;
+
+  /// AppBar title of the invite/referral screen.
+  String get inviteFriendsTitle;
+
+  /// Headline on the invite hero card.
+  String get inviteHeroTitle;
+
+  /// Sub-line on the invite hero card explaining the reward.
+  String get inviteHeroSubtitle;
+
+  /// Label above the referral code value on the invite screen.
+  String get referralCodeLabel;
+
+  /// Label for the referral credits stat card.
+  String get yourCreditsLabel;
+
+  /// Label for the invited-friends count stat card.
+  String get friendsInvitedLabel;
+
+  /// Primary share button on the invite screen.
+  String get shareCodeAction;
+
+  /// Share-sheet body on the invite screen; {code} is the referral code.
+  String inviteShareMessage(String code);
+
+  // ── Rider — Splash
+
+  /// Tagline under the splash brand mark.
+  String get splashTagline;
+
+  /// Attribution line above the studio badge on the splash screen.
+  String get createdByLabel;
+
+  /// Studio name on the splash attribution badge.
+  String get synapticStudioLabel;
 }
 
 /// Egyptian-Arabic copy — the app's primary language.
@@ -1332,6 +1974,851 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get exitAction => 'خروج';
+
+  // ── Rider — Wallet & top-up ─────────────────────────────────────
+
+  /// Label above the wallet balance amount.
+  @override
+  String get availableBalance => 'الرصيد المتاح';
+
+  /// Fallback title for a wallet transaction with no description.
+  @override
+  String get transactionFallback => 'عملية';
+
+  /// App-bar title of the top-up screen and wallet top-up button.
+  @override
+  String get topUpTitle => 'شحن المحفظة';
+
+  /// App-bar title of the Paymob payment WebView screen.
+  @override
+  String get paymentTitle => 'الدفع';
+
+  /// Instruction above the top-up amount text field.
+  @override
+  String get topUpAmountPrompt => 'أدخل المبلغ المراد شحنه';
+
+  /// Primary button that starts the Paymob top-up flow.
+  @override
+  String get continuePayment => 'متابعة الدفع';
+
+  // ── Rider — Trip history ────────────────────────────────────────
+
+  /// App-bar title of the ride history screen.
+  @override
+  String get tripHistoryTitle => 'سجل الرحلات';
+
+  /// Empty-state body when the rider has no trip history.
+  @override
+  String get noPastTrips => 'لا توجد رحلات سابقة';
+
+  /// Status chip for a completed trip in history.
+  @override
+  String get tripCompleted => 'مكتملة';
+
+  /// Status chip for a cancelled trip in history.
+  @override
+  String get tripCancelled => 'ملغاة';
+
+  /// App-bar title of the trip detail screen.
+  @override
+  String get tripDetailTitle => 'تفاصيل الرحلة';
+
+  /// Empty-state title when the requested trip does not exist.
+  @override
+  String get tripNotFound => 'الرحلة غير موجودة';
+
+  /// Section heading for the trip route card.
+  @override
+  String get tripRouteTitle => 'المسار';
+
+  /// Route-card meta showing the trip distance in kilometres.
+  @override
+  String tripDistanceKmLine(String km) => '$km كم';
+
+  /// Route-card meta showing the trip duration in minutes.
+  @override
+  String tripDurationMinutes(int minutes) => '$minutes دقيقة';
+
+  /// Section heading for the fare breakdown card.
+  @override
+  String get tripFareDetailsTitle => 'تفاصيل الأجرة';
+
+  /// Fare-breakdown row for the applied discount.
+  @override
+  String get tripDiscountLabel => 'الخصم';
+
+  /// Fare-breakdown row for the final total.
+  @override
+  String get tripTotalLabel => 'الإجمالي';
+
+  // ── Rider — Safety & SOS ────────────────────────────────────────
+
+  /// Title of the SOS confirmation dialog.
+  @override
+  String get sosWarningTitle => 'تحذير';
+
+  /// Body of the SOS confirmation dialog.
+  @override
+  String get sosConfirmMessage => 'هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك للسلطات وإدارة التطبيق.';
+
+  /// Destructive confirm button in the SOS dialog.
+  @override
+  String get sosConfirmAction => 'تأكيد الطوارئ';
+
+  /// Error when device location services are disabled during SOS.
+  @override
+  String get sosLocationServiceError => 'فعّل خدمة الموقع لإرسال نداء الطوارئ';
+
+  /// Error when location permission is denied during SOS.
+  @override
+  String get sosLocationPermissionError => 'اسمح للتطبيق بالوصول إلى موقعك لإرسال نداء الطوارئ';
+
+  /// Error when GPS position cannot be resolved during SOS.
+  @override
+  String get sosLocationUnavailableError => 'تعذّر تحديد موقعك. حاول مجددًا في مكان مفتوح';
+
+  /// Snack-bar after a successful SOS post.
+  @override
+  String get sosSentSuccess => 'تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك';
+
+  /// Error when the share-trip endpoint returns no URL.
+  @override
+  String get shareTripError => 'تعذّر إنشاء رابط تتبع الرحلة';
+
+  /// Prefix of the share sheet message; the URL is appended.
+  @override
+  String get shareTripMessage => 'تتبع رحلتي على GoDrive عبر الرابط التالي:
+';
+
+  /// Hint under the SOS panic button.
+  @override
+  String get sosEmergencyOnlyHint => 'اضغط على الزر أعلاه في حالة الطوارئ القصوى فقط';
+
+  /// Button that shares the live-trip tracking link.
+  @override
+  String get shareTripDetails => 'مشاركة تفاصيل الرحلة';
+
+  // ── Rider — Notifications ───────────────────────────────────────
+
+  /// App-bar title of the notifications center.
+  @override
+  String get notificationsTitle => 'الإشعارات';
+
+  /// Action that clears all unread notification badges.
+  @override
+  String get markAllRead => 'تعليم الكل كمقروء';
+
+  /// Empty-state title when there are no notifications.
+  @override
+  String get noNotifications => 'لا توجد إشعارات';
+
+  /// Empty-state subtitle under noNotifications.
+  @override
+  String get notificationsWillAppearHere => 'ستظهر إشعاراتك هنا';
+
+  // ── Rider — Saved places ────────────────────────────────────────
+
+  /// App-bar title of the saved places screen.
+  @override
+  String get savedPlacesTitle => 'الأماكن المحفوظة';
+
+  /// Fallback label when a saved place has no name.
+  @override
+  String get placeFallback => 'مكان';
+
+  /// Empty-state title when no places are saved.
+  @override
+  String get noSavedPlaces => 'لا توجد أماكن محفوظة';
+
+  /// Empty-state subtitle prompting to add home/work.
+  @override
+  String get addHomeWorkHint => 'أضف منزلك أو عملك لطلب رحلة سريعة';
+
+  /// App-bar title of the map-based location picker.
+  @override
+  String get pickLocationTitle => 'اختر الموقع';
+
+  /// Hint inside the place-name text field.
+  @override
+  String get placeNameHint => 'اسم المكان (المنزل، العمل...)';
+
+  /// Hint shown before the reverse-geocoded address resolves.
+  @override
+  String get moveMapToPick => 'حرّك الخريطة لتحديد الموقع';
+
+  /// Primary button that confirms the picked place.
+  @override
+  String get savePlace => 'حفظ المكان';
+
+  /// Snack-bar when the device-location action in the search sheet fails.
+  @override
+  String get locationPermissionDenied => 'فعّل إذن الموقع لاستخدام موقع جهازك';
+
+  // ── Rider — Captain offers (bids sheet) ─────────────────────────
+
+  /// Generic retry action shown after a failed load (e.g. the bids sheet error state).
+  @override
+  String get retryAction => 'إعادة المحاولة';
+
+  /// Offline error body shown when a network call fails with no connectivity.
+  @override
+  String get checkConnectionError => 'تحقق من اتصالك بالإنترنت';
+
+  /// Toast shown when a request fails due to a connection problem.
+  @override
+  String get connectionRetryError => 'تعذّر الاتصال، حاول مرة أخرى';
+
+  /// Bids-sheet error when the offers request returns a non-200 status; {code} is the HTTP status code.
+  @override
+  String bidsLoadErrorWithCode(String code) => 'تعذّر تحميل العروض ($code)';
+
+  /// Fallback toast when accepting a captain's bid fails and the server sent no message.
+  @override
+  String get bidAcceptFailedError => 'فشل قبول العرض، حاول مرة أخرى';
+
+  /// Header title of the captain offers (bids) sheet.
+  @override
+  String get bidsChooseCaptainTitle => 'اختيار سائق';
+
+  /// Subtitle under the bids-sheet title reassuring the rider about captain verification.
+  @override
+  String get bidsAllCaptainsVerified => 'تم التحقق من جميع السائقين';
+
+  /// Destructive button in the bids-sheet header that cancels the whole trip request.
+  @override
+  String get bidsCancelRequestAction => 'إلغاء الطلب';
+
+  /// Fallback captain display name on a bid card when the API sends no name.
+  @override
+  String get bidsCaptainFallback => 'كابتن GoDrive';
+
+  /// Bid-card chip showing how many minutes until the captain can arrive.
+  @override
+  String bidsEtaMinutes(String minutes) => '$minutes دقيقة';
+
+  /// Bid-card meta showing the captain's completed trip count next to the rating.
+  @override
+  String bidsTripCount(int count) => '$count رحلة';
+
+  /// Primary button on a bid card that accepts the captain's offer.
+  @override
+  String get bidAcceptAction => 'قبول';
+
+  /// Secondary button on a bid card that dismisses the captain's offer.
+  @override
+  String get bidDeclineAction => 'رفض';
+
+  /// Bids-sheet title while waiting for the first captain offer to arrive.
+  @override
+  String get bidsSearchingTitle => 'جارٍ البحث عن كباتن قريبين';
+
+  /// Bids-sheet subtitle under the searching title.
+  @override
+  String get bidsSearchingSubtitle => 'هتوصلك عروض الأسعار هنا أول ما يردّوا';
+
+  // ── Rider — Payment methods ─────────────────────────────────────
+
+  /// App-bar title of the payment methods screen.
+  @override
+  String get paymentMethodsTitle => 'طرق الدفع';
+
+  /// Payment method row: pay the captain in cash.
+  @override
+  String get paymentCashTitle => 'كاش';
+
+  /// Subtitle under the cash payment method row.
+  @override
+  String get paymentCashSubtitle => 'ادفع للكابتن مباشرة';
+
+  /// Payment method row: pay from the in-app wallet balance.
+  @override
+  String get paymentWalletTitle => 'المحفظة';
+
+  /// Subtitle under the wallet payment method showing the current balance.
+  @override
+  String paymentWalletBalanceLine(String balance) => 'الرصيد: $balance ج.م';
+
+  /// Button on the wallet payment row that navigates to the wallet top-up screen.
+  @override
+  String get paymentTopUpAction => 'شحن';
+
+  /// Payment method row: pay with a bank card.
+  @override
+  String get paymentCardTitle => 'بطاقة بنكية';
+
+  /// Subtitle under the bank-card payment method row.
+  @override
+  String get paymentCardSubtitle => 'إضافة بطاقة عبر Paymob';
+
+  /// Button on the bank-card payment row that starts the add-card flow.
+  @override
+  String get paymentAddAction => 'إضافة';
+
+  /// Toast shown when the rider taps add-card before the Paymob flow is live.
+  @override
+  String get paymentCardComingSoonToast => 'سيتم تفعيل الدفع بالبطاقة قريبًا';
+
+  /// Section heading above the payment methods explanatory note.
+  @override
+  String get paymentNoteTitle => 'ملاحظة';
+
+  /// Explanatory note at the bottom of the payment methods screen.
+  @override
+  String get paymentNoteBody => 'يمكنك تغيير طريقة الدفع الافتراضية في أي وقت. سيتم استخدامها تلقائيًا في رحلاتك القادمة.';
+
+  // ── Rider — Promo codes ─────────────────────────────────────────
+
+  /// App-bar title of the promo codes screen.
+  @override
+  String get promoTitle => 'أكواد الخصم';
+
+  /// Hint text inside the promo-code entry field.
+  @override
+  String get promoCodeHint => 'أدخل كود الخصم';
+
+  /// Button that validates and applies the entered promo code.
+  @override
+  String get promoApplyAction => 'تطبيق';
+
+  /// Success toast after a promo code validates; {amount} is the discount.
+  @override
+  String promoAppliedToast(String amount) => 'تم تطبيق الكود! خصم $amount ج.م';
+
+  /// Error toast when the entered promo code fails validation.
+  @override
+  String get promoInvalidToast => 'كود غير صالح أو منتهي';
+
+  /// Empty-state title when the rider has no active promo codes.
+  @override
+  String get promoEmptyTitle => 'لا توجد أكواد نشطة';
+
+  /// Empty-state subtitle prompting the rider to enter a code.
+  @override
+  String get promoEmptySubtitle => 'أدخل كود خصم لتستفيد من العروض';
+
+  /// Promo card value line for a percentage discount.
+  @override
+  String promoDiscountPercent(int percent) => 'خصم $percent%';
+
+  /// Promo card value line for a fixed-amount discount.
+  @override
+  String promoDiscountFixed(String amount) => 'خصم $amount ج.م';
+
+  /// Promo card line showing the code's expiry date.
+  @override
+  String promoExpiresLine(String date) => 'ينتهي $date';
+
+  // ── Rider — Rating sheet ────────────────────────────────────────
+
+  /// Title of the post-trip rating sheet.
+  @override
+  String get ratingTitle => 'كيف كانت رحلتك؟';
+
+  /// Subtitle under the rating title naming the captain being rated.
+  @override
+  String ratingCaptainLine(String name) => 'قيّم $name';
+
+  /// Hint text inside the optional rating comment field.
+  @override
+  String get ratingCommentHint => 'تعليق إضافي (اختياري)';
+
+  /// Primary button that submits the star rating.
+  @override
+  String get ratingSubmitAction => 'إرسال التقييم';
+
+  /// Quiet button that dismisses the rating sheet without rating.
+  @override
+  String get ratingSkipAction => 'تخطّي';
+
+  /// Quick rating tag: the captain drove safely.
+  @override
+  String get ratingTagSafeDriving => 'قيادة آمنة';
+
+  /// Quick rating tag: the captain was polite.
+  @override
+  String get ratingTagPoliteCaptain => 'موجّه مهذب';
+
+  /// Quick rating tag: the car was clean.
+  @override
+  String get ratingTagCleanCar => 'سيارة نظيفة';
+
+  /// Quick rating tag: the captain was punctual.
+  @override
+  String get ratingTagOnTime => 'في الوقت';
+
+  /// Quick rating tag: the in-car music was pleasant.
+  @override
+  String get ratingTagComfortableMusic => 'موسيقى مريحة';
+
+  /// Toast prefix when submitting a rating fails; {error} is the exception.
+  @override
+  String ratingErrorPrefix(String error) => 'خطأ: $error';
+
+  // ── Rider — Schedule a ride ─────────────────────────────────────
+
+  /// App-bar title of the ride scheduling screen.
+  @override
+  String get scheduleTitle => 'جدولة رحلة';
+
+  /// Help text on the date picker when scheduling a ride.
+  @override
+  String get schedulePickDateHelp => 'اختر تاريخ الرحلة';
+
+  /// Help text on the time picker when scheduling a ride.
+  @override
+  String get schedulePickTimeHelp => 'اختر وقت الرحلة';
+
+  /// Info card explaining how scheduled rides are dispatched.
+  @override
+  String get scheduleInfoNote => 'سيتم إرسال كابتن تلقائيًا قبل موعد رحلتك بـ 10 دقائق.';
+
+  /// Label above the date selector on the scheduling screen.
+  @override
+  String get scheduleDateLabel => 'التاريخ';
+
+  /// Label above the time selector on the scheduling screen.
+  @override
+  String get scheduleTimeLabel => 'الوقت';
+
+  /// Summary line showing the chosen scheduled date and time.
+  @override
+  String scheduleSummaryLine(String dateTime) => 'موعد الرحلة: $dateTime';
+
+  /// Primary button that confirms the scheduled ride.
+  @override
+  String get scheduleConfirmAction => 'جدولة الرحلة';
+
+  // ── Rider — Home & map picking ──────────────────────────────────
+
+  /// Label for the option that resolves the pickup from the device GPS fix.
+  @override
+  String get currentLocationGps => 'الموقع الحالي (GPS)';
+
+  /// Name of the language the toggle will switch TO (shown in the current locale's other language).
+  @override
+  String get otherLanguageName => 'English';
+
+  @override
+  String get toggleThemeTooltip => 'تغيير المظهر';
+
+  /// Tooltip for the floating button that recentres the map on the device location.
+  @override
+  String get myLocationTooltip => 'موقعي الحالي';
+
+  /// Tooltip for back buttons.
+  @override
+  String get backTooltip => 'رجوع';
+
+  /// Tooltip/helper for the pickup field on the home screen.
+  @override
+  String get setPickupPoint => 'تحديد نقطة الانطلاق';
+
+  /// Tooltip/helper for the destination field on the home screen.
+  @override
+  String get setDestinationPoint => 'تحديد نقطة الوصول';
+
+  /// Hint shown in the empty pickup field on the home screen.
+  @override
+  String get whereFromHint => 'من أين؟';
+
+  /// Hint shown in the empty destination field on the home screen.
+  @override
+  String get whereToHint => 'إلى أين؟';
+
+  /// Tooltip for the button that swaps the two trip endpoints.
+  @override
+  String get swapLocationsTooltip => 'تبديل نقطتي الانطلاق والوصول';
+
+  /// Primary action that confirms the point being set via map pan.
+  @override
+  String get continueAction => 'متابعة';
+
+  /// Inline status while the route between the two points is being fetched.
+  @override
+  String get calculatingRoute => 'جاري حساب المسار…';
+
+  /// Marker for values (distance/ETA/fare) that are approximate.
+  @override
+  String get approximateLabel => 'تقريبي';
+
+  /// Instruction banner shown while the map-pan point-selection mode is active.
+  @override
+  String get moveMapToSetPoint => 'حرّك الخريطة لتحديد النقطة';
+
+  /// SnackBar shown after confirming the pickup point on the map.
+  @override
+  String get confirmPickup => 'تم تحديد نقطة الانطلاق';
+
+  /// SnackBar shown after confirming the destination point on the map.
+  @override
+  String get confirmDestination => 'تم تحديد نقطة الوصول';
+
+  // ── Rider — Location search sheet ───────────────────────────────
+
+  /// Message shown when the places search endpoint fails.
+  @override
+  String get searchUnavailable => 'البحث غير متاح حاليًا، تحقق من الاتصال';
+
+  /// Label for the pickup end of the trip.
+  @override
+  String get pickupPointLabel => 'نقطة الانطلاق';
+
+  /// Label for the destination end of the trip.
+  @override
+  String get destinationLabel => 'نقطة الوصول';
+
+  /// Hint inside the search sheet field when resolving the pickup.
+  @override
+  String get searchPickupHint => 'ابحث عن نقطة الانطلاق';
+
+  /// Hint inside the search sheet field when resolving the destination.
+  @override
+  String get searchDestinationHint => 'ابحث عن الوجهة';
+
+  /// Empty state when a places query returns no results.
+  @override
+  String get noPlacesFound => 'لم يتم العثور على أماكن';
+
+  /// Suggestion shown under the no-results empty state.
+  @override
+  String get trySimplerNameOrMap => 'جرّب اسمًا أبسط أو حدّد الموقع على الخريطة';
+
+  /// Section heading above the places search results.
+  @override
+  String get resultsSection => 'نتائج البحث';
+
+  /// Section heading above the popular-places list in the search sheet.
+  @override
+  String get popularPlacesSection => 'أماكن شائعة';
+
+  /// Button that switches from search to map-pan point selection.
+  @override
+  String get setOnMapAction => 'تحديد على الخريطة';
+
+  /// Sub-line explaining the set-on-map fallback when search cannot find a place.
+  @override
+  String get setOnMapSubtitle => 'حدّد الموقع يدويًا على الخريطة';
+
+  /// Address label used for a point resolved from the device GPS fix.
+  @override
+  String get myCurrentLocation => 'موقعي الحالي';
+
+  /// Button in the search sheet that fills the point from GPS.
+  @override
+  String get useDeviceLocation => 'استخدام موقع الجهاز';
+
+  // ── Rider — Travel mode bar ─────────────────────────────────────
+
+  /// Tooltip for returning to the rides tab.
+  @override
+  String get backToRidesTooltip => 'العودة إلى الرحلات';
+
+  /// Bottom-bar tab that opens the trip-planning flow.
+  @override
+  String get travelTabTrip => 'رحلة';
+
+  /// Bottom-bar tab that opens the orders/activity list.
+  @override
+  String get travelTabOrders => 'الطلبات';
+
+  // ── Rider — Login & sign-up ─────────────────────────────────────
+
+  /// Label on the language chip — names the language it will switch to.
+  @override
+  String get languageChipLabel => 'EN';
+
+  /// Headline on the sign-in form.
+  @override
+  String get loginWelcomeBackTitle => 'مرحبًا بعودتك';
+
+  /// Headline on the sign-up form.
+  @override
+  String get loginCreateAccountTitle => 'إنشاء حساب جديد';
+
+  /// Sub-line under the sign-in headline.
+  @override
+  String get loginSignInSubtitle => 'سجّل الدخول للمتابعة';
+
+  /// Sub-line under the sign-up headline.
+  @override
+  String get loginSignUpSubtitle => 'أنشئ حسابك وابدأ رحلتك الأولى';
+
+  /// Hint for the full-name field on the sign-up form.
+  @override
+  String get loginFullNameHint => 'الاسم الكامل';
+
+  /// Hint for the phone field on the sign-up form.
+  @override
+  String get loginPhoneHint => 'رقم الهاتف';
+
+  /// Hint for the email field on the login screen.
+  @override
+  String get loginEmailHint => 'البريد الإلكتروني';
+
+  /// Hint for the password field on the login screen.
+  @override
+  String get loginPasswordHint => 'كلمة المرور';
+
+  /// Checkbox label for accepting the terms on the sign-up form.
+  @override
+  String get loginTermsLabel => 'أوافق على الشروط والأحكام';
+
+  /// Primary button on the sign-in form.
+  @override
+  String get loginSignInAction => 'تسجيل الدخول';
+
+  /// Primary button on the sign-up form.
+  @override
+  String get loginCreateAccountAction => 'إنشاء الحساب';
+
+  /// Generic sign-up action label.
+  @override
+  String get loginSignUpAction => 'إنشاء حساب';
+
+  /// Link that switches the sign-up form back to sign-in.
+  @override
+  String get loginAlreadyHaveAccount => 'لديك حساب بالفعل؟ سجّل الدخول';
+
+  /// Link that switches the sign-in form to sign-up.
+  @override
+  String get loginNoAccount => 'ليس لديك حساب؟ أنشئ حسابًا';
+
+  /// Validation message for the email/password fields.
+  @override
+  String get loginEnterEmailPassword => 'أدخل بريدًا إلكترونيًا وكلمة مرور صالحين';
+
+  /// Validation message for the name/phone fields.
+  @override
+  String get loginEnterValidNamePhone => 'أدخل اسمًا ورقم هاتف صالحين';
+
+  /// SnackBar shown when signing up without accepting the terms.
+  @override
+  String get loginMustAcceptTerms => 'يجب الموافقة على الشروط والأحكام';
+
+  // ── Rider — Fare estimate sheet ─────────────────────────────────
+
+  /// Title of the fare-estimate bottom sheet.
+  @override
+  String get tripDetailsTitle => 'تفاصيل الرحلة';
+
+  /// Label for the payment method row on the fare sheet.
+  @override
+  String get paymentMethodLabel => 'طريقة الدفع';
+
+  /// Cash payment method label.
+  @override
+  String get paymentCash => 'كاش';
+
+  /// Primary button that dispatches the ride request with the rider's offer.
+  @override
+  String get requestRideAction => 'اطلب الرحلة';
+
+  /// Fallback label when the pickup address is not yet resolved.
+  @override
+  String get pickupPointFallback => 'نقطة الانطلاق';
+
+  /// Fallback label when the destination address is not yet resolved.
+  @override
+  String get destinationPointFallback => 'نقطة الوصول';
+
+  /// Label for the system-suggested fare on the fare sheet.
+  @override
+  String get estimatedLabel => 'السعر المقترح';
+
+  /// Status shown while the fare estimate is being fetched.
+  @override
+  String get calculatingFare => 'جاري حساب السعر…';
+
+  /// Error shown when the fare estimate request fails.
+  @override
+  String get fareLoadError => 'تعذّر تحميل السعر، حاول مرة أخرى';
+
+  /// Retry button on the fare error state.
+  @override
+  String get tryAgainAction => 'حاول مرة أخرى';
+
+  /// Label above the rider's editable fare offer.
+  @override
+  String get yourOfferLabel => 'عرضك';
+
+  /// Button that resets the rider's offer to the suggested fare.
+  @override
+  String get resetToSuggestedAction => 'إعادة للسعر المقترح';
+
+  /// Accessibility label for the offer minus button.
+  @override
+  String get decreasePriceSemantic => 'تقليل السعر';
+
+  /// Accessibility label for the offer plus button.
+  @override
+  String get increasePriceSemantic => 'زيادة السعر';
+
+  /// Hint shown when no suggested fare is available to anchor the offer.
+  @override
+  String get offerHintNoSuggestion => 'لا يوجد سعر مقترح بعد — أدخل عرضك';
+
+  /// Hint when the rider's offer equals the suggested fare.
+  @override
+  String offerHintFairPrice(int s) => 'عرضك مطابق للسعر المقترح — سعر عادل';
+
+  /// Hint when the rider's offer is above the suggested fare.
+  @override
+  String offerHintAbove(int d, int s) => 'عرضك أعلى من المقترح — فرصة أكبر لقبول الكابتن';
+
+  /// Hint when the rider's offer is below the suggested fare.
+  @override
+  String offerHintBelow(int d, int s) => 'عرضك أقل من المقترح — قد يستغرق القبول وقتًا أطول';
+
+  // ── Rider — Profile & settings ──────────────────────────────────
+
+  /// Title of the edit-profile bottom sheet.
+  @override
+  String get editProfileInfoTitle => 'تعديل البيانات الشخصية';
+
+  /// Label for the full-name field in the edit-profile sheet.
+  @override
+  String get fullNameLabel => 'الاسم الكامل';
+
+  /// Label for the phone field in the edit-profile sheet.
+  @override
+  String get phoneNumberLabel => 'رقم الهاتف';
+
+  /// Label for the locked email field in the edit-profile sheet.
+  @override
+  String get emailReadOnlyLabel => 'البريد الإلكتروني (غير قابل للتعديل)';
+
+  /// SnackBar shown after the profile is saved successfully.
+  @override
+  String get profileUpdatedSuccess => 'تم حفظ التعديلات بنجاح';
+
+  /// Primary save button in the edit-profile sheet.
+  @override
+  String get saveChangesAction => 'حفظ التعديلات';
+
+  /// Title of the avatar-picker bottom sheet.
+  @override
+  String get changeProfilePictureTitle => 'تغيير الصورة الشخصية';
+
+  /// Button in the avatar picker to choose a new photo.
+  @override
+  String get chooseNewPhotoAction => 'اختيار صورة جديدة';
+
+  /// Fallback display name when the profile has no name or email.
+  @override
+  String get fallbackUserName => 'مستخدم';
+
+  /// AppBar title of the profile screen.
+  @override
+  String get profileTitle => 'الملف الشخصي';
+
+  /// Tooltip for the language toggle action (shows the target language).
+  @override
+  String get toggleLanguageTooltip => 'English';
+
+  /// Button under the profile header that opens the edit-profile sheet.
+  @override
+  String get editDetailsAction => 'تعديل البيانات';
+
+  /// Label over the wallet balance on the profile wallet card.
+  @override
+  String get availableBalanceLabel => 'الرصيد المتاح';
+
+  /// Profile menu item that opens the trip history screen.
+  @override
+  String get myTripsLabel => 'رحلاتي';
+
+  /// Profile menu item that opens the saved-places screen.
+  @override
+  String get savedPlacesLabel => 'الأماكن المحفوظة';
+
+  /// AppBar title of the settings screen and its profile menu item.
+  @override
+  String get settingsTitle => 'الإعدادات';
+
+  /// Theme-mode dropdown option that follows the device setting.
+  @override
+  String get themeSystem => 'تلقائي';
+
+  /// Theme-mode dropdown option for the light theme.
+  @override
+  String get themeLight => 'فاتح';
+
+  /// Theme-mode dropdown option for the dark theme.
+  @override
+  String get themeDark => 'داكن';
+
+  // ── Rider — Help & invite ───────────────────────────────────────
+
+  /// AppBar title of the help screen.
+  @override
+  String get helpCenterTitle => 'مركز المساعدة';
+
+  /// Headline on the help screen contact-support card.
+  @override
+  String get needHelpTitle => 'تحتاج مساعدة؟';
+
+  /// Sub-line under the help contact-support headline.
+  @override
+  String get supportAvailableBody => 'فريق الدعم متاح 24/7';
+
+  /// Button on the help card that contacts support.
+  @override
+  String get contactAction => 'تواصل';
+
+  /// SnackBar shown after tapping the help contact button.
+  @override
+  String get supportContactSoonMessage => 'سيتم التواصل معك قريبًا';
+
+  /// Section heading above the FAQ list on the help screen.
+  @override
+  String get faqTitle => 'الأسئلة الشائعة';
+
+  /// AppBar title of the invite/referral screen.
+  @override
+  String get inviteFriendsTitle => 'دعوة الأصدقاء';
+
+  /// Headline on the invite hero card.
+  @override
+  String get inviteHeroTitle => 'ادعُ أصدقاءك واربح';
+
+  /// Sub-line on the invite hero card explaining the reward.
+  @override
+  String get inviteHeroSubtitle => 'احصل على 20 ج.م لكل صديق يستخدم كودك';
+
+  /// Label above the referral code value on the invite screen.
+  @override
+  String get referralCodeLabel => 'كود الدعوة';
+
+  /// Label for the referral credits stat card.
+  @override
+  String get yourCreditsLabel => 'رصيدك';
+
+  /// Label for the invited-friends count stat card.
+  @override
+  String get friendsInvitedLabel => 'أصدقاء دُعوا';
+
+  /// Primary share button on the invite screen.
+  @override
+  String get shareCodeAction => 'مشاركة الكود';
+
+  /// Share-sheet body on the invite screen; {code} is the referral code.
+  @override
+  String inviteShareMessage(String code) => 'حمّل تطبيق GoDrive واستخدم كود الدعوة $code لتحصل على رصيد مجاني:
+https://go.synapticstudio.tech';
+
+  // ── Rider — Splash ──────────────────────────────────────────────
+
+  /// Tagline under the splash brand mark.
+  @override
+  String get splashTagline => 'رحلتك، بسعرك';
+
+  /// Attribution line above the studio badge on the splash screen.
+  @override
+  String get createdByLabel => 'Created by';
+
+  /// Studio name on the splash attribution badge.
+  @override
+  String get synapticStudioLabel => 'Synaptic Studio';
 }
 
 /// English copy.
@@ -1981,4 +3468,849 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get exitAction => 'Log out';
+
+  // ── Rider — Wallet & top-up ─────────────────────────────────────
+
+  /// Label above the wallet balance amount.
+  @override
+  String get availableBalance => 'Available balance';
+
+  /// Fallback title for a wallet transaction with no description.
+  @override
+  String get transactionFallback => 'Transaction';
+
+  /// App-bar title of the top-up screen and wallet top-up button.
+  @override
+  String get topUpTitle => 'Top up wallet';
+
+  /// App-bar title of the Paymob payment WebView screen.
+  @override
+  String get paymentTitle => 'Payment';
+
+  /// Instruction above the top-up amount text field.
+  @override
+  String get topUpAmountPrompt => 'Enter the amount to top up';
+
+  /// Primary button that starts the Paymob top-up flow.
+  @override
+  String get continuePayment => 'Continue to payment';
+
+  // ── Rider — Trip history ────────────────────────────────────────
+
+  /// App-bar title of the ride history screen.
+  @override
+  String get tripHistoryTitle => 'Trip history';
+
+  /// Empty-state body when the rider has no trip history.
+  @override
+  String get noPastTrips => 'No past trips';
+
+  /// Status chip for a completed trip in history.
+  @override
+  String get tripCompleted => 'Completed';
+
+  /// Status chip for a cancelled trip in history.
+  @override
+  String get tripCancelled => 'Cancelled';
+
+  /// App-bar title of the trip detail screen.
+  @override
+  String get tripDetailTitle => 'Trip details';
+
+  /// Empty-state title when the requested trip does not exist.
+  @override
+  String get tripNotFound => 'Trip not found';
+
+  /// Section heading for the trip route card.
+  @override
+  String get tripRouteTitle => 'Route';
+
+  /// Route-card meta showing the trip distance in kilometres.
+  @override
+  String tripDistanceKmLine(String km) => '$km km';
+
+  /// Route-card meta showing the trip duration in minutes.
+  @override
+  String tripDurationMinutes(int minutes) => '$minutes min';
+
+  /// Section heading for the fare breakdown card.
+  @override
+  String get tripFareDetailsTitle => 'Fare details';
+
+  /// Fare-breakdown row for the applied discount.
+  @override
+  String get tripDiscountLabel => 'Discount';
+
+  /// Fare-breakdown row for the final total.
+  @override
+  String get tripTotalLabel => 'Total';
+
+  // ── Rider — Safety & SOS ────────────────────────────────────────
+
+  /// Title of the SOS confirmation dialog.
+  @override
+  String get sosWarningTitle => 'Warning';
+
+  /// Body of the SOS confirmation dialog.
+  @override
+  String get sosConfirmMessage => 'Are you sure you want to activate emergency mode? Your location will be sent to authorities and app administrators.';
+
+  /// Destructive confirm button in the SOS dialog.
+  @override
+  String get sosConfirmAction => 'Confirm emergency';
+
+  /// Error when device location services are disabled during SOS.
+  @override
+  String get sosLocationServiceError => 'Enable location services to send the emergency alert';
+
+  /// Error when location permission is denied during SOS.
+  @override
+  String get sosLocationPermissionError => 'Allow the app to access your location to send the emergency alert';
+
+  /// Error when GPS position cannot be resolved during SOS.
+  @override
+  String get sosLocationUnavailableError => 'Could not determine your location. Try again in an open area';
+
+  /// Snack-bar after a successful SOS post.
+  @override
+  String get sosSentSuccess => 'Emergency alert sent successfully with your location';
+
+  /// Error when the share-trip endpoint returns no URL.
+  @override
+  String get shareTripError => 'Could not create trip tracking link';
+
+  /// Prefix of the share sheet message; the URL is appended.
+  @override
+  String get shareTripMessage => 'Track my trip on GoDrive via this link:
+';
+
+  /// Hint under the SOS panic button.
+  @override
+  String get sosEmergencyOnlyHint => 'Press the button above only in a real emergency';
+
+  /// Button that shares the live-trip tracking link.
+  @override
+  String get shareTripDetails => 'Share trip details';
+
+  // ── Rider — Notifications ───────────────────────────────────────
+
+  /// App-bar title of the notifications center.
+  @override
+  String get notificationsTitle => 'Notifications';
+
+  /// Action that clears all unread notification badges.
+  @override
+  String get markAllRead => 'Mark all as read';
+
+  /// Empty-state title when there are no notifications.
+  @override
+  String get noNotifications => 'No notifications';
+
+  /// Empty-state subtitle under noNotifications.
+  @override
+  String get notificationsWillAppearHere => 'Your notifications will appear here';
+
+  // ── Rider — Saved places ────────────────────────────────────────
+
+  /// App-bar title of the saved places screen.
+  @override
+  String get savedPlacesTitle => 'Saved places';
+
+  /// Fallback label when a saved place has no name.
+  @override
+  String get placeFallback => 'Place';
+
+  /// Empty-state title when no places are saved.
+  @override
+  String get noSavedPlaces => 'No saved places';
+
+  /// Empty-state subtitle prompting to add home/work.
+  @override
+  String get addHomeWorkHint => 'Add home or work for a quick ride request';
+
+  /// App-bar title of the map-based location picker.
+  @override
+  String get pickLocationTitle => 'Pick location';
+
+  /// Hint inside the place-name text field.
+  @override
+  String get placeNameHint => 'Place name (Home, Work...)';
+
+  /// Hint shown before the reverse-geocoded address resolves.
+  @override
+  String get moveMapToPick => 'Move the map to pick a location';
+
+  /// Primary button that confirms the picked place.
+  @override
+  String get savePlace => 'Save place';
+
+  /// Snack-bar when the device-location action in the search sheet fails.
+  @override
+  String get locationPermissionDenied => 'Enable location permission to use your device location';
+
+  // ── Rider — Captain offers (bids sheet) ─────────────────────────
+
+  /// Generic retry action shown after a failed load (e.g. the bids sheet error state).
+  @override
+  String get retryAction => 'Retry';
+
+  /// Offline error body shown when a network call fails with no connectivity.
+  @override
+  String get checkConnectionError => 'Check your internet connection';
+
+  /// Toast shown when a request fails due to a connection problem.
+  @override
+  String get connectionRetryError => 'Could not connect, try again';
+
+  /// Bids-sheet error when the offers request returns a non-200 status; {code} is the HTTP status code.
+  @override
+  String bidsLoadErrorWithCode(String code) => 'Could not load offers ($code)';
+
+  /// Fallback toast when accepting a captain's bid fails and the server sent no message.
+  @override
+  String get bidAcceptFailedError => 'Could not accept the offer, try again';
+
+  /// Header title of the captain offers (bids) sheet.
+  @override
+  String get bidsChooseCaptainTitle => 'Choose a captain';
+
+  /// Subtitle under the bids-sheet title reassuring the rider about captain verification.
+  @override
+  String get bidsAllCaptainsVerified => 'All captains are verified';
+
+  /// Destructive button in the bids-sheet header that cancels the whole trip request.
+  @override
+  String get bidsCancelRequestAction => 'Cancel request';
+
+  /// Fallback captain display name on a bid card when the API sends no name.
+  @override
+  String get bidsCaptainFallback => 'GoDrive Captain';
+
+  /// Bid-card chip showing how many minutes until the captain can arrive.
+  @override
+  String bidsEtaMinutes(String minutes) => '$minutes min';
+
+  /// Bid-card meta showing the captain's completed trip count next to the rating.
+  @override
+  String bidsTripCount(int count) => '$count trips';
+
+  /// Primary button on a bid card that accepts the captain's offer.
+  @override
+  String get bidAcceptAction => 'Accept';
+
+  /// Secondary button on a bid card that dismisses the captain's offer.
+  @override
+  String get bidDeclineAction => 'Decline';
+
+  /// Bids-sheet title while waiting for the first captain offer to arrive.
+  @override
+  String get bidsSearchingTitle => 'Searching for nearby captains';
+
+  /// Bids-sheet subtitle under the searching title.
+  @override
+  String get bidsSearchingSubtitle => 'Price offers will appear here as soon as captains respond';
+
+  // ── Rider — Payment methods ─────────────────────────────────────
+
+  /// App-bar title of the payment methods screen.
+  @override
+  String get paymentMethodsTitle => 'Payment methods';
+
+  /// Payment method row: pay the captain in cash.
+  @override
+  String get paymentCashTitle => 'Cash';
+
+  /// Subtitle under the cash payment method row.
+  @override
+  String get paymentCashSubtitle => 'Pay the captain directly';
+
+  /// Payment method row: pay from the in-app wallet balance.
+  @override
+  String get paymentWalletTitle => 'Wallet';
+
+  /// Subtitle under the wallet payment method showing the current balance.
+  @override
+  String paymentWalletBalanceLine(String balance) => 'Balance: $balance EGP';
+
+  /// Button on the wallet payment row that navigates to the wallet top-up screen.
+  @override
+  String get paymentTopUpAction => 'Top up';
+
+  /// Payment method row: pay with a bank card.
+  @override
+  String get paymentCardTitle => 'Bank card';
+
+  /// Subtitle under the bank-card payment method row.
+  @override
+  String get paymentCardSubtitle => 'Add a card via Paymob';
+
+  /// Button on the bank-card payment row that starts the add-card flow.
+  @override
+  String get paymentAddAction => 'Add';
+
+  /// Toast shown when the rider taps add-card before the Paymob flow is live.
+  @override
+  String get paymentCardComingSoonToast => 'Card payments are coming soon';
+
+  /// Section heading above the payment methods explanatory note.
+  @override
+  String get paymentNoteTitle => 'Note';
+
+  /// Explanatory note at the bottom of the payment methods screen.
+  @override
+  String get paymentNoteBody => 'You can change your default payment method at any time. It will be used automatically on your upcoming trips.';
+
+  // ── Rider — Promo codes ─────────────────────────────────────────
+
+  /// App-bar title of the promo codes screen.
+  @override
+  String get promoTitle => 'Promo codes';
+
+  /// Hint text inside the promo-code entry field.
+  @override
+  String get promoCodeHint => 'Enter a promo code';
+
+  /// Button that validates and applies the entered promo code.
+  @override
+  String get promoApplyAction => 'Apply';
+
+  /// Success toast after a promo code validates; {amount} is the discount.
+  @override
+  String promoAppliedToast(String amount) => 'Code applied! $amount EGP off';
+
+  /// Error toast when the entered promo code fails validation.
+  @override
+  String get promoInvalidToast => 'Invalid or expired code';
+
+  /// Empty-state title when the rider has no active promo codes.
+  @override
+  String get promoEmptyTitle => 'No active codes';
+
+  /// Empty-state subtitle prompting the rider to enter a code.
+  @override
+  String get promoEmptySubtitle => 'Enter a promo code to benefit from offers';
+
+  /// Promo card value line for a percentage discount.
+  @override
+  String promoDiscountPercent(int percent) => '$percent% off';
+
+  /// Promo card value line for a fixed-amount discount.
+  @override
+  String promoDiscountFixed(String amount) => '$amount EGP off';
+
+  /// Promo card line showing the code's expiry date.
+  @override
+  String promoExpiresLine(String date) => 'Expires $date';
+
+  // ── Rider — Rating sheet ────────────────────────────────────────
+
+  /// Title of the post-trip rating sheet.
+  @override
+  String get ratingTitle => 'How was your trip?';
+
+  /// Subtitle under the rating title naming the captain being rated.
+  @override
+  String ratingCaptainLine(String name) => 'Rate $name';
+
+  /// Hint text inside the optional rating comment field.
+  @override
+  String get ratingCommentHint => 'Additional comment (optional)';
+
+  /// Primary button that submits the star rating.
+  @override
+  String get ratingSubmitAction => 'Submit rating';
+
+  /// Quiet button that dismisses the rating sheet without rating.
+  @override
+  String get ratingSkipAction => 'Skip';
+
+  /// Quick rating tag: the captain drove safely.
+  @override
+  String get ratingTagSafeDriving => 'Safe driving';
+
+  /// Quick rating tag: the captain was polite.
+  @override
+  String get ratingTagPoliteCaptain => 'Polite captain';
+
+  /// Quick rating tag: the car was clean.
+  @override
+  String get ratingTagCleanCar => 'Clean car';
+
+  /// Quick rating tag: the captain was punctual.
+  @override
+  String get ratingTagOnTime => 'On time';
+
+  /// Quick rating tag: the in-car music was pleasant.
+  @override
+  String get ratingTagComfortableMusic => 'Comfortable music';
+
+  /// Toast prefix when submitting a rating fails; {error} is the exception.
+  @override
+  String ratingErrorPrefix(String error) => 'Error: $error';
+
+  // ── Rider — Schedule a ride ─────────────────────────────────────
+
+  /// App-bar title of the ride scheduling screen.
+  @override
+  String get scheduleTitle => 'Schedule a ride';
+
+  /// Help text on the date picker when scheduling a ride.
+  @override
+  String get schedulePickDateHelp => 'Pick the trip date';
+
+  /// Help text on the time picker when scheduling a ride.
+  @override
+  String get schedulePickTimeHelp => 'Pick the trip time';
+
+  /// Info card explaining how scheduled rides are dispatched.
+  @override
+  String get scheduleInfoNote => 'A captain will be dispatched automatically 10 minutes before your trip.';
+
+  /// Label above the date selector on the scheduling screen.
+  @override
+  String get scheduleDateLabel => 'Date';
+
+  /// Label above the time selector on the scheduling screen.
+  @override
+  String get scheduleTimeLabel => 'Time';
+
+  /// Summary line showing the chosen scheduled date and time.
+  @override
+  String scheduleSummaryLine(String dateTime) => 'Trip time: $dateTime';
+
+  /// Primary button that confirms the scheduled ride.
+  @override
+  String get scheduleConfirmAction => 'Schedule the trip';
+
+  // ── Rider — Home & map picking ──────────────────────────────────
+
+  /// Label for the option that resolves the pickup from the device GPS fix.
+  @override
+  String get currentLocationGps => 'Current location (GPS)';
+
+  /// Name of the language the toggle will switch TO (shown in the current locale's other language).
+  @override
+  String get otherLanguageName => 'العربية';
+
+  @override
+  String get toggleThemeTooltip => 'Toggle theme';
+
+  /// Tooltip for the floating button that recentres the map on the device location.
+  @override
+  String get myLocationTooltip => 'My Location';
+
+  /// Tooltip for back buttons.
+  @override
+  String get backTooltip => 'Back';
+
+  /// Tooltip/helper for the pickup field on the home screen.
+  @override
+  String get setPickupPoint => 'Set Pickup Point';
+
+  /// Tooltip/helper for the destination field on the home screen.
+  @override
+  String get setDestinationPoint => 'Set Destination Point';
+
+  /// Hint shown in the empty pickup field on the home screen.
+  @override
+  String get whereFromHint => 'Where from?';
+
+  /// Hint shown in the empty destination field on the home screen.
+  @override
+  String get whereToHint => 'Where to?';
+
+  /// Tooltip for the button that swaps the two trip endpoints.
+  @override
+  String get swapLocationsTooltip => 'Swap pickup and destination';
+
+  /// Primary action that confirms the point being set via map pan.
+  @override
+  String get continueAction => 'Continue';
+
+  /// Inline status while the route between the two points is being fetched.
+  @override
+  String get calculatingRoute => 'Calculating route…';
+
+  /// Marker for values (distance/ETA/fare) that are approximate.
+  @override
+  String get approximateLabel => 'Approximate';
+
+  /// Instruction banner shown while the map-pan point-selection mode is active.
+  @override
+  String get moveMapToSetPoint => 'Move the map to set the point';
+
+  /// SnackBar shown after confirming the pickup point on the map.
+  @override
+  String get confirmPickup => 'Pickup point set';
+
+  /// SnackBar shown after confirming the destination point on the map.
+  @override
+  String get confirmDestination => 'Destination point set';
+
+  // ── Rider — Location search sheet ───────────────────────────────
+
+  /// Message shown when the places search endpoint fails.
+  @override
+  String get searchUnavailable => 'Search is unavailable right now, check your connection';
+
+  /// Label for the pickup end of the trip.
+  @override
+  String get pickupPointLabel => 'Pickup point';
+
+  /// Label for the destination end of the trip.
+  @override
+  String get destinationLabel => 'Destination';
+
+  /// Hint inside the search sheet field when resolving the pickup.
+  @override
+  String get searchPickupHint => 'Search for pickup';
+
+  /// Hint inside the search sheet field when resolving the destination.
+  @override
+  String get searchDestinationHint => 'Search for destination';
+
+  /// Empty state when a places query returns no results.
+  @override
+  String get noPlacesFound => 'No places found';
+
+  /// Suggestion shown under the no-results empty state.
+  @override
+  String get trySimplerNameOrMap => 'Try a simpler name or set it on the map';
+
+  /// Section heading above the places search results.
+  @override
+  String get resultsSection => 'Search results';
+
+  /// Section heading above the popular-places list in the search sheet.
+  @override
+  String get popularPlacesSection => 'Popular places';
+
+  /// Button that switches from search to map-pan point selection.
+  @override
+  String get setOnMapAction => 'Set on map';
+
+  /// Sub-line explaining the set-on-map fallback when search cannot find a place.
+  @override
+  String get setOnMapSubtitle => 'Set the location manually on the map';
+
+  /// Address label used for a point resolved from the device GPS fix.
+  @override
+  String get myCurrentLocation => 'My current location';
+
+  /// Button in the search sheet that fills the point from GPS.
+  @override
+  String get useDeviceLocation => 'Use device location';
+
+  // ── Rider — Travel mode bar ─────────────────────────────────────
+
+  /// Tooltip for returning to the rides tab.
+  @override
+  String get backToRidesTooltip => 'Back to rides';
+
+  /// Bottom-bar tab that opens the trip-planning flow.
+  @override
+  String get travelTabTrip => 'Trip';
+
+  /// Bottom-bar tab that opens the orders/activity list.
+  @override
+  String get travelTabOrders => 'Orders';
+
+  // ── Rider — Login & sign-up ─────────────────────────────────────
+
+  /// Label on the language chip — names the language it will switch to.
+  @override
+  String get languageChipLabel => 'عربي';
+
+  /// Headline on the sign-in form.
+  @override
+  String get loginWelcomeBackTitle => 'Welcome back';
+
+  /// Headline on the sign-up form.
+  @override
+  String get loginCreateAccountTitle => 'Create a new account';
+
+  /// Sub-line under the sign-in headline.
+  @override
+  String get loginSignInSubtitle => 'Sign in to continue';
+
+  /// Sub-line under the sign-up headline.
+  @override
+  String get loginSignUpSubtitle => 'Create your account and start your first trip';
+
+  /// Hint for the full-name field on the sign-up form.
+  @override
+  String get loginFullNameHint => 'Full name';
+
+  /// Hint for the phone field on the sign-up form.
+  @override
+  String get loginPhoneHint => 'Phone number';
+
+  /// Hint for the email field on the login screen.
+  @override
+  String get loginEmailHint => 'Email address';
+
+  /// Hint for the password field on the login screen.
+  @override
+  String get loginPasswordHint => 'Password';
+
+  /// Checkbox label for accepting the terms on the sign-up form.
+  @override
+  String get loginTermsLabel => 'I agree to the Terms & Conditions';
+
+  /// Primary button on the sign-in form.
+  @override
+  String get loginSignInAction => 'Sign in';
+
+  /// Primary button on the sign-up form.
+  @override
+  String get loginCreateAccountAction => 'Create account';
+
+  /// Generic sign-up action label.
+  @override
+  String get loginSignUpAction => 'Sign up';
+
+  /// Link that switches the sign-up form back to sign-in.
+  @override
+  String get loginAlreadyHaveAccount => 'Already have an account? Sign in';
+
+  /// Link that switches the sign-in form to sign-up.
+  @override
+  String get loginNoAccount => 'No account? Create one';
+
+  /// Validation message for the email/password fields.
+  @override
+  String get loginEnterEmailPassword => 'Enter a valid email and password';
+
+  /// Validation message for the name/phone fields.
+  @override
+  String get loginEnterValidNamePhone => 'Enter a valid name and phone number';
+
+  /// SnackBar shown when signing up without accepting the terms.
+  @override
+  String get loginMustAcceptTerms => 'You must accept the Terms & Conditions';
+
+  // ── Rider — Fare estimate sheet ─────────────────────────────────
+
+  /// Title of the fare-estimate bottom sheet.
+  @override
+  String get tripDetailsTitle => 'Trip details';
+
+  /// Label for the payment method row on the fare sheet.
+  @override
+  String get paymentMethodLabel => 'Payment method';
+
+  /// Cash payment method label.
+  @override
+  String get paymentCash => 'Cash';
+
+  /// Primary button that dispatches the ride request with the rider's offer.
+  @override
+  String get requestRideAction => 'Request ride';
+
+  /// Fallback label when the pickup address is not yet resolved.
+  @override
+  String get pickupPointFallback => 'Pickup point';
+
+  /// Fallback label when the destination address is not yet resolved.
+  @override
+  String get destinationPointFallback => 'Destination';
+
+  /// Label for the system-suggested fare on the fare sheet.
+  @override
+  String get estimatedLabel => 'Suggested price';
+
+  /// Status shown while the fare estimate is being fetched.
+  @override
+  String get calculatingFare => 'Calculating fare…';
+
+  /// Error shown when the fare estimate request fails.
+  @override
+  String get fareLoadError => 'Could not load the fare, try again';
+
+  /// Retry button on the fare error state.
+  @override
+  String get tryAgainAction => 'Try again';
+
+  /// Label above the rider's editable fare offer.
+  @override
+  String get yourOfferLabel => 'Your offer';
+
+  /// Button that resets the rider's offer to the suggested fare.
+  @override
+  String get resetToSuggestedAction => 'Reset to suggested price';
+
+  /// Accessibility label for the offer minus button.
+  @override
+  String get decreasePriceSemantic => 'Decrease price';
+
+  /// Accessibility label for the offer plus button.
+  @override
+  String get increasePriceSemantic => 'Increase price';
+
+  /// Hint shown when no suggested fare is available to anchor the offer.
+  @override
+  String get offerHintNoSuggestion => 'No suggested price yet — enter your offer';
+
+  /// Hint when the rider's offer equals the suggested fare.
+  @override
+  String offerHintFairPrice(int s) => 'Your offer matches the suggested price — a fair price';
+
+  /// Hint when the rider's offer is above the suggested fare.
+  @override
+  String offerHintAbove(int d, int s) => 'Your offer is above the suggestion — more likely to be accepted';
+
+  /// Hint when the rider's offer is below the suggested fare.
+  @override
+  String offerHintBelow(int d, int s) => 'Your offer is below the suggestion — acceptance may take longer';
+
+  // ── Rider — Profile & settings ──────────────────────────────────
+
+  /// Title of the edit-profile bottom sheet.
+  @override
+  String get editProfileInfoTitle => 'Edit Profile Information';
+
+  /// Label for the full-name field in the edit-profile sheet.
+  @override
+  String get fullNameLabel => 'Full Name';
+
+  /// Label for the phone field in the edit-profile sheet.
+  @override
+  String get phoneNumberLabel => 'Phone Number';
+
+  /// Label for the locked email field in the edit-profile sheet.
+  @override
+  String get emailReadOnlyLabel => 'Email Address (read only)';
+
+  /// SnackBar shown after the profile is saved successfully.
+  @override
+  String get profileUpdatedSuccess => 'Profile updated successfully';
+
+  /// Primary save button in the edit-profile sheet.
+  @override
+  String get saveChangesAction => 'Save Changes';
+
+  /// Title of the avatar-picker bottom sheet.
+  @override
+  String get changeProfilePictureTitle => 'Change Profile Picture';
+
+  /// Button in the avatar picker to choose a new photo.
+  @override
+  String get chooseNewPhotoAction => 'Choose New Photo';
+
+  /// Fallback display name when the profile has no name or email.
+  @override
+  String get fallbackUserName => 'User';
+
+  /// AppBar title of the profile screen.
+  @override
+  String get profileTitle => 'Profile';
+
+  /// Tooltip for the language toggle action (shows the target language).
+  @override
+  String get toggleLanguageTooltip => 'العربية';
+
+  /// Button under the profile header that opens the edit-profile sheet.
+  @override
+  String get editDetailsAction => 'Edit Details';
+
+  /// Label over the wallet balance on the profile wallet card.
+  @override
+  String get availableBalanceLabel => 'Available Balance';
+
+  /// Profile menu item that opens the trip history screen.
+  @override
+  String get myTripsLabel => 'My Trips';
+
+  /// Profile menu item that opens the saved-places screen.
+  @override
+  String get savedPlacesLabel => 'Saved Places';
+
+  /// AppBar title of the settings screen and its profile menu item.
+  @override
+  String get settingsTitle => 'Settings';
+
+  /// Theme-mode dropdown option that follows the device setting.
+  @override
+  String get themeSystem => 'System';
+
+  /// Theme-mode dropdown option for the light theme.
+  @override
+  String get themeLight => 'Light';
+
+  /// Theme-mode dropdown option for the dark theme.
+  @override
+  String get themeDark => 'Dark';
+
+  // ── Rider — Help & invite ───────────────────────────────────────
+
+  /// AppBar title of the help screen.
+  @override
+  String get helpCenterTitle => 'Help Center';
+
+  /// Headline on the help screen contact-support card.
+  @override
+  String get needHelpTitle => 'Need help?';
+
+  /// Sub-line under the help contact-support headline.
+  @override
+  String get supportAvailableBody => 'Support team available 24/7';
+
+  /// Button on the help card that contacts support.
+  @override
+  String get contactAction => 'Contact';
+
+  /// SnackBar shown after tapping the help contact button.
+  @override
+  String get supportContactSoonMessage => 'We will contact you soon';
+
+  /// Section heading above the FAQ list on the help screen.
+  @override
+  String get faqTitle => 'Frequently Asked Questions';
+
+  /// AppBar title of the invite/referral screen.
+  @override
+  String get inviteFriendsTitle => 'Invite Friends';
+
+  /// Headline on the invite hero card.
+  @override
+  String get inviteHeroTitle => 'Invite your friends and earn';
+
+  /// Sub-line on the invite hero card explaining the reward.
+  @override
+  String get inviteHeroSubtitle => 'Get 20 EGP for every friend who uses your code';
+
+  /// Label above the referral code value on the invite screen.
+  @override
+  String get referralCodeLabel => 'Referral Code';
+
+  /// Label for the referral credits stat card.
+  @override
+  String get yourCreditsLabel => 'Your Credits';
+
+  /// Label for the invited-friends count stat card.
+  @override
+  String get friendsInvitedLabel => 'Friends Invited';
+
+  /// Primary share button on the invite screen.
+  @override
+  String get shareCodeAction => 'Share Code';
+
+  /// Share-sheet body on the invite screen; {code} is the referral code.
+  @override
+  String inviteShareMessage(String code) => 'Download the GoDrive app and use my invite code $code for free credit:
+https://go.synapticstudio.tech';
+
+  // ── Rider — Splash ──────────────────────────────────────────────
+
+  /// Tagline under the splash brand mark.
+  @override
+  String get splashTagline => 'Your trip, your price';
+
+  /// Attribution line above the studio badge on the splash screen.
+  @override
+  String get createdByLabel => 'Created by';
+
+  /// Studio name on the splash attribution badge.
+  @override
+  String get synapticStudioLabel => 'Synaptic Studio';
 }
