@@ -24,7 +24,8 @@ preview_bucket_name = "synaptic-go-files"
 bindings = [
   { name = "TRIP_ROOM", class_name = "TripRoom" },
   { name = "GEO_CELL", class_name = "GeoCell" },
-  { name = "CAPTAIN_INBOX", class_name = "CaptainInbox" }
+  { name = "CAPTAIN_INBOX", class_name = "CaptainInbox" },
+  { name = "OFFER_SCHEDULER", class_name = "OfferScheduler" }
 ]
 
 [[migrations]]
@@ -34,6 +35,10 @@ new_sqlite_classes = ["TripRoom", "GeoCell"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["CaptainInbox"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["OfferScheduler"]
 
 # Notification queue: producers call env.NOTIFICATIONS.send(...) and the
 # `notifications` consumer drains it as a Worker queue handler. Configure the
@@ -116,7 +121,8 @@ bucket_name = "synaptic-go-files"
 bindings = [
   { name = "TRIP_ROOM", class_name = "TripRoom" },
   { name = "GEO_CELL", class_name = "GeoCell" },
-  { name = "CAPTAIN_INBOX", class_name = "CaptainInbox" }
+  { name = "CAPTAIN_INBOX", class_name = "CaptainInbox" },
+  { name = "OFFER_SCHEDULER", class_name = "OfferScheduler" }
 ]
 
 [[env.prod.queues.producers]]

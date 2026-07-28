@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { TripRoom } from "./durable-objects/TripRoom";
 import { GeoCell } from "./durable-objects/GeoCell";
 import { CaptainInbox } from "./durable-objects/CaptainInbox";
+import { OfferScheduler } from "./durable-objects/OfferScheduler";
 import { authRoutes } from "./routes/auth";
 import { captainRoutes } from "./routes/captain";
 import { tripRoutes } from "./routes/trips";
@@ -20,7 +21,7 @@ import { companyRoutes } from "./routes/companies";
 import { authMiddleware, type AppEnv } from "./middleware/auth";
 import { rateLimit } from "./middleware/rateLimit";
 
-export { TripRoom, GeoCell, CaptainInbox };
+export { TripRoom, GeoCell, CaptainInbox, OfferScheduler };
 
 const app = new Hono<AppEnv>();
 
