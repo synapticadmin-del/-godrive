@@ -556,7 +556,16 @@ class CaptainState extends ChangeNotifier {
       // it the moment a trip is assigned, close it the moment there is none.
       final newTripId = activeTrip?['id'] as String?;
       if (newTripId != null) {
-        if (newTripId != previousTripId) _connectTripWs(newTripId);
+        if (newTripId != previousTripId) {
+          _connectTripWs(newTripId);
+        } else if (_tripWs == null) {
+          // The socket can die silently: reconnect backoff gives up after a
+          // long outage, and _connectTripWs is a no-op for the same tripId,
+          // so without this check a captain whose app briefly lost network
+          // would stay on the 8s poll for the rest of the trip — the visible
+          // "الرسايل بتوصل متأخر" the room socket exists to kill.
+          _connectTripWs(newTripId);
+        }
       } else {
         _disconnectTripWs();
       }

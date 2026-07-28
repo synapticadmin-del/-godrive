@@ -163,6 +163,28 @@ export function encodeGeohash(lat: number, lng: number, precision = 6): string {
   return geohash;
 }
 
+/**
+ * Height (lat span) and width (lng span) of a geohash cell at [precision],
+ * in degrees. Derived from the bit-interleaving scheme itself, so it holds at
+ * any latitude and any precision — no trig needed.
+ *
+ * Nearby-captain search uses this to probe cell boundaries rather than a
+ * fixed degree step: a fixed step that is smaller than the cell can miss a
+ * neighbour cell entirely, which is exactly the bug the neighbourhood search
+ * was meant to kill.
+ */
+export function geohashCellSpan(precision = 6): { latSpan: number; lngSpan: number } {
+  let evenBit = true;
+  let latBits = 0;
+  let lngBits = 0;
+  for (let i = 0; i < precision * 5; i++) {
+    if (evenBit) lngBits++;
+    else latBits++;
+    evenBit = !evenBit;
+  }
+  return { latSpan: 180 / 2 ** latBits, lngSpan: 360 / 2 ** lngBits };
+}
+
 export const DEFAULT_PRICING: PricingRule = {
   city: "cairo",
   currency: "EGP",

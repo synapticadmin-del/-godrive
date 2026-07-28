@@ -19,6 +19,12 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 ///    event the moment it is broadcast, so the new message appears instantly.
 ///  * A light 6s poll backstops the socket, because a chat that silently
 ///    freezes is worse than one that is a few seconds behind.
+///
+/// The socket also carries `chat.typing` events, which drive the
+/// "جاري الكتابة…" bubble above the composer: typing signals are emitted
+/// (throttled) while the captain types and cleared on send/dispose, and the
+/// rider's signals render here with a self-expiring timer so a lost "stop"
+/// signal can never wedge the bubble open.
 class CaptainTripChatScreen extends StatefulWidget {
   const CaptainTripChatScreen({super.key, required this.tripId});
 
@@ -38,6 +44,18 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
   Timer? _pollTimer;
   StreamSubscription<Map<String, dynamic>>? _wsSub;
 
+  /// Typing indicator state. [_riderTyping] is what the bubble renders;
+  /// [_typingClearTimer] self-expires it when no further signal arrives (the
+  /// server stores nothing, so a dropped "stop" must not wedge the UI).
+  bool _riderTyping = false;
+  Timer? _typingClearTimer;
+
+  /// Outgoing typing signals are throttled so a fast typist does not turn
+  /// into a request stream — at most one POST per window.
+  DateTime? _lastTypingSentAt;
+  static const _typingThrottle = Duration(seconds: 2);
+  static const _typingExpiry = Duration(seconds: 4);
+
   @override
   void initState() {
     super.initState();
@@ -49,7 +67,11 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
       if (!mounted) return;
       final type = ev['type'] as String?;
       if (type == 'chat.message' || type == 'trip.chat') {
+        // A real message supersedes the typing hint.
+        if (ev['senderRole'] != 'captain') _setRiderTyping(false);
         _fetchMessages();
+      } else if (type == 'chat.typing' && ev['senderRole'] != 'captain') {
+        _setRiderTyping(ev['typing'] == true);
       }
     });
 
@@ -63,9 +85,45 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _wsSub?.cancel();
+    _typingClearTimer?.cancel();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
+    // Tell the rider this composer is gone. The endpoint is ephemeral and
+    // errors are meaningless here, so it is fire-and-forget.
+    _sendTyping(false);
     super.dispose();
+  }
+
+  void _setRiderTyping(bool typing) {
+    _typingClearTimer?.cancel();
+    if (typing) {
+      _typingClearTimer = Timer(_typingExpiry, () {
+        if (mounted) setState(() => _riderTyping = false);
+      });
+    }
+    if (_riderTyping != typing && mounted) {
+      setState(() => _riderTyping = typing);
+    } else if (!typing && mounted && _riderTyping) {
+      setState(() => _riderTyping = false);
+    }
+  }
+
+  /// POSTs the typing signal server-side. Swallows every error — a typing
+  /// hint is never worth a snackbar.
+  void _sendTyping(bool typing) {
+    final state = context.read<CaptainState>();
+    state
+        .apiPost('/safety/chat/${widget.tripId}/typing', {'typing': typing})
+        .catchError((_) => <String, dynamic>{});
+  }
+
+  void _onMessageChanged(String _) {
+    final now = DateTime.now();
+    if (_lastTypingSentAt == null ||
+        now.difference(_lastTypingSentAt!) > _typingThrottle) {
+      _lastTypingSentAt = now;
+      _sendTyping(true);
+    }
   }
 
   Future<void> _fetchMessages({bool initial = false}) async {
@@ -106,6 +164,8 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
     if (text.isEmpty || _sending) return;
     _msgCtrl.clear();
     setState(() => _sending = true);
+    // The composer is empty now — stop advertising typing immediately.
+    _sendTyping(false);
 
     // Captured before the await so the error path never touches a disposed
     // context.
@@ -172,9 +232,20 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         controller: _scrollCtrl,
                         reverse: true,
                         padding: const EdgeInsets.all(AppTokens.spaceMd),
-                        itemCount: _messages.length,
+                        // +1 when the typing bubble rides at the bottom.
+                        itemCount: _messages.length + (_riderTyping ? 1 : 0),
                         itemBuilder: (context, index) {
-                          final msg = _messages[index];
+                          // The list is reversed: index 0 is the visual
+                          // bottom, which is exactly where "جاري الكتابة…"
+                          // belongs — just above the composer.
+                          if (_riderTyping && index == 0) {
+                            return _TypingBubble(
+                              surface: surface,
+                              border: border,
+                              muted: muted,
+                            );
+                          }
+                          final msg = _messages[_riderTyping ? index - 1 : index];
                           // From the captain's perspective, mine == captain.
                           final isMine = msg['sender_role'] == 'captain';
                           return Align(
@@ -230,6 +301,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _msgCtrl,
+                      onChanged: _onMessageChanged,
                       style: GoogleFonts.ibmPlexSansArabic(color: text),
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
@@ -295,4 +367,52 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
       ),
     );
   }
+}
+
+/// The "جاري الكتابة…" bubble: three dots + label in an incoming-style
+/// bubble, shown just above the composer while the other party is typing.
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble({
+    required this.surface,
+    required this.border,
+    required this.muted,
+  });
+
+  final Color surface;
+  final Color border;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dot(), _dot(), _dot(),
+            const SizedBox(width: 8),
+            Text(
+              'جاري الكتابة…',
+              style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dot() => Container(
+        width: 6,
+        height: 6,
+        margin: const EdgeInsets.symmetric(horizontal: 1.5),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: muted),
+      );
 }

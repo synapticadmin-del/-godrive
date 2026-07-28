@@ -347,10 +347,23 @@ tripRoutes.get("/", async (c) => {
   if (user.role === "admin") {
     q = c.env.DB.prepare(`SELECT * FROM trips ORDER BY created_at DESC LIMIT 100`);
   } else if (user.role === "captain") {
+    // City scoping: open trips (searching/offered) are only surfaced from the
+    // captain's working city, mirroring /captain/offers and
+    // /captain/nearby-requests. Without this the endpoint leaked every open
+    // request nationwide to any authenticated captain — trips in cities they
+    // could never serve — while the curated offers endpoints were filtered.
+    // The captain's own trips (any status) are unaffected by the filter.
+    const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+      .bind(user.id)
+      .first<DbCaptain>();
+    const city =
+      (captain as (DbCaptain & { city?: string | null }) | null)?.city ||
+      c.env.DEFAULT_CITY ||
+      "cairo";
     q = c.env.DB.prepare(
-      `SELECT * FROM trips WHERE captain_id = ? OR status IN ('searching','offered')
+      `SELECT * FROM trips WHERE captain_id = ? OR (status IN ('searching','offered') AND city = ?)
        ORDER BY created_at DESC LIMIT 50`,
-    ).bind(user.id);
+    ).bind(user.id, city);
   } else {
     q = c.env.DB.prepare(
       `SELECT * FROM trips WHERE rider_id = ? ORDER BY created_at DESC LIMIT 50`,
@@ -455,6 +468,13 @@ tripRoutes.post("/:id/cancel", async (c) => {
   // captains' screens until the next offers poll (up to 20s later), and a
   // captain could tap accept on a dead trip and hit a 409 — the visible
   // "تأخير بين الالغاء" the captain experiences.
+  //
+  // The fanout queries the same neighbourhood with a WIDER limit (25) than
+  // dispatch (10). In the theoretical case of >10 captains in the
+  // neighbourhood the cancel event may reach captains who never got the
+  // offer; that is harmless — their app simply removes a card that is not
+  // on screen — while the reverse (a captain who got the offer never
+  // hearing the cancel) would strand the card.
   if (cancelledByRider && ["searching", "offered"].includes(trip.status)) {
     try {
       // Same neighbourhood the offer reached on the way in — widening the

@@ -1,4 +1,5 @@
 import { cellKey } from "./pricing";
+import { geohashCellSpan } from "@synaptic-go/shared";
 
 /**
  * Nearby-captain discovery across the geohash neighbourhood.
@@ -9,36 +10,53 @@ import { cellKey } from "./pricing";
  * cell boundary — was invisible to dispatch, and riders near cell edges saw
  * "no captains nearby" while several idled a block away.
  *
- * We now fan out to the pickup's cell plus its 8 surrounding cells: a ~150m
- * latitude/longitude ring of offsets around the point (0.00135°, roughly
- * one cell step), dedupe the cell keys (the ring collapses to 1–9 distinct
- * cells depending on where inside the cell the point sits), query every
- * cell in parallel, and merge by userId keeping the closest reading.
+ * We now fan out to the pickup's cell plus its 8 surrounding cells and merge
+ * by userId keeping the closest reading. Every cell is queried in parallel,
+ * and one failing cell does not blind the whole neighbourhood.
  *
  * The same helper backs both trip dispatch (POST /trips) and cancellation
  * fanout, so a withdrawn offer reaches exactly the captains it reached on
  * the way in.
  */
 
-/** Roughly one geohash-5 cell step, in degrees (~150m). */
-const CELL_STEP_DEG = 0.00135;
+/** Tiny nudge used to step across a cell boundary when probing. */
+const EDGE_EPS = 1e-7;
+
+/**
+ * The distinct cell keys for a point and its 8-cell neighbourhood.
+ *
+ * The previous version probed a fixed 0.00135° (~150m) ring around the
+ * point. That step is much smaller than a geohash-5 cell (~4.9km), so from
+ * any single rider position the ring touched at most 4 of the 9 cells: a
+ * captain idling in a neighbouring cell but near that cell's far edge (up
+ * to ~4km from the rider) stayed invisible — the exact boundary bug the
+ * neighbourhood search was supposed to fix.
+ *
+ * Instead we derive the actual cell span from the geohash bit-interleaving
+ * scheme and probe the 8 points around the rider at exactly one full cell
+ * step (centre-to-centre), which is guaranteed to land inside each adjacent
+ * cell no matter where the rider sits within their own cell.
+ */
+export function neighbourhoodCellKeys(city: string, lat: number, lng: number): string[] {
+  const { latSpan, lngSpan } = geohashCellSpan(5);
+  const keys = new Set<string>();
+  for (const dLat of [-latSpan, 0, latSpan]) {
+    for (const dLng of [-lngSpan, 0, lngSpan]) {
+      // The nudge keeps a probe that lands exactly on a boundary from
+      // falling back into the cell it just left.
+      const probeLat = lat + dLat + (dLat > 0 ? EDGE_EPS : dLat < 0 ? -EDGE_EPS : 0);
+      const probeLng = lng + dLng + (dLng > 0 ? EDGE_EPS : dLng < 0 ? -EDGE_EPS : 0);
+      keys.add(cellKey(city, probeLat, probeLng));
+    }
+  }
+  return [...keys];
+}
 
 export type NearbyCaptain = {
   userId: string;
   distanceKm: number;
   name?: string | null;
 };
-
-/** The distinct cell keys for a point and its 8-cell neighbourhood. */
-export function neighbourhoodCellKeys(city: string, lat: number, lng: number): string[] {
-  const keys = new Set<string>();
-  for (const dLat of [-CELL_STEP_DEG, 0, CELL_STEP_DEG]) {
-    for (const dLng of [-CELL_STEP_DEG, 0, CELL_STEP_DEG]) {
-      keys.add(cellKey(city, lat + dLat, lng + dLng));
-    }
-  }
-  return [...keys];
-}
 
 /** Query every neighbourhood GeoCell and merge captains, closest-reading wins. */
 export async function findNearbyCaptains(

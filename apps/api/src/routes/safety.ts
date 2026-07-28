@@ -243,3 +243,49 @@ safetyRoutes.get("/chat/:tripId", authMiddleware, async (c) => {
   }
   return c.json({ messages: msgs.results ?? [] });
 });
+
+// POST /safety/chat/:tripId/typing — relay a "جاري الكتابة" (typing) signal
+// to the trip's WebSocket room so the other party sees the composer is alive.
+//
+// Typing is ephemeral by design: nothing is stored, nothing is pushed via
+// FCM, and a failed broadcast is swallowed — the indicator self-expires on
+// the client after a few seconds, so a lost signal simply means no bubble,
+// never a stuck one. The client's own events carry its role, and each app
+// suppresses its own role on receipt, so the sender never sees its own
+// indicator echoed back.
+safetyRoutes.post("/chat/:tripId/typing", authMiddleware, async (c) => {
+  const user = c.get("user");
+  const tripId = c.req.param("tripId") ?? "";
+  const body = (await c.req.json().catch(() => ({}))) as { typing?: unknown };
+  const typing = body.typing === true;
+
+  const trip = await c.env.DB.prepare(
+    `SELECT rider_id, captain_id FROM trips WHERE id = ?`,
+  )
+    .bind(tripId)
+    .first<{ rider_id: string; captain_id: string | null }>();
+  if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
+  if (user.id !== trip.rider_id && user.id !== trip.captain_id && user.role !== "admin") {
+    return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+  }
+
+  const senderRole = user.id === trip.rider_id ? "rider" : "captain";
+  try {
+    const room = c.env.TRIP_ROOM.get(c.env.TRIP_ROOM.idFromName(tripId));
+    await room.fetch("https://room/broadcast", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "chat.typing",
+        tripId,
+        senderId: user.id,
+        senderRole,
+        typing,
+        at: nowIso(),
+      }),
+    });
+  } catch (e) {
+    // Best-effort: a typing hint is never worth a failed request.
+    console.error("typing broadcast failed", tripId, e);
+  }
+  return c.json({ ok: true });
+});
