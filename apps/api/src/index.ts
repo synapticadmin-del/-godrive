@@ -20,6 +20,7 @@ import { intercityRoutes } from "./routes/intercity";
 import { companyRoutes } from "./routes/companies";
 import { authMiddleware, type AppEnv } from "./middleware/auth";
 import { rateLimit } from "./middleware/rateLimit";
+import { runExpiredDataCleanup } from "./lib/cleanup";
 
 export { TripRoom, GeoCell, CaptainInbox, OfferScheduler };
 
@@ -120,8 +121,12 @@ app.route("/safety", safetyRoutes);  // sos, share/track, chat
 app.route("/intercity", intercityRoutes);
 app.route("/companies", companyRoutes);
 
-// WebSocket upgrade for live trip room
-app.get("/ws/trips/:id", authMiddleware, async (c) => {
+// WebSocket upgrade for live trip room.
+// Auth: the Authorization header or a (deprecated) ?token= query param are
+// handled by authMiddleware. If neither is present the request still reaches
+// the DO in a "pending auth" state: the client must send
+// {"type":"auth","token":"<jwt>"} as its first message (10s timeout).
+app.get("/ws/trips/:id", async (c) => {
   const upgrade = c.req.header("Upgrade");
   if (upgrade !== "websocket") {
     return c.json({ error: "Expected WebSocket upgrade", code: "UPGRADE_REQUIRED" }, 426);
@@ -129,43 +134,98 @@ app.get("/ws/trips/:id", authMiddleware, async (c) => {
 
   const tripId = c.req.param("id");
   if (!tripId) return c.json({ error: "trip id required", code: "MISSING_ID" }, 400);
-  const user = c.get("user");
 
-  const trip = await c.env.DB.prepare(`SELECT rider_id, captain_id FROM trips WHERE id = ?`)
-    .bind(tripId)
-    .first<{ rider_id: string; captain_id: string }>();
+  const url = new URL("https://room/ws");
 
-  if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
-  if (user.role !== "admin" && trip.rider_id !== user.id && trip.captain_id !== user.id) {
-    return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+  const header = c.req.header("Authorization");
+  const bearer = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  // DEPRECATED: ?token= leaks JWTs into access logs; kept only for old app
+  // versions during rollout. New clients use the first-message auth flow.
+  const queryToken = c.req.query("token") ?? null;
+  const token = bearer ?? queryToken;
+
+  if (token) {
+    // Inline the same checks authMiddleware performs (the route no longer runs
+    // the middleware so unauthenticated clients can reach the pending-auth
+    // handoff below).
+    const { verifyToken } = await import("./lib/jwt");
+    try {
+      const user = await verifyToken(token, c.env.JWT_SECRET, c.env.JWT_ISSUER);
+      if (user.typ === "refresh") {
+        return c.json({ error: "Use access token", code: "WRONG_TOKEN_TYPE" }, 401);
+      }
+      const trip = await c.env.DB.prepare(`SELECT rider_id, captain_id FROM trips WHERE id = ?`)
+        .bind(tripId)
+        .first<{ rider_id: string; captain_id: string }>();
+
+      if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
+      if (user.role !== "admin" && trip.rider_id !== user.id && trip.captain_id !== user.id) {
+        return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+      }
+
+      url.searchParams.set("role", user.role);
+      url.searchParams.set("userId", user.id);
+    } catch {
+      return c.json({ error: "Invalid or expired token", code: "INVALID_TOKEN" }, 401);
+    }
+  } else {
+    // No credentials up front: let the DO accept the socket and authenticate
+    // via the first client message. The DO enforces trip membership after
+    // verifying the token and closes with 4401 on failure/timeout.
+    url.searchParams.set("pendingAuth", "1");
+    url.searchParams.set("tripId", tripId);
   }
 
   const id = c.env.TRIP_ROOM.idFromName(tripId);
   const stub = c.env.TRIP_ROOM.get(id);
-
-  const url = new URL("https://room/ws");
-  url.searchParams.set("role", user.role);
-  url.searchParams.set("userId", user.id);
-
   return stub.fetch(url.toString(), c.req.raw);
 });
 
-// WebSocket for captain live offers inbox
-app.get("/ws/captain/offers", authMiddleware, async (c) => {
+// WebSocket for captain live offers inbox.
+// Same dual auth as /ws/trips/:id — header/deprecated query token, or a
+// first-message {"type":"auth","token":"<jwt>"} when no token is supplied.
+app.get("/ws/captain/offers", async (c) => {
   const upgrade = c.req.header("Upgrade");
   if (upgrade !== "websocket") {
     return c.json({ error: "Expected WebSocket upgrade", code: "UPGRADE_REQUIRED" }, 426);
   }
 
-  const user = c.get("user");
-  if (user.role !== "captain" && user.role !== "admin") {
-    return c.json({ error: "Captains only", code: "FORBIDDEN" }, 403);
+  const url = new URL("https://inbox/ws");
+
+  const header = c.req.header("Authorization");
+  const bearer = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  // DEPRECATED: ?token= leaks JWTs into access logs; kept only for old app
+  // versions during rollout. New clients use the first-message auth flow.
+  const queryToken = c.req.query("token") ?? null;
+  const token = bearer ?? queryToken;
+
+  if (token) {
+    const { verifyToken } = await import("./lib/jwt");
+    try {
+      const user = await verifyToken(token, c.env.JWT_SECRET, c.env.JWT_ISSUER);
+      if (user.typ === "refresh") {
+        return c.json({ error: "Use access token", code: "WRONG_TOKEN_TYPE" }, 401);
+      }
+      if (user.role !== "captain" && user.role !== "admin") {
+        return c.json({ error: "Captains only", code: "FORBIDDEN" }, 403);
+      }
+
+      const id = c.env.CAPTAIN_INBOX.idFromName(user.id);
+      const stub = c.env.CAPTAIN_INBOX.get(id);
+      url.searchParams.set("userId", user.id);
+      return stub.fetch(url.toString(), c.req.raw);
+    } catch {
+      return c.json({ error: "Invalid or expired token", code: "INVALID_TOKEN" }, 401);
+    }
   }
 
-  const id = c.env.CAPTAIN_INBOX.idFromName(user.id);
+  // Pending-auth handoff: without a token we can't derive the per-captain DO
+  // id yet, so a single well-known inbox instance accepts the socket, verifies
+  // the first-message token, then proxies the socket pair to the captain's
+  // own inbox (which skips the timeout there).
+  const id = c.env.CAPTAIN_INBOX.idFromName("pending-auth");
   const stub = c.env.CAPTAIN_INBOX.get(id);
-  const url = new URL("https://inbox/ws");
-  url.searchParams.set("userId", user.id);
+  url.searchParams.set("pendingAuth", "1");
   return stub.fetch(url.toString(), c.req.raw);
 });
 
@@ -206,6 +266,20 @@ export default {
   // ---- Scheduled (cron) triggers ----
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     const now = new Date().toISOString();
+
+    // Daily expired-data cleanup. The "*/1 * * * *" trigger fires this handler
+    // every minute, so gate on a KV last-run key (24h TTL) to run once a day.
+    try {
+      const lastRun = await env.SESSIONS.get("cleanup:last-run");
+      if (!lastRun) {
+        const result = await runExpiredDataCleanup(env);
+        await env.SESSIONS.put("cleanup:last-run", now, { expirationTtl: 86400 });
+        console.log("cleanup: daily run complete", JSON.stringify(result));
+      }
+    } catch (e) {
+      console.error("cleanup error", e);
+    }
+
     // Dispatch due scheduled trips: flip status to searching and send offers.
     try {
       const due = await env.DB.prepare(
