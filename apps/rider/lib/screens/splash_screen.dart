@@ -5,25 +5,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:video_player/video_player.dart';
 
 /// GoDrive Rider launch screen.
 ///
-/// Previously this rendered a bare white screen with a spinner until the
-/// splash video finished decoding — on a mid-range Android that is a second or
-/// more of blank screen at the single most brand-defining moment in the app.
+/// Replaced the video-based splash with a static brand image. The old splash
+/// played a looping MP4 that was never framed for the screen — the aspect
+/// ratio didn't match, the decode took a visible moment, and on slow devices
+/// the rider saw a blank white gap before the video kicked in. This version
+/// paints the brand mark on the very first frame: a high-resolution splash
+/// image with choreographed entrance animations layered on top.
 ///
-/// Now the brand mark is painted on the very first frame and the video fades
-/// in on top only once it is genuinely ready. If the video is slow, missing or
-/// broken, the rider simply keeps seeing a polished logo lockup rather than
-/// discovering that something failed.
+/// The result is faster, lighter, and visually consistent on every device —
+/// no video decoder, no aspect-ratio mismatch, no blank gap.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.onCompleted});
 
-  /// Invoked once the intro has run its full course.
-  ///
-  /// Optional so the screen stays usable as a plain loading state while the
-  /// session is still being restored.
+  /// Invoked once the intro has run its course.
   final VoidCallback? onCompleted;
 
   @override
@@ -31,99 +28,37 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  VideoPlayerController? _controller;
-  bool _videoReady = false;
-
-  /// Fires once the intro has finished — either because the video played all
-  /// the way through, or because we fell back to the static lockup.
+  bool _imageReady = false;
   bool _completed = false;
-
-  /// Backstop so a stalled decoder can never strand the rider on the splash.
-  Timer? _safetyTimer;
+  Timer? _holdTimer;
 
   @override
   void initState() {
     super.initState();
-    _initVideo();
+    _precacheBrandImage();
   }
 
-  Future<void> _initVideo() async {
+  /// Pre-cache the splash brand image so the first frame is instant.
+  Future<void> _precacheBrandImage() async {
     try {
-      final controller =
-          VideoPlayerController.asset('assets/videos/splash.mp4');
-
-      // Cap initialisation: a decode that stalls must not hold the brand
-      // screen hostage. We fall back to the static lockup instead.
-      await controller.initialize().timeout(const Duration(seconds: 3));
-
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-
-      await controller.setVolume(0); // Required for autoplay on web/iOS.
-
-      // Looping is what previously prevented the intro from ever "finishing".
-      // The video must run exactly once, end to end, before we hand over.
-      await controller.setLooping(false);
-
-      // Watch playback position so we can detect genuine completion.
-      controller.addListener(_onVideoTick);
-
-      await controller.play();
-
-      // Never outstay the clip itself: duration plus a small grace window.
-      final duration = controller.value.duration;
-      if (duration > Duration.zero) {
-        _safetyTimer = Timer(
-          duration + const Duration(milliseconds: 750),
-          _finish,
-        );
-      } else {
-        _safetyTimer = Timer(const Duration(seconds: 5), _finish);
-      }
-
-      setState(() {
-        _controller = controller;
-        _videoReady = true;
-      });
+      await precacheImage(
+        const AssetImage('assets/images/splash_brand.png'),
+        context,
+      );
+      if (mounted) setState(() => _imageReady = true);
     } catch (_) {
-      // Static lockup is already on screen. Give the brand mark a beat to be
-      // seen, then continue — a failed video must not block app entry.
-      if (mounted) {
-        setState(() => _videoReady = false);
-        _safetyTimer = Timer(const Duration(milliseconds: 1800), _finish);
-      }
+      if (mounted) setState(() => _imageReady = false);
     }
+
+    // Hold the splash for a deliberate brand beat — long enough to be read,
+    // short enough not to feel like a wait. Then hand over to the app shell.
+    _holdTimer = Timer(const Duration(milliseconds: 2400), _finish);
   }
 
-  /// Detects the end of playback. `video_player` reports completion by leaving
-  /// [VideoPlayerValue.isPlaying] false with the position at the duration.
-  void _onVideoTick() {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized) return;
-
-    final value = controller.value;
-    final duration = value.duration;
-    if (duration <= Duration.zero) return;
-
-    if (value.position >= duration && !value.isPlaying) {
-      _finish();
-    }
-  }
-
-  /// Hands control to the app shell exactly once.
-  ///
-  /// `main.dart` owns routing — it swaps this screen for `HomeScreen` or
-  /// `LoginScreen` based on the restored session — so the splash only needs to
-  /// report that the intro is done rather than push a route itself.
   void _finish() {
     if (_completed || !mounted) return;
     _completed = true;
-
-    _safetyTimer?.cancel();
-    _controller?.removeListener(_onVideoTick);
-
+    _holdTimer?.cancel();
     widget.onCompleted?.call();
   }
 
@@ -140,27 +75,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _safetyTimer?.cancel();
-    _controller?.removeListener(_onVideoTick);
-    _controller?.dispose();
+    _holdTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // The intro is a fixed brand moment: the logo, the video and the wordmark
-    // are all authored against a light canvas. Following the device's dark
-    // mode here would put a light-authored video on a near-black background
-    // and invert the wordmark, so the splash is pinned to the light palette
-    // regardless of the system setting. Every descendant — including
-    // GoTheme.of(context) — resolves against this override.
+    // The splash is pinned to the light palette regardless of device dark
+    // mode — the brand image is authored against a light canvas.
     final lightTheme = AppTheme.light();
     final go = GoTheme.forBrightness(Brightness.light);
 
     return Theme(
       data: lightTheme,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        // Dark status-bar glyphs stay legible on the light splash canvas.
         value: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
@@ -181,29 +109,27 @@ class _SplashScreenState extends State<SplashScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 340, maxHeight: 340),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(24),
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 420),
+                    duration: const Duration(milliseconds: 500),
                     switchInCurve: Curves.easeOut,
-                    child: _videoReady && _controller != null
-                        ? ClipRRect(
-                            key: const ValueKey('video'),
-                            borderRadius: BorderRadius.circular(20),
-                            child: AspectRatio(
-                              aspectRatio: _controller!.value.aspectRatio,
-                              child: VideoPlayer(_controller!),
-                            ),
-                          )
-                        : _BrandLockup(key: const ValueKey('logo'), go: go),
+                    child: _imageReady
+                        ? _BrandImage(key: const ValueKey('brand'))
+                        : _FallbackLockup(key: const ValueKey('fallback'), go: go),
                   ),
                 ),
               ),
             ),
-
             Positioned(
               left: 0,
               right: 0,
-              bottom: 24,
+              bottom: 100,
+              child: _WordmarkBlock(go: go),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 28,
               child: Center(child: _CreatedByBadge(go: go, onTap: _openSynaptic)),
             ),
           ],
@@ -213,9 +139,34 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-/// Static brand mark shown immediately at launch.
-class _BrandLockup extends StatelessWidget {
-  const _BrandLockup({super.key, required this.go});
+/// The high-resolution splash brand image, rendered with a subtle entrance.
+class _BrandImage extends StatelessWidget {
+  const _BrandImage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: Image.asset(
+        'assets/images/splash_brand.png',
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 480.ms)
+        .scale(
+          begin: const Offset(0.92, 0.92),
+          end: const Offset(1, 1),
+          duration: 680.ms,
+          curve: Curves.easeOutBack,
+        );
+  }
+}
+
+/// Fallback when the brand image asset is unavailable — a clean logo lockup.
+class _FallbackLockup extends StatelessWidget {
+  const _FallbackLockup({super.key, required this.go});
 
   final GoTheme go;
 
@@ -233,8 +184,6 @@ class _BrandLockup extends StatelessWidget {
           width: 148,
           height: 148,
           fit: BoxFit.contain,
-          // If the logo asset is unavailable we still present a deliberate
-          // mark rather than a broken-image glyph.
           errorBuilder: (_, __, ___) => Container(
             width: 108,
             height: 108,
@@ -277,8 +226,6 @@ class _BrandLockup extends StatelessWidget {
           ),
         ).animate().fadeIn(delay: 320.ms, duration: 480.ms),
         const SizedBox(height: 30),
-        // A slim indeterminate bar reads as progress without the "stuck
-        // spinner" feeling of a centred circular indicator.
         SizedBox(
           width: 132,
           child: ClipRRect(
@@ -290,6 +237,55 @@ class _BrandLockup extends StatelessWidget {
             ),
           ),
         ).animate().fadeIn(delay: 460.ms, duration: 400.ms),
+      ],
+    );
+  }
+}
+
+/// Wordmark, tagline and progress — anchored below the brand image.
+class _WordmarkBlock extends StatelessWidget {
+  const _WordmarkBlock({required this.go});
+
+  final GoTheme go;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = go.isDark ? go.action : AppTokens.primary;
+    final strings = AppStrings.of(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'GoDrive',
+          style: AppTokens.fontLatin(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: go.text,
+          ),
+        ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
+        const SizedBox(height: 6),
+        Text(
+          strings.splashTagline,
+          style: AppTokens.font(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: go.muted,
+          ),
+        ).animate().fadeIn(delay: 420.ms, duration: 500.ms),
+        const SizedBox(height: 28),
+        SizedBox(
+          width: 120,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: go.surface,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+            ),
+          ),
+        ).animate().fadeIn(delay: 560.ms, duration: 400.ms),
       ],
     );
   }
@@ -363,6 +359,6 @@ class _CreatedByBadge extends StatelessWidget {
           ),
         ],
       ),
-    ).animate().fade(delay: 400.ms, duration: 600.ms).slideY(begin: 0.3);
+    ).animate().fade(delay: 500.ms, duration: 600.ms).slideY(begin: 0.3);
   }
 }
