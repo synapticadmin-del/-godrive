@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { MapPin, Loader2, RefreshCw, Car, Users } from 'lucide-react';
+import { MapPin, Loader2, RefreshCw, Car, Users, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useTheme } from '../design/ThemeContext';
+import { usePolling } from '../lib/usePolling';
 
 interface LiveTrip {
   id: string; status: string; city: string; rider_id: string; captain_id: string | null;
@@ -26,6 +27,7 @@ export default function LiveMapPage() {
   const [trips, setTrips] = useState<LiveTrip[]>([]);
   const [captains, setCaptains] = useState<OnlineCaptain[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [view, setView] = useState<'all' | 'trips' | 'captains'>('all');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -41,7 +43,13 @@ export default function LiveMapPage() {
       setTrips(tripsRes.trips || []);
       setCaptains(capsRes.captains || []);
       updateMap(tripsRes.trips || [], capsRes.captains || []);
-    } catch (e) { /* ignore */ }
+      setFetchError(null);
+    } catch (e) {
+      // Previously swallowed (`/* ignore */`), so a broken API left the admin
+      // watching a frozen map with no idea it had stopped updating. Surface a
+      // lightweight, dismissible indicator; the last good data stays on screen.
+      setFetchError(e instanceof Error ? e.message : 'فشل تحديث البيانات الحية');
+    }
     finally { setLoading(false); }
   };
 
@@ -130,12 +138,14 @@ export default function LiveMapPage() {
     loadLeaflet().then(() => {
       initMap();
       fetchAll();
-      const i = setInterval(fetchAll, 8000);
-      return () => clearInterval(i);
     });
     return () => { if (mapObj.current) { mapObj.current.remove(); mapObj.current = null; } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Live polling — pauses while the tab is hidden, resumes (with an immediate
+  // refetch) when it becomes visible again.
+  usePolling(fetchAll, 8000);
 
   // Re-render map markers when view changes
   useEffect(() => {
@@ -175,6 +185,16 @@ export default function LiveMapPage() {
           </div>
         }
       />
+
+      {/* Lightweight, dismissible fetch-failure indicator. The last good data
+          stays on the map; this just flags that live updates have stalled. */}
+      {fetchError && (
+        <div className="p-3 bg-error-main/10 border border-error-main/30 rounded-xl text-error-main text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">تعذّر تحديث البيانات الحية: {fetchError}</span>
+          <button onClick={() => setFetchError(null)} className="text-xs hover:underline shrink-0">إغلاق</button>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-4">

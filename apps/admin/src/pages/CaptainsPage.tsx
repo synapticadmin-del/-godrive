@@ -6,6 +6,8 @@ import { DataTable, type Column } from '../components/ui/DataTable';
 import { Search, Check, Ban, Loader2, Star, MapPin, Navigation, AlertTriangle, Download } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useTheme } from '../design/ThemeContext';
+import { useToast } from '../components/ui/Toast';
+import { usePolling } from '../lib/usePolling';
 import { downloadCsv, formatCsvDate, formatCsvNumber, type CsvColumn } from '../lib/csv';
 
 /**
@@ -50,6 +52,7 @@ declare global {
 export default function CaptainsPage() {
   const { token } = useAuth();
   const { resolved } = useTheme();
+  const { addToast } = useToast();
   const [captains, setCaptains] = useState<Captain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +63,11 @@ export default function CaptainsPage() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  // Two-step confirm for the destructive suspend action. Holds the captain id
+  // awaiting confirmation; auto-reverts after a few seconds if not confirmed.
+  const [confirmSuspendId, setConfirmSuspendId] = useState<string | null>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -213,13 +221,14 @@ export default function CaptainsPage() {
     };
   }, []);
 
-  // Data lifecycle — refetch when the token or the server-side filter changes,
-  // and poll on an interval. Separate from the map so filtering never disturbs it.
+  // Data lifecycle — refetch when the token or the server-side filter changes.
+  // Polling is delegated to usePolling, which pauses while the tab is hidden.
   useEffect(() => {
     fetchCaptains(true);
-    const interval = setInterval(() => fetchCaptains(false), 10000);
-    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, filter]);
+
+  usePolling(() => fetchCaptains(false), 10000);
 
   // The map and the data now load independently, so whichever finishes second
   // has to reconcile them. updateMapMarkers() is a no-op until the map exists,
@@ -249,7 +258,7 @@ export default function CaptainsPage() {
         setTimeout(() => marker.openPopup(), 1000);
       }
     } else {
-      alert(`الكابتن ${captain.name || ''} لم يقم بتحديث موقعه على الجي بي إس بعد.`);
+      addToast({ type: 'info', message: `الكابتن ${captain.name || ''} لم يقم بتحديث موقعه على الجي بي إس بعد.` });
     }
   };
 
@@ -257,25 +266,50 @@ export default function CaptainsPage() {
     setProcessingId(id);
     try {
       await api(`/admin/captains/${id}/approve`, { method: 'POST', token });
+      addToast({ type: 'success', message: 'تم اعتماد الكابتن بنجاح' });
       fetchCaptains(false);
-    } catch {
-      alert('فشل اعتماد الكابتن');
+    } catch (e) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'فشل اعتماد الكابتن' });
     } finally {
       setProcessingId(null);
     }
   };
 
+  // Suspend is destructive, so it goes through a two-step confirm: the first
+  // click arms the confirmation (and starts an auto-revert timer), the second
+  // actually performs the request.
   const handleSuspend = async (id: string) => {
     setProcessingId(id);
     try {
       await api(`/admin/captains/${id}/suspend`, { method: 'POST', token });
+      addToast({ type: 'success', message: 'تم إيقاف الكابتن' });
       fetchCaptains(false);
-    } catch {
-      alert('فشل إيقاف الكابتن');
+    } catch (e) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'فشل إيقاف الكابتن' });
     } finally {
       setProcessingId(null);
     }
   };
+
+  const requestSuspend = (id: string) => {
+    // Second click on the same armed row -> confirmed, run it.
+    if (confirmSuspendId === id) {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      setConfirmSuspendId(null);
+      handleSuspend(id);
+      return;
+    }
+    // First click -> arm the confirm, tell the admin a second click confirms,
+    // and auto-revert after 3 seconds.
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    setConfirmSuspendId(id);
+    addToast({ type: 'warning', message: 'اضغط مرة أخرى خلال ٣ ثوانٍ لتأكيد إيقاف الكابتن' });
+    confirmTimer.current = setTimeout(() => setConfirmSuspendId(null), 3000);
+  };
+
+  useEffect(() => () => {
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+  }, []);
 
   const filteredCaptains = captains.filter((c) => {
     if (!searchTerm) return true;
@@ -542,10 +576,14 @@ export default function CaptainsPage() {
             disabled: (c) => processingId === c.user_id,
           },
           {
+            // Destructive action behind a two-step inline confirm. Row actions
+            // are icon-only, so the first click arms the row (swaps the ban
+            // icon for an alert glyph and updates the accessible label, then
+            // auto-reverts after 3s); the second click performs the suspend.
             label: 'إيقاف الكابتن',
             icon: <Ban className="w-4 h-4" />,
             variant: 'danger',
-            onClick: (c) => handleSuspend(c.user_id),
+            onClick: (c) => requestSuspend(c.user_id),
             show: (c) => c.approval_status === 'approved',
             disabled: (c) => processingId === c.user_id,
           },

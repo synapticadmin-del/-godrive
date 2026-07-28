@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { RejectionReasonModal } from '../components/RejectionReasonModal';
+import { useToast } from '../components/ui/Toast';
 
 interface Doc {
   id: string;
@@ -222,6 +223,7 @@ function ZoomablePreviewModal({
 /* ------------------------------------------------------------------ */
 export default function CaptainVerificationPage() {
   const { token } = useAuth();
+  const { addToast } = useToast();
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -229,6 +231,11 @@ export default function CaptainVerificationPage() {
   const [previewDoc, setPreviewDoc] = useState<Doc | null>(null);
   const [previewGroup, setPreviewGroup] = useState<Doc[]>([]);
   const [bulkApproving, setBulkApproving] = useState<string | null>(null);
+
+  // Two-step confirm for the bulk "قبول الجميع" action. Holds the captain id
+  // awaiting confirmation; auto-reverts after a few seconds if not confirmed.
+  const [confirmBulkId, setConfirmBulkId] = useState<string | null>(null);
+  const confirmBulkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Rejection modal state
   const [rejectingDoc, setRejectingDoc] = useState<{ doc: Doc; captainName: string } | null>(null);
@@ -305,9 +312,10 @@ export default function CaptainVerificationPage() {
         token,
         body: JSON.stringify({ status: 'approved' }),
       });
+      addToast({ type: 'success', message: 'تم قبول المستند' });
       load();
-    } catch {
-      alert('فشل قبُول المستند');
+    } catch (e) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'فشل قبُول المستند' });
     }
   };
 
@@ -324,13 +332,33 @@ export default function CaptainVerificationPage() {
           body: JSON.stringify({ status: 'approved' }),
         });
       }
+      addToast({ type: 'success', message: `تم قبول ${pendingDocs.length.toLocaleString('ar-EG')} مستندات لـ ${group.captainName}` });
       load();
-    } catch {
-      alert('فشل في قبول بعض المستندات');
+    } catch (e) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'فشل في قبول بعض المستندات' });
     } finally {
       setBulkApproving(null);
     }
   };
+
+  // Bulk-approve is destructive (accepts every pending doc at once), so it
+  // goes through a two-step confirm: the first click arms the button (label
+  // flips to "تأكيد القبول؟" and auto-reverts after 3s), the second runs it.
+  const requestBulkApprove = (group: CaptainGroup) => {
+    if (confirmBulkId === group.captainId) {
+      if (confirmBulkTimer.current) clearTimeout(confirmBulkTimer.current);
+      setConfirmBulkId(null);
+      bulkApproveAll(group);
+      return;
+    }
+    if (confirmBulkTimer.current) clearTimeout(confirmBulkTimer.current);
+    setConfirmBulkId(group.captainId);
+    confirmBulkTimer.current = setTimeout(() => setConfirmBulkId(null), 3000);
+  };
+
+  useEffect(() => () => {
+    if (confirmBulkTimer.current) clearTimeout(confirmBulkTimer.current);
+  }, []);
 
   const handleRejectSubmit = async (reason: string) => {
     if (!rejectingDoc) return;
@@ -503,6 +531,7 @@ export default function CaptainVerificationPage() {
             const isExpanded = expandedCaptains[group.captainId] ?? true;
             const allPending = group.pendingCount > 0 && group.pendingCount === group.documents.length;
             const isBulkApproving = bulkApproving === group.captainId;
+            const isBulkConfirming = confirmBulkId === group.captainId;
 
             return (
               <div
@@ -580,18 +609,20 @@ export default function CaptainVerificationPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          bulkApproveAll(group);
+                          requestBulkApprove(group);
                         }}
                         disabled={isBulkApproving}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-success-main hover:bg-success-dark text-white rounded-xl shadow-xs transition-colors disabled:opacity-60"
-                        title="قبول جميع المستندات دفعة واحدة"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-60 text-white ${
+                          isBulkConfirming ? 'bg-warning-main hover:bg-warning-dark' : 'bg-success-main hover:bg-success-dark'
+                        }`}
+                        title={isBulkConfirming ? 'اضغط مرة أخرى للتأكيد' : 'قبول جميع المستندات دفعة واحدة'}
                       >
                         {isBulkApproving ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <CheckCheck className="w-3.5 h-3.5" />
                         )}
-                        قبول الجميع
+                        {isBulkConfirming ? 'تأكيد القبول؟' : 'قبول الجميع'}
                       </button>
                     )}
 
