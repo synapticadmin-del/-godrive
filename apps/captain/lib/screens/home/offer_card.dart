@@ -292,49 +292,51 @@ class _OfferCardState extends State<OfferCard>
 
         return Opacity(
           opacity: _expired ? 0.5 : 1,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
-                decoration: BoxDecoration(
-                  color: go.isDark
-                      ? go.panel.withOpacity(0.72)
-                      : go.panel.withOpacity(0.82),
-                  borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                  border: Border.all(
-                    color: urgent
-                        ? AppTokens.danger.withOpacity(0.55)
-                        : go.isDark
-                            ? Colors.white.withOpacity(0.14)
-                            : Colors.white.withOpacity(0.65),
-                    width: urgent ? 1.5 : 1,
-                  ),
-                  boxShadow: AppTokens.shadowOffer,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHeader(go, accent, urgent),
-                    _buildMetaStrip(go),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppTokens.spaceMd,
-                        0,
-                        AppTokens.spaceMd,
-                        AppTokens.spaceSm,
-                      ),
-                      child: Column(
-                        children: [
-                          _buildRoute(go),
-                          const SizedBox(height: AppTokens.spaceSm),
-                          _buildActions(go),
-                        ],
-                      ),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppTokens.spaceSm),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: go.isDark
+                        ? go.panel.withOpacity(0.72)
+                        : go.panel.withOpacity(0.82),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    border: Border.all(
+                      color: urgent
+                          ? AppTokens.danger.withOpacity(0.55)
+                          : go.isDark
+                              ? Colors.white.withOpacity(0.14)
+                              : Colors.white.withOpacity(0.65),
+                      width: urgent ? 1.5 : 1,
                     ),
-                  ],
+                    boxShadow: AppTokens.shadowOffer,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeader(go, accent, urgent),
+                      _buildMetaStrip(go),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppTokens.spaceMd,
+                          0,
+                          AppTokens.spaceMd,
+                          AppTokens.spaceSm,
+                        ),
+                        child: Column(
+                          children: [
+                            _buildRoute(go),
+                            const SizedBox(height: AppTokens.spaceSm),
+                            _buildActions(go),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
