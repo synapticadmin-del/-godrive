@@ -92,9 +92,6 @@ intercityRoutes.post("/bookings", async (c) => {
     .first<{ id: string; route_id: string; depart_at: string; seats_total: number; seats_booked: number; status: string; captain_id: string | null }>();
   if (!schedule) return c.json({ error: "Schedule not found", code: "NOT_FOUND" }, 404);
   if (schedule.status !== "open") return c.json({ error: "Schedule closed", code: "SCHEDULE_CLOSED" }, 400);
-  if (schedule.seats_booked + body.seats > schedule.seats_total) {
-    return c.json({ error: "Not enough seats available", code: "NO_SEATS" }, 400);
-  }
   if (new Date(schedule.depart_at).getTime() < Date.now()) {
     return c.json({ error: "Schedule already departed", code: "DEPARTED" }, 400);
   }
@@ -103,6 +100,28 @@ intercityRoutes.post("/bookings", async (c) => {
     .bind(schedule.route_id)
     .first<{ base_price: number }>();
   const fare = (route?.base_price ?? 0) * body.seats;
+
+  // If wallet payment, verify funds BEFORE claiming the seats.
+  if (body.paymentMethod === "wallet") {
+    const balRow = await c.env.DB.prepare(`SELECT wallet_balance FROM users WHERE id = ?`)
+      .bind(user.id)
+      .first<{ wallet_balance: number }>();
+    if ((balRow?.wallet_balance ?? 0) < fare) {
+      return c.json({ error: "رصيد المحفظة غير كافٍ", code: "INSUFFICIENT_BALANCE" }, 400);
+    }
+  }
+
+  // Claim the seats with a conditional update — two concurrent bookings cannot
+  // take the same last seats (same guard pattern as POST /trips/:id/accept).
+  const claim = await c.env.DB.prepare(
+    `UPDATE intercity_schedules SET seats_booked = seats_booked + ?
+     WHERE id = ? AND seats_booked + ? <= seats_total AND status = 'open'`,
+  )
+    .bind(body.seats, body.scheduleId, body.seats)
+    .run();
+  if (claim.meta && claim.meta.changes === 0) {
+    return c.json({ error: "Not enough seats available", code: "NO_SEATS" }, 409);
+  }
 
   const bookingId = id("intb");
   const qrToken = id("qrtk");
@@ -124,37 +143,30 @@ intercityRoutes.post("/bookings", async (c) => {
       nowIso(),
     )
     .run();
-  await c.env.DB.prepare(
-    `UPDATE intercity_schedules SET seats_booked = seats_booked + ? WHERE id = ?`,
-  )
-    .bind(body.seats, body.scheduleId)
-    .run();
 
-  // If wallet payment, debit the rider's wallet immediately. Otherwise cash onboard.
+  // Wallet payment — debit with a conditional update so the balance cannot go
+  // negative under concurrency. On failure, release the seats and the booking.
   if (body.paymentMethod === "wallet") {
-    const balRow = await c.env.DB.prepare(`SELECT wallet_balance FROM users WHERE id = ?`)
-      .bind(user.id)
-      .first<{ wallet_balance: number }>();
-    if ((balRow?.wallet_balance ?? 0) < fare) {
-      // Roll back the booking — wasn't enough funds.
+    const debit = await c.env.DB.prepare(
+      `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_updated_at = ?
+       WHERE id = ? AND wallet_balance >= ?`,
+    )
+      .bind(fare, nowIso(), user.id, fare)
+      .run();
+    if (debit.meta && debit.meta.changes === 0) {
       await c.env.DB.prepare(`DELETE FROM intercity_bookings WHERE id = ?`).bind(bookingId).run();
       await c.env.DB.prepare(
         `UPDATE intercity_schedules SET seats_booked = seats_booked - ? WHERE id = ?`,
       )
         .bind(body.seats, body.scheduleId)
         .run();
-      return c.json({ error: "رصيد المحفظة غير كافٍ", code: "INSUFFICIENT_BALANCE" }, 400);
+      return c.json({ error: "رصيد المحفظة غير كافٍ أو تم تغيير الرصيد بالتزامن", code: "INSUFFICIENT_BALANCE" }, 409);
     }
     await c.env.DB.prepare(
       `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, trip_id, note, status, created_at)
        VALUES (?, ?, 'trip_payment', 'debit', ?, NULL, ?, 'settled', datetime('now'))`,
     )
       .bind(id("wt"), user.id, fare, `intercity:${bookingId}`)
-      .run();
-    await c.env.DB.prepare(
-      `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_updated_at = ? WHERE id = ?`,
-    )
-      .bind(fare, nowIso(), user.id)
       .run();
   }
 
@@ -164,7 +176,7 @@ intercityRoutes.post("/bookings", async (c) => {
       env: c.env,
       userId: schedule.captain_id,
       topic: "intercity.booking.new",
-      title: "حجز_seat جديد",
+      title: "حجز مقعد جديد",
       body: `تم حجز ${body.seats} مقعد على رحلتك القادمة.`,
       data: { bookingId, scheduleId: body.scheduleId, seats: String(body.seats) },
     });
@@ -205,6 +217,111 @@ intercityRoutes.get("/bookings", async (c) => {
   return c.json({ bookings: res.results ?? [] });
 });
 
+// POST /intercity/bookings/:id/cancel — rider cancels their booking.
+// Policy (inDrive-style): free cancellation with a full refund any time before
+// the scheduled departure; cancellation is blocked once the schedule has
+// departed or the rider already boarded. Cash bookings release the seats only
+// (nothing was charged). Wallet bookings are refunded to the wallet.
+intercityRoutes.post("/bookings/:id/cancel", async (c) => {
+  const user = c.get("user");
+  const bookingId = c.req.param("id");
+
+  const booking = await c.env.DB.prepare(
+    `SELECT b.id, b.rider_id, b.seats, b.fare, b.payment_method, b.status,
+            s.depart_at, s.status AS schedule_status, s.captain_id
+     FROM intercity_bookings b
+     JOIN intercity_schedules s ON s.id = b.schedule_id
+     WHERE b.id = ?`,
+  )
+    .bind(bookingId)
+    .first<{
+      id: string; rider_id: string; seats: number; fare: number;
+      payment_method: string; status: string;
+      depart_at: string; schedule_status: string; captain_id: string | null;
+    }>();
+  if (!booking) return c.json({ error: "Booking not found", code: "NOT_FOUND" }, 404);
+  if (booking.rider_id !== user.id && user.role !== "admin") {
+    return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+  }
+
+  // Idempotent — a repeated cancel returns the current state without refunding twice.
+  if (booking.status === "cancelled") {
+    return c.json({ ok: true, already: true, status: "cancelled" });
+  }
+  if (booking.status === "boarded") {
+    return c.json({ error: "لا يمكن الإلغاء بعد صعود الراكب", code: "ALREADY_BOARDED" }, 409);
+  }
+  if (booking.schedule_status === "departed" || new Date(booking.depart_at).getTime() < Date.now()) {
+    return c.json({ error: "لا يمكن الإلغاء بعد موعد المغادرة", code: "ALREADY_DEPARTED" }, 409);
+  }
+
+  // Claim the cancellation with a conditional update — a concurrent cancel/board
+  // flips zero rows and surfaces as 409 instead of a double refund.
+  const cancelRes = await c.env.DB.prepare(
+    `UPDATE intercity_bookings SET status = 'cancelled', cancelled_at = ?
+     WHERE id = ? AND status = 'booked'`,
+  )
+    .bind(nowIso(), bookingId)
+    .run();
+  if (cancelRes.meta && cancelRes.meta.changes === 0) {
+    return c.json({ error: "Booking state changed concurrently", code: "CONFLICT" }, 409);
+  }
+
+  // Release the seats back to the schedule (floor at zero defensively).
+  await c.env.DB.prepare(
+    `UPDATE intercity_schedules SET seats_booked = MAX(seats_booked - ?, 0) WHERE id = (
+       SELECT schedule_id FROM intercity_bookings WHERE id = ?
+     )`,
+  )
+    .bind(booking.seats, bookingId)
+    .run();
+
+  // Refund wallet-paid fares to the rider's wallet.
+  let refunded = 0;
+  if (booking.payment_method === "wallet" && booking.fare > 0) {
+    refunded = booking.fare;
+    await c.env.DB.prepare(
+      `INSERT INTO wallet_transactions (id, user_id, type, direction, amount, trip_id, note, status, created_at)
+       VALUES (?, ?, 'refund', 'credit', ?, NULL, ?, 'settled', datetime('now'))`,
+    )
+      .bind(id("wt"), booking.rider_id, booking.fare, `intercity_refund:${bookingId}`)
+      .run();
+    await c.env.DB.prepare(
+      `UPDATE users SET wallet_balance = wallet_balance + ?, wallet_updated_at = ? WHERE id = ?`,
+    )
+      .bind(booking.fare, nowIso(), booking.rider_id)
+      .run();
+  }
+
+  // Tell the captain a seat freed up on their schedule.
+  if (booking.captain_id) {
+    await pushToUser({
+      env: c.env,
+      userId: booking.captain_id,
+      topic: "intercity.booking.cancelled",
+      title: "إلغاء حجز",
+      body: `ألغى راكب حجز ${booking.seats} مقعد على رحلتك القادمة.`,
+      data: { bookingId, seats: String(booking.seats) },
+    });
+  }
+
+  await logAudit(c.env.DB, {
+    actorId: user.id,
+    action: "intercity.cancel",
+    entityType: "intercity_booking",
+    entityId: bookingId,
+    ip: c.req.header("cf-connecting-ip"),
+    userAgent: c.req.header("user-agent"),
+  });
+
+  return c.json({
+    ok: true,
+    status: "cancelled",
+    refunded,
+    refundDestination: refunded > 0 ? "wallet" : "none",
+  });
+});
+
 // ---- Captain side — passenger list on their assigned schedule ----
 intercityRoutes.get("/captain/schedules", authMiddleware, requireRole("captain", "admin"), async (c) => {
   const user = c.get("user");
@@ -238,7 +355,7 @@ intercityRoutes.get("/captain/schedules/:id/passengers", authMiddleware, require
             b.fare, b.payment_method, b.status, b.qr_token
      FROM intercity_bookings b
      JOIN users u ON u.id = b.rider_id
-     WHERE b.schedule_id = ?
+     WHERE b.schedule_id = ? AND b.status != 'cancelled'
      ORDER BY b.created_at ASC`,
   )
     .bind(scheduleId)
