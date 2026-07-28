@@ -405,10 +405,18 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
 
     if (lat == null || lng == null) return const SizedBox.shrink();
 
+    // In-app navigation: keep the captain inside GoDrive with the route drawn
+    // on the live map, instead of deep-linking out to Google Maps. The shell
+    // switches to the map tab and starts a follow-me navigation mode.
     return NavigationButton(
       lat: lat.toDouble(),
       lng: lng.toDouble(),
       label: headingToPickup ? strings.navToRider : strings.navToDestination,
+      onPressed: () => context.read<CaptainState>().startInAppNavigation(
+            lat.toDouble(),
+            lng.toDouble(),
+            headingToPickup,
+          ),
     );
   }
 
