@@ -22,6 +22,9 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 ///    `trip.updated` the moment the row flips), and
 ///  * `CaptainState` clearing `activeTrip` — the client-side signal that
 ///    the captain's trip just ended (complete or rider-cancel).
+///
+/// All copy is read from [AppStrings] (resolved from the ambient locale) so
+/// this file carries no inline Arabic literals — see `app_strings.dart`.
 class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
@@ -106,12 +109,8 @@ class _TripsTabState extends State<TripsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Opaque backdrop so history text never renders directly over map tiles.
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
       // Transparent so the IndexedStack retains the map widget on tab 0.
@@ -119,14 +118,11 @@ class _TripsTabState extends State<TripsTab> {
       body: Container(
         // Opaque fill that covers the map tiles underneath — without this,
         // list text would be illegible against the satellite/street imagery.
-        color: bg,
+        color: go.bg,
         child: Column(
           children: [
             _TripsHeader(
-              isDark: isDark,
               tripCount: _loading ? null : _trips.length,
-              muted: muted,
-              border: border,
             ),
             Expanded(
               child: _loading
@@ -134,10 +130,10 @@ class _TripsTabState extends State<TripsTab> {
                   : _error != null
                       ? ErrorState(message: _error!, onRetry: _load)
                       : _trips.isEmpty
-                          ? const EmptyState(
+                          ? EmptyState(
                               icon: Icons.route_outlined,
-                              title: 'لا توجد رحلات بعد',
-                              subtitle: 'ستظهر رحلاتك المكتملة هنا',
+                              title: strings.noTripsYet,
+                              subtitle: strings.noTripsYetSubtitle,
                             )
                           : RefreshIndicator(
                               color: AppTokens.primary,
@@ -152,9 +148,6 @@ class _TripsTabState extends State<TripsTab> {
                                 itemCount: _trips.length,
                                 itemBuilder: (_, i) => _TripCard(
                                   trip: _trips[i],
-                                  isDark: isDark,
-                                  text: text,
-                                  muted: muted,
                                 ),
                               ),
                             ),
@@ -172,27 +165,19 @@ class _TripsTabState extends State<TripsTab> {
 /// skeleton / empty-state widgets communicate that state themselves.
 class _TripsHeader extends StatelessWidget {
   const _TripsHeader({
-    required this.isDark,
     required this.tripCount,
-    required this.muted,
-    required this.border,
   });
-
-  final bool isDark;
 
   /// null while loading so the summary line stays hidden.
   final int? tripCount;
 
-  final Color muted;
-  final Color border;
-
   @override
   Widget build(BuildContext context) {
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Container(
-      color: panel,
+      color: go.panel,
       padding: EdgeInsetsDirectional.only(
         start: AppTokens.spaceMd,
         end: AppTokens.spaceMd,
@@ -200,21 +185,21 @@ class _TripsHeader extends StatelessWidget {
         bottom: AppTokens.spaceMd,
       ),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         border: Border(
-          bottom: BorderSide(color: border, width: 1),
+          bottom: BorderSide(color: go.border, width: 1),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'رحلاتي',
+            strings.tripsTabTitle,
             textAlign: TextAlign.start,
             style: AppTokens.font(
               fontSize: 24,
               fontWeight: FontWeight.w800,
-              color: text,
+              color: go.text,
             ),
           ),
           if (tripCount != null) ...[
@@ -222,11 +207,11 @@ class _TripsHeader extends StatelessWidget {
             Text(
               // Gives the captain a quick count at a glance — derived entirely
               // from already-loaded data, no extra network call.
-              '$tripCount ${tripCount == 1 ? 'رحلة' : 'رحلات'} مسجّلة',
+              strings.tripsRecorded(tripCount!),
               style: AppTokens.font(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: muted,
+                color: go.muted,
               ),
             ),
           ],
@@ -239,20 +224,14 @@ class _TripsHeader extends StatelessWidget {
 class _TripCard extends StatelessWidget {
   const _TripCard({
     required this.trip,
-    required this.isDark,
-    required this.text,
-    required this.muted,
   });
 
   final Map<String, dynamic> trip;
-  final bool isDark;
-  final Color text;
-  final Color muted;
 
   @override
   Widget build(BuildContext context) {
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     final status = trip['status'] as String? ?? '';
 
@@ -274,9 +253,9 @@ class _TripCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: border, width: 1),
+        border: Border.all(color: go.border, width: 1),
         boxShadow: AppTokens.shadowCard,
       ),
       child: Padding(
@@ -300,7 +279,7 @@ class _TripCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppTokens.space2xs),
                 Text(
-                  'ج.م',
+                  strings.egp,
                   style: AppTokens.font(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -309,7 +288,7 @@ class _TripCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 StatusChip(
-                  label: _statusLabel(status),
+                  label: strings.statusLabel(status),
                   variant: _statusVariant(status),
                 ),
               ],
@@ -320,11 +299,10 @@ class _TripCard extends StatelessWidget {
             // Route — dot + connector idiom mirrors offer_card.dart so the
             // captain reads the same visual language across the product.
             _buildRoute(
-              pickup: (pickup == null || pickup.isEmpty) ? 'موقف غير محدد' : pickup,
-              dropoff: (dropoff == null || dropoff.isEmpty) ? 'وجهة غير محددة' : dropoff,
-              text: text,
-              muted: muted,
-              border: border,
+              pickup: (pickup == null || pickup.isEmpty) ? strings.unknownPickup : pickup,
+              dropoff: (dropoff == null || dropoff.isEmpty) ? strings.unknownDropoff : dropoff,
+              go: go,
+              strings: strings,
             ),
 
             const SizedBox(height: AppTokens.spaceSm),
@@ -335,7 +313,7 @@ class _TripCard extends StatelessWidget {
               style: AppTokens.font(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
-                color: muted,
+                color: go.muted,
               ),
             ),
           ],
@@ -347,18 +325,16 @@ class _TripCard extends StatelessWidget {
   Widget _buildRoute({
     required String pickup,
     required String dropoff,
-    required Color text,
-    required Color muted,
-    required Color border,
+    required GoTheme go,
+    required AppStrings strings,
   }) {
     return Column(
       children: [
         _addressRow(
           dotColor: AppTokens.primary,
-          label: 'من',
+          label: strings.fromLabel,
           value: pickup,
-          text: text,
-          muted: muted,
+          go: go,
         ),
         // Vertical connector inset to sit directly under the dot centre.
         Padding(
@@ -368,16 +344,15 @@ class _TripCard extends StatelessWidget {
             child: Container(
               width: 2,
               height: 14,
-              color: border,
+              color: go.border,
             ),
           ),
         ),
         _addressRow(
           dotColor: AppTokens.danger,
-          label: 'إلى',
+          label: strings.toLabel,
           value: dropoff,
-          text: text,
-          muted: muted,
+          go: go,
         ),
       ],
     );
@@ -387,8 +362,7 @@ class _TripCard extends StatelessWidget {
     required Color dotColor,
     required String label,
     required String value,
-    required Color text,
-    required Color muted,
+    required GoTheme go,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +387,7 @@ class _TripCard extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: AppTokens.font(fontSize: 11, color: muted),
+                style: AppTokens.font(fontSize: 11, color: go.muted),
               ),
               Text(
                 value,
@@ -422,7 +396,7 @@ class _TripCard extends StatelessWidget {
                 style: AppTokens.font(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: text,
+                  color: go.text,
                   height: 1.35,
                 ),
               ),
@@ -431,27 +405,6 @@ class _TripCard extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _statusLabel(String s) {
-    switch (s) {
-      case 'searching':
-        return 'بحث';
-      case 'offered':
-        return 'عرض';
-      case 'assigned':
-        return 'مُعيّن';
-      case 'arrived':
-        return 'وصل';
-      case 'in_progress':
-        return 'جارية';
-      case 'completed':
-        return 'مكتملة';
-      case 'cancelled':
-        return 'ملغية';
-      default:
-        return s;
-    }
   }
 
   StatusVariant _statusVariant(String s) {

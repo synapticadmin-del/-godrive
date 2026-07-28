@@ -103,11 +103,11 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
-        final isDark = Theme.of(sheetCtx).brightness == Brightness.dark;
-        final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+        final strings = AppStrings.of(sheetCtx);
+        final go = GoTheme.of(sheetCtx);
         return Container(
           decoration: BoxDecoration(
-            color: panel,
+            color: go.panel,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(AppTokens.radiusXl),
             ),
@@ -122,7 +122,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
+                    color: go.border,
                     borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                   ),
                 ),
@@ -137,7 +137,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     child: const Icon(Icons.camera_alt_rounded, color: AppTokens.primary),
                   ),
                   title: Text(
-                    'التقاط صورة',
+                    strings.sourceCamera,
                     style: AppTokens.font(fontWeight: FontWeight.w600),
                   ),
                   onTap: () => Navigator.pop(sheetCtx, ImageSource.camera),
@@ -153,7 +153,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     child: const Icon(Icons.photo_library_rounded, color: AppTokens.accent),
                   ),
                   title: Text(
-                    'اختيار من المعرض',
+                    strings.sourceGallery,
                     style: AppTokens.font(fontWeight: FontWeight.w600),
                   ),
                   onTap: () => Navigator.pop(sheetCtx, ImageSource.gallery),
@@ -174,6 +174,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
     final state = context.read<CaptainState>();
     final messenger = ScaffoldMessenger.of(context);
+    final strings = AppStrings.of(context);
 
     try {
       // Step 1: upload the file to R2. The endpoint expects multipart/form-data
@@ -192,7 +193,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       if (uploadRes.statusCode >= 300) {
         // Surface the server's reason (FILE_TOO_LARGE, MISSING_FILE, …) instead
         // of a blanket failure message.
-        String reason = 'فشل رفع الملف';
+        String reason = strings.docUploadFailed;
         try {
           final err = jsonDecode(uploadBody);
           if (err is Map && err['error'] != null) reason = err['error'].toString();
@@ -205,7 +206,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       final decoded = jsonDecode(uploadBody);
       final r2Key = decoded is Map ? decoded['r2Key'] as String? : null;
       if (r2Key == null || r2Key.isEmpty) {
-        throw Exception('استجابة الرفع غير صالحة');
+        throw Exception(strings.docUploadInvalidResponse);
       }
 
       // Step 2: register document in DB
@@ -214,7 +215,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('تم رفع $title بنجاح — قيد المراجعة'),
+          content: Text(strings.docUploadedToast(title)),
           backgroundColor: AppTokens.success,
         ),
       );
@@ -223,7 +224,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('خطأ: ${e.toString().replaceAll('Exception:', '').trim()}'),
+          content: Text(strings.docErrorPrefix(e.toString().replaceAll('Exception:', '').trim())),
           backgroundColor: AppTokens.danger,
         ),
       );
@@ -234,27 +235,23 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final strings = AppStrings.of(context);
+    final go = GoTheme.of(context);
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'المستندات المطلوبة',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text),
+          strings.documentsRequiredTitle,
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         surfaceTintColor: Colors.transparent,
         actions: [
           // A read-through status view: every document, its review state, and
           // the admin's exact rejection reason in one place.
           IconButton(
-            tooltip: 'حالة المستندات',
+            tooltip: strings.documentsStatusTooltip,
             icon: const Icon(Icons.assignment_turned_in_outlined),
             onPressed: () {
               Navigator.push(
@@ -266,7 +263,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           // MainShell shows this screen full-screen while the captain is
           // unapproved — these actions are their only escape hatches.
           IconButton(
-            tooltip: 'تحديث حالة الحساب',
+            tooltip: strings.refreshAccountTooltip,
             icon: const Icon(Icons.refresh_rounded),
             onPressed: () async {
               final state = context.read<CaptainState>();
@@ -277,7 +274,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
             },
           ),
           IconButton(
-            tooltip: 'تسجيل الخروج',
+            tooltip: strings.logout,
             icon: const Icon(Icons.logout_rounded),
             onPressed: () => context.read<CaptainState>().logout(),
           ),
@@ -288,14 +285,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           : CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
-                  child: _buildHeader(panel, text, muted, border),
+                  child: _buildHeader(go, strings),
                 ),
                 // Rejection feedback, front and centre: the exact reason the
                 // admin gave for every rejected document, right above the
                 // checklist so the fix is the next thing the captain does.
                 if (_rejectedDocs.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: _buildRejectionAlert(text, muted),
+                    child: _buildRejectionAlert(go.text, go.muted, strings),
                   ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
@@ -312,10 +309,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                           d['type'] as String,
                           d['title'] as String,
                           d['icon'] as IconData,
-                          panel,
-                          text,
-                          muted,
-                          border,
+                          go,
+                          strings,
                         );
                       },
                       childCount: _docTypes.length,
@@ -330,7 +325,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   /// Prominent alert summarising every rejected document and the exact reason
   /// the admin supplied, with a clear instruction to re-upload. Uses the design
   /// system's "stopped"/danger pair so it reads as an action item, not decor.
-  Widget _buildRejectionAlert(Color text, Color muted) {
+  Widget _buildRejectionAlert(Color text, Color muted, AppStrings strings) {
     final rejected = _rejectedDocs;
     return Container(
       margin: const EdgeInsets.fromLTRB(
@@ -355,8 +350,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
               Expanded(
                 child: Text(
                   rejected.length == 1
-                      ? 'مستند مرفوض — يلزم إعادة رفعه'
-                      : 'بعض المستندات مرفوضة — يلزم إعادة رفعها',
+                      ? strings.docRejectedAlertTitleSingle
+                      : strings.docRejectedAlertTitlePlural,
                   style: AppTokens.font(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -368,7 +363,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           ),
           const SizedBox(height: AppTokens.spaceXs),
           Text(
-            'راجع سبب الرفض بجانب كل مستند بالأسفل ثم اضغط "إعادة الرفع".',
+            strings.docRejectedAlertBody,
             style: AppTokens.font(fontSize: 12.5, color: muted, height: 1.5),
           ),
           const SizedBox(height: AppTokens.spaceSm),
@@ -404,8 +399,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   Padding(
                     padding: const EdgeInsetsDirectional.only(start: 18, top: 2),
                     child: Text(
-                      reason ??
-                          'لم يذكر المشرف سبباً محدداً — يرجى رفع صورة أوضح وسليمة.',
+                      reason ?? strings.docNoReasonFallback,
                       style: AppTokens.font(
                         fontSize: 12.5,
                         color: AppTokens.badgeStoppedText,
@@ -422,14 +416,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     );
   }
 
-  Widget _buildHeader(Color panel, Color text, Color muted, Color border) {
+  Widget _buildHeader(GoTheme go, AppStrings strings) {
     final total = _docTypes.length;
     final approved = _approvedCount;
     final progress = total == 0 ? 0.0 : approved / total;
     final allDone = approved == total;
 
     return Container(
-      color: panel,
+      color: go.panel,
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
         AppTokens.spaceMd,
@@ -462,21 +456,21 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      allDone ? 'مستنداتك قيد المراجعة' : 'أكمل ملفك المهني',
+                      allDone ? strings.docHeaderAllUploaded : strings.docHeaderIncomplete,
                       style: AppTokens.font(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       allDone
-                          ? 'سيتواصل معك فريقنا خلال 24 ساعة عند إقرار الحساب.'
-                          : 'ارفع مستنداتك ليتمكن فريقنا من مراجعة حسابك والموافقة عليه.',
+                          ? strings.docHeaderAllUploadedSubtitle
+                          : strings.docHeaderIncompleteSubtitle,
                       style: AppTokens.font(
                         fontSize: 13,
-                        color: muted,
+                        color: go.muted,
                         height: 1.5,
                       ),
                     ),
@@ -500,7 +494,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     // Track colour follows the themed border passed into the
                     // header rather than a fixed light grey, so the unfilled
                     // portion of the bar stays visible on the dark canvas.
-                    backgroundColor: border,
+                    backgroundColor: go.border,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       allDone ? AppTokens.success : AppTokens.primary,
                     ),
@@ -520,27 +514,27 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           ),
           const SizedBox(height: AppTokens.spaceXs),
           Text(
-            allDone ? 'جميع المستندات مرفوعة' : 'تمت الموافقة على $approved من أصل $total مستندات',
-            style: AppTokens.font(fontSize: 12, color: muted),
+            allDone ? strings.docProgressAllUploaded : strings.docProgressLine(approved, total),
+            style: AppTokens.font(fontSize: 12, color: go.muted),
           ),
           // The three steps ahead — understanding what happens next is what
           // turns a form dump into an onboarding experience.
           const SizedBox(height: AppTokens.spaceLg),
           _buildStepRow(
             icon: Icons.upload_file_rounded,
-            label: 'ارفع مستنداتك',
+            label: strings.docStepUpload,
             done: approved > 0,
           ),
           const SizedBox(height: AppTokens.spaceSm),
           _buildStepRow(
             icon: Icons.manage_search_rounded,
-            label: 'مراجعة الفريق (حتى 24 ساعة)',
+            label: strings.docStepReview,
             done: allDone,
           ),
           const SizedBox(height: AppTokens.spaceSm),
           _buildStepRow(
             icon: Icons.directions_car_rounded,
-            label: 'ابدأ قبول الرحلات',
+            label: strings.docStepStartTrips,
             done: false,
           ),
         ],
@@ -552,9 +546,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     // A not-yet-done step is drawn in the faint/muted greys. Those were pinned
     // to the light-theme values, so on the dark onboarding canvas the pending
     // steps washed out. Resolve the pending greys against the active theme.
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pendingIcon = isDark ? AppTokens.darkFaint : AppTokens.lightFaint;
-    final pendingText = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final go = GoTheme.of(context);
+    final pendingIcon = go.isDark ? AppTokens.darkFaint : AppTokens.lightFaint;
+    final pendingText = go.muted;
     return Row(
       children: [
         Icon(
@@ -579,10 +573,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     String type,
     String title,
     IconData icon,
-    Color panel,
-    Color text,
-    Color muted,
-    Color border,
+    GoTheme go,
+    AppStrings strings,
   ) {
     final status = _docStatus(type);
     final isUploading = _uploading.contains(type);
@@ -599,32 +591,30 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       case 'approved':
         badgeText = AppTokens.badgeApprovedText;
         badgeBg = AppTokens.badgeApprovedBg;
-        statusLabel = 'مقبول';
+        statusLabel = strings.docStatusApproved;
         statusIcon = Icons.check_circle_rounded;
         cardBorder = AppTokens.success.withOpacity(0.25);
       case 'pending':
         badgeText = AppTokens.badgePendingText;
         badgeBg = AppTokens.badgePendingBg;
-        statusLabel = 'قيد المراجعة';
+        statusLabel = strings.docStatusPending;
         statusIcon = Icons.hourglass_top_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
       case 'rejected':
         badgeText = AppTokens.badgeStoppedText;
         badgeBg = AppTokens.badgeStoppedBg;
-        statusLabel = 'مرفوض — أعد الرفع';
+        statusLabel = strings.docStatusRejectedReupload;
         statusIcon = Icons.error_rounded;
         cardBorder = AppTokens.danger.withOpacity(0.3);
       default:
-        badgeText = muted;
+        badgeText = go.muted;
         // The "not uploaded yet" badge uses a neutral surface tint; pinning it
         // to lightSurface left a pale square on the dark card, so track the
         // active theme like the approved/pending/rejected badges do.
-        badgeBg = Theme.of(context).brightness == Brightness.dark
-            ? AppTokens.darkSurface
-            : AppTokens.lightSurface;
-        statusLabel = 'لم يتم الرفع بعد';
+        badgeBg = go.surface;
+        statusLabel = strings.docStatusNotUploaded;
         statusIcon = Icons.cloud_upload_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
     }
 
     final needsUpload = status == 'missing' || status == 'rejected';
@@ -632,7 +622,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
         border: Border.all(color: cardBorder),
         boxShadow: AppTokens.shadowCard,
@@ -662,7 +652,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     style: AppTokens.font(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: text,
+                      color: go.text,
                     ),
                   ),
                   const SizedBox(height: AppTokens.space2xs),
@@ -689,7 +679,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                           Icon(statusIcon, size: 12, color: badgeText),
                         const SizedBox(width: 4),
                         Text(
-                          isUploading ? 'جاري الرفع...' : statusLabel,
+                          isUploading ? strings.docUploading : statusLabel,
                           style: AppTokens.font(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
@@ -704,8 +694,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   if (status == 'rejected') ...[
                     const SizedBox(height: AppTokens.space2xs),
                     Text(
-                      _rejectionReason(type) ??
-                          'لم يذكر المشرف سبباً محدداً — يرجى رفع صورة أوضح وسليمة.',
+                      _rejectionReason(type) ?? strings.docNoReasonFallback,
                       style: AppTokens.font(
                         fontSize: 12,
                         color: AppTokens.badgeStoppedText,
@@ -724,7 +713,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   onPressed: isUploading ? null : () => _upload(type, title),
                   icon: const Icon(Icons.camera_alt_rounded, size: 17),
                   label: Text(
-                    status == 'rejected' ? 'إعادة الرفع' : 'رفع',
+                    status == 'rejected' ? strings.docReuploadAction : strings.docUploadAction,
                     style: AppTokens.font(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

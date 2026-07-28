@@ -70,100 +70,101 @@ class _WalletScreenState extends State<WalletScreen> {
   double get _balance => (_wallet?['balance'] as num?)?.toDouble() ?? 0;
 
   void _requestPayout() {
+    final strings = AppStrings.of(context);
     if (_balance < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا يوجد رصيد كافٍ للسحب')),
+        SnackBar(content: Text(strings.noBalanceToWithdraw)),
       );
       return;
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppTokens.spaceMd,
-          AppTokens.spaceXs,
-          AppTokens.spaceMd,
-          AppTokens.spaceLg,
-        ),
-        decoration: BoxDecoration(
-          color: panel,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppTokens.radiusXl),
+      builder: (sheetCtx) {
+        final strings = AppStrings.of(sheetCtx);
+        final go = GoTheme.of(sheetCtx);
+        return Container(
+          padding: const EdgeInsets.fromLTRB(
+            AppTokens.spaceMd,
+            AppTokens.spaceXs,
+            AppTokens.spaceMd,
+            AppTokens.spaceLg,
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Sheet handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
-                  borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+          decoration: BoxDecoration(
+            color: go.panel,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppTokens.radiusXl),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Sheet handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: go.border,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                  ),
                 ),
               ),
-            ),
-            Text(
-              'طلب سحب الأرباح',
-              style: AppTokens.font(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: text,
+              Text(
+                strings.payoutSheetTitle,
+                style: AppTokens.font(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: go.text,
+                ),
               ),
-            ),
-            const SizedBox(height: AppTokens.space2xs),
-            Text(
-              'الرصيد المتاح: ${_balance.toStringAsFixed(2)} ج.م',
-              style: AppTokens.font(
-                fontSize: 13,
-                color: isDark ? AppTokens.darkMuted : AppTokens.lightMuted,
+              const SizedBox(height: AppTokens.space2xs),
+              Text(
+                strings.availableBalanceLine(_balance.toStringAsFixed(2)),
+                style: AppTokens.font(
+                  fontSize: 13,
+                  color: go.muted,
+                ),
               ),
-            ),
-            const SizedBox(height: AppTokens.spaceMd),
-            _PayoutMethodTile(
-              icon: Icons.phone_android_rounded,
-              iconColor: AppTokens.primary,
-              surface: surface,
-              label: 'فودافون كاش',
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _collectAccountAndSubmit(
-                  method: 'vodafone_cash',
-                  label: 'فودافون كاش',
-                  hint: 'رقم محفظة فودافون كاش',
-                  keyboardType: TextInputType.phone,
-                );
-              },
-            ),
-            const SizedBox(height: AppTokens.spaceSm),
-            _PayoutMethodTile(
-              icon: Icons.account_balance_rounded,
-              iconColor: AppTokens.accent,
-              surface: surface,
-              label: 'انستا باي (InstaPay)',
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _collectAccountAndSubmit(
-                  method: 'instapay',
-                  label: 'انستا باي',
-                  hint: 'عنوان الدفع (IPA) أو رقم الحساب',
-                  keyboardType: TextInputType.text,
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: AppTokens.spaceMd),
+              _PayoutMethodTile(
+                icon: Icons.phone_android_rounded,
+                iconColor: AppTokens.primary,
+                surface: go.surface,
+                label: strings.vodafoneCashMethod,
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _collectAccountAndSubmit(
+                    method: 'vodafone_cash',
+                    label: strings.vodafoneCashMethod,
+                    hint: strings.vodafoneCashHint,
+                    keyboardType: TextInputType.phone,
+                  );
+                },
+              ),
+              const SizedBox(height: AppTokens.spaceSm),
+              _PayoutMethodTile(
+                icon: Icons.account_balance_rounded,
+                iconColor: AppTokens.accent,
+                surface: go.surface,
+                label: strings.instaPayMethod,
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _collectAccountAndSubmit(
+                    method: 'instapay',
+                    label: strings.instaPayMethod,
+                    hint: strings.instaPayHint,
+                    keyboardType: TextInputType.text,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -179,43 +180,47 @@ class _WalletScreenState extends State<WalletScreen> {
     final controller = TextEditingController();
     final account = await showDialog<String>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: Text('السحب عبر $label'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'سيتم سحب ${_balance.toStringAsFixed(2)} ج.م',
-              style: AppTokens.font(fontWeight: FontWeight.w700),
+      builder: (dialogCtx) {
+        final strings = AppStrings.of(dialogCtx);
+        return AlertDialog(
+          title: Text(strings.payoutViaTitle(label)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                strings.payoutAmountLine(_balance.toStringAsFixed(2)),
+                style: AppTokens.font(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppTokens.spaceSm),
+              TextField(
+                controller: controller,
+                keyboardType: keyboardType,
+                autofocus: true,
+                decoration: InputDecoration(labelText: hint),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(strings.cancelAction),
             ),
-            const SizedBox(height: AppTokens.spaceSm),
-            TextField(
-              controller: controller,
-              keyboardType: keyboardType,
-              autofocus: true,
-              decoration: InputDecoration(labelText: hint),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, controller.text.trim()),
+              child: Text(strings.confirmPayoutAction),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogCtx, controller.text.trim()),
-            child: const Text('تأكيد السحب'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     controller.dispose();
 
     if (!mounted || account == null) return;
+    final strings = AppStrings.of(context);
     if (account.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('برجاء إدخال بيانات حساب صحيحة'),
+        SnackBar(
+          content: Text(strings.invalidAccountError),
           backgroundColor: AppTokens.danger,
         ),
       );
@@ -233,7 +238,7 @@ class _WalletScreenState extends State<WalletScreen> {
       });
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('تم إرسال طلب السحب بنجاح إلى $label')),
+        SnackBar(content: Text(strings.payoutSuccessToast(label))),
       );
       await _load();
     } catch (e) {
@@ -241,7 +246,7 @@ class _WalletScreenState extends State<WalletScreen> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            'فشل طلب السحب: ${e.toString().replaceAll('Exception:', '').trim()}',
+            strings.payoutFailedToast(e.toString().replaceAll('Exception:', '').trim()),
           ),
           backgroundColor: AppTokens.danger,
         ),
@@ -251,27 +256,23 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final strings = AppStrings.of(context);
+    final go = GoTheme.of(context);
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'المحفظة',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text),
+          strings.walletTitle,
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'تحديث',
+            tooltip: strings.refresh,
             onPressed: _load,
           ),
         ],
@@ -280,34 +281,34 @@ class _WalletScreenState extends State<WalletScreen> {
           ? const Center(child: CircularProgressIndicator(color: AppTokens.primary))
           : _wallet == null
               ? ErrorState(
-                  message: _error ?? 'خطأ في تحميل المحفظة',
+                  message: _error ?? strings.walletLoadError,
                   onRetry: _load,
                 )
               : ListView(
                   padding: const EdgeInsets.all(AppTokens.spaceMd),
                   children: [
-                    _buildBalanceHero(isDark, muted).animate().scale(
+                    _buildBalanceHero().animate().scale(
                           duration: 380.ms,
                           curve: Curves.easeOutBack,
                         ),
                     const SizedBox(height: AppTokens.spaceXl),
                     Text(
-                      'سجل المعاملات',
+                      strings.transactionHistoryTitle,
                       style: AppTokens.font(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                     const SizedBox(height: AppTokens.spaceMd),
                     if (_transactions.isEmpty)
-                      const EmptyState(
+                      EmptyState(
                         icon: Icons.account_balance_wallet_outlined,
-                        title: 'لا توجد معاملات سابقة بالمحفظة حتى الآن',
+                        title: strings.noTransactionsYet,
                       )
                     else
                       ..._transactions.map(
-                        (tx) => _buildTransactionRow(tx, panel, text, muted, border),
+                        (tx) => _buildTransactionRow(tx, go.panel, go.text, go.muted, go.border),
                       ),
                   ],
                 ),
@@ -317,7 +318,8 @@ class _WalletScreenState extends State<WalletScreen> {
   /// The balance hero is the most important number on screen — it gets a
   /// gradient card, an oversized numeral via AppTokens.money, and the single
   /// primary action at exactly primaryActionHeight.
-  Widget _buildBalanceHero(bool isDark, Color muted) {
+  Widget _buildBalanceHero() {
+    final strings = AppStrings.of(context);
     final nextPayout = _wallet?['nextPayoutWindow']?.toString();
     final weekTrips = (_wallet?['weekTrips'] as num?)?.toInt();
     final weekCommission = (_wallet?['weekCommission'] as num?)?.toDouble();
@@ -337,7 +339,7 @@ class _WalletScreenState extends State<WalletScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'الرصيد المتاح للسحب',
+            strings.availableBalanceHero,
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -357,7 +359,7 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
               const SizedBox(width: AppTokens.spaceXs),
               Text(
-                'ج.م',
+                strings.egp,
                 style: AppTokens.font(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -369,7 +371,7 @@ class _WalletScreenState extends State<WalletScreen> {
           if (nextPayout != null) ...[
             const SizedBox(height: AppTokens.space2xs),
             Text(
-              'موعد الصرف: $nextPayout',
+              strings.payoutWindowLine(nextPayout),
               style: AppTokens.font(
                 fontSize: 12,
                 color: Colors.white.withOpacity(0.7),
@@ -384,10 +386,10 @@ class _WalletScreenState extends State<WalletScreen> {
               spacing: AppTokens.spaceXs,
               children: [
                 if (weekTrips != null)
-                  _HeroChip(label: 'رحلات هذا الأسبوع: $weekTrips'),
+                  _HeroChip(label: strings.weekTripsChip(weekTrips)),
                 if (weekCommission != null)
                   _HeroChip(
-                    label: 'عمولة: ${weekCommission.toStringAsFixed(0)} ج.م',
+                    label: strings.weekCommissionChip(weekCommission.toStringAsFixed(0)),
                   ),
               ],
             ),
@@ -402,7 +404,7 @@ class _WalletScreenState extends State<WalletScreen> {
               onPressed: _requestPayout,
               icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
               label: Text(
-                'سحب الآن',
+                strings.withdrawNowAction,
                 style: AppTokens.font(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -431,10 +433,11 @@ class _WalletScreenState extends State<WalletScreen> {
     Color muted,
     Color border,
   ) {
+    final strings = AppStrings.of(context);
     final isCredit = tx['direction'] == 'credit';
     final amount = (tx['amount'] as num?)?.toDouble() ?? 0;
     final note = tx['note']?.toString() ??
-        (isCredit ? 'إضافة رصيد' : 'خصم معاملة');
+        (isCredit ? strings.creditNoteFallback : strings.debitNoteFallback);
 
     // substring(0,10) throws on timestamps shorter than 10 chars, so trim by
     // length rather than blindly slicing.
@@ -489,7 +492,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  pending ? '$date  •  قيد التنفيذ' : date,
+                  pending ? '$date  •  ${strings.pendingMarker}' : date,
                   style: AppTokens.font(
                     fontSize: 12,
                     color: pending ? AppTokens.accent : muted,
@@ -501,7 +504,7 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(width: AppTokens.spaceXs),
           // The amount in money-weight numerals so it pops against the label.
           Text(
-            '${isCredit ? "+" : "−"} ${amount.toStringAsFixed(0)} ج.م',
+            '${isCredit ? "+" : "−"} ${amount.toStringAsFixed(0)} ${strings.egp}',
             style: AppTokens.money(
               fontSize: 16,
               color: amountColor,
@@ -532,7 +535,7 @@ class _PayoutMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final go = GoTheme.of(context);
     return Material(
       color: surface,
       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
@@ -564,7 +567,7 @@ class _PayoutMethodTile extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 14,
-                color: isDark ? AppTokens.darkFaint : AppTokens.lightFaint,
+                color: go.muted,
               ),
             ],
           ),

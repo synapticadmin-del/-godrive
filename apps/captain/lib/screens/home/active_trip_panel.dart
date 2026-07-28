@@ -131,8 +131,9 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
       if (!mounted) return;
+      final strings = AppStrings.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذّر فتح تطبيق الاتصال')),
+        SnackBar(content: Text(strings.callOpenError)),
       );
     }
   }
@@ -154,12 +155,9 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final state = context.read<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : Colors.white;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     final status = widget.trip['status'] as String?;
     final fare = (widget.trip['final_fare'] as num?)?.toDouble() ??
@@ -172,7 +170,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppTokens.radiusXl),
         ),
@@ -196,7 +194,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: AppTokens.spaceMd),
                   decoration: BoxDecoration(
-                    color: border,
+                    color: go.border,
                     borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                   ),
                 ),
@@ -205,8 +203,8 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
               _StageStepper(
                 stages: _stages,
                 currentIndex: _stageIndex(status),
-                border: border,
-                muted: muted,
+                border: go.border,
+                muted: go.muted,
               ),
               const SizedBox(height: AppTokens.spaceMd),
 
@@ -219,7 +217,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                       style: AppTokens.font(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                   ),
@@ -229,21 +227,19 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? AppTokens.darkSurface
-                          : AppTokens.lightSurface,
+                      color: go.surface,
                       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.timer_outlined, size: 15, color: muted),
+                        Icon(Icons.timer_outlined, size: 15, color: go.muted),
                         const SizedBox(width: 5),
                         Text(
                           _formattedTime,
                           style: AppTokens.money(
                             fontSize: 15,
-                            color: text,
+                            color: go.text,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -254,7 +250,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
               ),
 
               const SizedBox(height: AppTokens.spaceMd),
-              _buildRiderRow(fare, text, muted, border, isDark),
+              _buildRiderRow(go, fare),
               const SizedBox(height: AppTokens.spaceMd),
               _buildNavRow(status),
               const SizedBox(height: AppTokens.spaceXs + 2),
@@ -304,23 +300,18 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     );
   }
 
-  Widget _buildRiderRow(
-    double fare,
-    Color text,
-    Color muted,
-    Color border,
-    bool isDark,
-  ) {
+  Widget _buildRiderRow(GoTheme go, double fare) {
+    final strings = AppStrings.of(context);
     final name = (widget.trip['rider_name'] as String?)?.trim();
     final phone = (widget.trip['rider_phone'] as String?)?.trim();
-    final displayName = (name == null || name.isEmpty) ? 'راكب' : name;
+    final displayName = (name == null || name.isEmpty) ? strings.riderFallbackName : name;
 
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceSm),
       decoration: BoxDecoration(
-        color: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
+        color: go.surface,
         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        border: Border.all(color: border),
+        border: Border.all(color: go.border),
       ),
       child: Row(
         children: [
@@ -347,22 +338,22 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTokens.font(
-                    color: text,
+                    color: go.text,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
                 ),
                 Text(
                   widget.trip['final_fare'] != null
-                      ? 'الأجرة النهائية'
-                      : 'الأجرة المقدرة',
-                  style: AppTokens.font(color: muted, fontSize: 11.5),
+                      ? strings.finalFareLabel
+                      : strings.estimatedFareLabel,
+                  style: AppTokens.font(color: go.muted, fontSize: 11.5),
                 ),
               ],
             ),
           ),
           Text(
-            '${fare.toStringAsFixed(0)} ج.م',
+            '${fare.toStringAsFixed(0)} ${strings.egp}',
             style: AppTokens.money(fontSize: 22, color: AppTokens.primary),
           ),
           const SizedBox(width: AppTokens.spaceSm),
@@ -372,11 +363,11 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
           // arriving over the live trip socket while the panel is up.
           _RoundActionButton(
             icon: Icons.chat_bubble_rounded,
-            color: isDark ? AppTokens.darkText : AppTokens.lightText,
-            background: isDark ? AppTokens.darkBg : AppTokens.lightBg,
-            borderColor: border,
+            color: go.text,
+            background: go.bg,
+            borderColor: go.border,
             badgeCount: _unreadMessages,
-            tooltip: 'محادثة الراكب',
+            tooltip: strings.riderChatLabel,
             onTap: _openChat,
           ),
           if (phone != null && phone.isNotEmpty) ...[
@@ -403,6 +394,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
   }
 
   Widget _buildNavRow(String? status) {
+    final strings = AppStrings.of(context);
     final headingToPickup = status == 'assigned' || status == 'arrived';
     final lat = (headingToPickup
             ? widget.trip['pickup_lat']
@@ -416,7 +408,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     return NavigationButton(
       lat: lat.toDouble(),
       lng: lng.toDouble(),
-      label: headingToPickup ? 'تنقّل إلى الراكب' : 'تنقّل إلى الوجهة',
+      label: headingToPickup ? strings.navToRider : strings.navToDestination,
     );
   }
 
@@ -425,39 +417,43 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     return i < 0 ? 0 : i;
   }
 
-  String _headingFor(String? status) => switch (status) {
-        'assigned' => 'في الطريق إلى الراكب',
-        'arrived' => 'في انتظار الراكب',
-        'in_progress' => 'الرحلة جارية',
-        _ => 'رحلة نشطة',
-      };
+  String _headingFor(String? status) {
+    final strings = AppStrings.of(context);
+    return switch (status) {
+      'assigned' => strings.tripHeadingToRider,
+      'arrived' => strings.tripWaitingForRider,
+      'in_progress' => strings.tripInProgress,
+      _ => strings.tripActiveFallback,
+    };
+  }
 
   _TripAction _actionFor(String? status, CaptainState state, double fare) {
+    final strings = AppStrings.of(context);
     switch (status) {
       case 'assigned':
         return _TripAction(
-          label: 'وصلت لنقطة الالتقاط',
+          label: strings.arrivedAtPickupAction,
           icon: Icons.place_rounded,
           color: AppTokens.primary,
           onPressed: () => _runAction(state.arrived),
         );
       case 'arrived':
         return _TripAction(
-          label: 'بدء الرحلة',
+          label: strings.startTripAction,
           icon: Icons.play_arrow_rounded,
           color: AppTokens.success,
           onPressed: () => _runAction(state.startTrip),
         );
       case 'in_progress':
         return _TripAction(
-          label: 'إنهاء الرحلة',
+          label: strings.endTripAction,
           icon: Icons.flag_rounded,
           color: AppTokens.accent,
           onPressed: () => _confirmComplete(state, fare),
         );
       default:
-        return const _TripAction(
-          label: 'جارٍ التحديث…',
+        return _TripAction(
+          label: strings.tripUpdatingAction,
           icon: Icons.hourglass_top_rounded,
           color: AppTokens.primary,
           onPressed: null,
@@ -468,43 +464,46 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
   Future<void> _confirmComplete(CaptainState state, double fare) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(
-          Icons.flag_circle_rounded,
-          color: AppTokens.success,
-          size: 34,
-        ),
-        title: const Text('تأكيد إنهاء الرحلة'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'الأجرة: ${fare.toStringAsFixed(2)} ج.م',
-              style: AppTokens.money(fontSize: 26, color: AppTokens.primary),
+      builder: (ctx) {
+        final strings = AppStrings.of(ctx);
+        return AlertDialog(
+          icon: const Icon(
+            Icons.flag_circle_rounded,
+            color: AppTokens.success,
+            size: 34,
+          ),
+          title: Text(strings.endTripConfirmTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                strings.tripFareLine(fare.toStringAsFixed(2)),
+                style: AppTokens.money(fontSize: 26, color: AppTokens.primary),
+              ),
+              const SizedBox(height: AppTokens.spaceXs),
+              Text(
+                strings.endTripConfirmQuestion,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(strings.cancelAction),
             ),
-            const SizedBox(height: AppTokens.spaceXs),
-            const Text(
-              'هل وصلت بالفعل إلى نقطة الوصول؟',
-              textAlign: TextAlign.center,
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTokens.success,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(140, AppTokens.tapTarget),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(strings.endTripConfirmYes),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTokens.success,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(140, AppTokens.tapTarget),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('نعم، إنهاء'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     if (ok == true) await _runAction(state.complete);
   }
@@ -610,10 +609,16 @@ class _StageStepper extends StatelessWidget {
   final Color border;
   final Color muted;
 
-  static const _labels = ['في الطريق', 'وصلت', 'جارية', 'اكتملت'];
-
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final labels = [
+      strings.stageEnRoute,
+      strings.stageArrived,
+      strings.stageUnderway,
+      strings.stageDone,
+    ];
+
     // The rail shows the three live stages plus the terminal "done" beat, so
     // the captain can see the finish line from the start.
     const total = 4;
@@ -675,7 +680,7 @@ class _StageStepper extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             Text(
-              _labels[index],
+              labels[index],
               style: AppTokens.font(
                 fontSize: 10.5,
                 fontWeight: active ? FontWeight.w800 : FontWeight.w500,

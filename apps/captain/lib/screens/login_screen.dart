@@ -50,7 +50,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   // ── Palette ─────────────────────────────────────────────────────────
   // Pinned to the night scale so the screen cannot be repainted by the
-  // ambient theme.
+  // ambient theme. These pins are exactly GoTheme's dark preset
+  // (nightBg/nightPanel/nightSurface/nightBorder/nightText/nightMuted +
+  // lime/onLime), so this screen already matches the design system's dark
+  // appearance token-for-token; GoTheme is left to screens that follow the
+  // ambient brightness, which this one deliberately does not.
   static const _bg = AppTokens.nightBg; // #0E0E10 page
   static const _panel = AppTokens.nightPanel; // #1A1A1D auth panel
   static const _fieldFill = AppTokens.nightSurface; // #26262B inputs

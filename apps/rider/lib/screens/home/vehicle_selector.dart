@@ -1,7 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Top-level service categories, shown as a horizontal strip above the search
@@ -147,11 +146,9 @@ class _CategoryChip extends StatelessWidget {
 
     // Frosted fill. Dark mode leans on a light veil over near-black; light
     // mode uses white so the blur reads as glass and not as haze.
-    final glassBase = go.isDark ? Colors.white : Colors.white;
+    const glassBase = Colors.white;
     final restingFill = glassBase.withOpacity(go.isDark ? 0.08 : 0.62);
-    final selectedFill = go.isDark
-        ? accent.withOpacity(0.26)
-        : accent.withOpacity(0.16);
+    final selectedFill = accent.withOpacity(go.isDark ? 0.26 : 0.16);
 
     final restingRim = glassBase.withOpacity(go.isDark ? 0.14 : 0.75);
     final selectedRim = accent.withOpacity(go.isDark ? 0.85 : 0.60);
@@ -163,82 +160,82 @@ class _CategoryChip extends StatelessWidget {
     return Opacity(
       opacity: enabled ? 1 : 0.42,
       child: ClipRRect(
-      borderRadius: borderRadius,
-      child: BackdropFilter(
-        // The blur is what turns a translucent fill into glass.
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          width: 86,
-          decoration: BoxDecoration(
-            color: selected ? selectedFill : restingFill,
-            borderRadius: borderRadius,
-            border: Border.all(
-              color: selected ? selectedRim : restingRim,
-              width: selected ? 1.4 : 1,
-            ),
-            // Glow on the active chip only; resting chips stay flat so the
-            // strip does not turn into a row of competing highlights.
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: accent.withOpacity(go.isDark ? 0.42 : 0.28),
-                      blurRadius: 16,
-                      spreadRadius: 0.5,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Material(
-            // Transparent so the frosted fill above remains visible; this
-            // exists purely to host the ink response.
-            color: Colors.transparent,
-            child: InkWell(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          // The blur is what turns a translucent fill into glass.
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            width: 86,
+            decoration: BoxDecoration(
+              color: selected ? selectedFill : restingFill,
               borderRadius: borderRadius,
-              onTap: onTap,
-              splashColor: accent.withOpacity(0.18),
-              highlightColor: accent.withOpacity(0.08),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 23,
-                      color: selected
-                          ? (go.isDark ? selectedFg : accent)
-                          : go.muted,
-                    ),
-                    const SizedBox(height: 5),
-                    // A suspended service shows "قريباً" in place of its name:
-                    // the icon already identifies the service, so the label
-                    // slot is better spent explaining why it can't be tapped.
-                    Text(
-                      enabled ? label : (comingSoonLabel ?? label),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.ibmPlexSansArabic(
-                        fontSize: enabled ? 12 : 11,
-                        fontWeight: selected && enabled
-                            ? FontWeight.w800
-                            : FontWeight.w500,
-                        fontStyle:
-                            enabled ? FontStyle.normal : FontStyle.italic,
-                        color: selected && enabled
-                            ? (go.isDark ? selectedFg : AppTokens.primaryDark)
+              border: Border.all(
+                color: selected ? selectedRim : restingRim,
+                width: selected ? 1.4 : 1,
+              ),
+              // Glow on the active chip only; resting chips stay flat so the
+              // strip does not turn into a row of competing highlights.
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: accent.withOpacity(go.isDark ? 0.42 : 0.28),
+                        blurRadius: 16,
+                        spreadRadius: 0.5,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Material(
+              // Transparent so the frosted fill above remains visible; this
+              // exists purely to host the ink response.
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: borderRadius,
+                onTap: onTap,
+                splashColor: accent.withOpacity(0.18),
+                highlightColor: accent.withOpacity(0.08),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 23,
+                        color: selected
+                            ? (go.isDark ? selectedFg : accent)
                             : go.muted,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 5),
+                      // A suspended service shows "قريباً" in place of its name:
+                      // the icon already identifies the service, so the label
+                      // slot is better spent explaining why it can't be tapped.
+                      Text(
+                        enabled ? label : (comingSoonLabel ?? label),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTokens.font(
+                          fontSize: enabled ? 12 : 11,
+                          fontWeight: selected && enabled
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                          fontStyle:
+                              enabled ? FontStyle.normal : FontStyle.italic,
+                          color: selected && enabled
+                              ? (go.isDark ? selectedFg : AppTokens.primaryDark)
+                              : go.muted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -247,8 +244,8 @@ class _CategoryChip extends StatelessWidget {
 /// Car-class picker shown inside the fare sheet once a route is priced.
 ///
 /// The public API ([fareEstimate], [onSelect]) is unchanged so existing
-/// callers keep working; the visuals now follow the active light/dark theme
-/// instead of being hardcoded to light surfaces.
+/// callers keep working; the visuals follow the active light/dark theme
+/// through [GoTheme] instead of any hardcoded surface.
 class VehicleSelector extends StatefulWidget {
   const VehicleSelector({
     super.key,
@@ -299,7 +296,7 @@ class _VehicleSelectorState extends State<VehicleSelector> {
           final selectedBorder = go.isDark ? go.action : AppTokens.primary;
           final selectedTint = go.isDark
               ? go.action.withOpacity(0.14)
-              : AppTokens.primaryLight;
+              : AppTokens.primarySoft;
 
           return GestureDetector(
             onTap: () {
@@ -330,7 +327,7 @@ class _VehicleSelectorState extends State<VehicleSelector> {
                   const SizedBox(height: 7),
                   Text(
                     isAr ? v.ar : v.en,
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 13,
                       color: go.text,
                       fontWeight:
@@ -340,7 +337,7 @@ class _VehicleSelectorState extends State<VehicleSelector> {
                   const SizedBox(height: 2),
                   Text(
                     isAr ? '$price ج.م' : '$price EGP',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                       color: isSelected

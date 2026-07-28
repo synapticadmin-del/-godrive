@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
@@ -187,27 +186,23 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final strings = AppStrings.of(context);
+    final go = GoTheme.of(context);
 
     return Scaffold(
-      backgroundColor: isDark ? AppTokens.darkBg : AppTokens.lightBg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'محادثة الراكب',
-          style: GoogleFonts.ibmPlexSansArabic(
+          strings.chatTitle,
+          style: AppTokens.font(
             fontWeight: FontWeight.w800,
-            color: text,
+            color: go.text,
           ),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: text),
+        iconTheme: IconThemeData(color: go.text),
       ),
       body: Column(
         children: [
@@ -219,10 +214,10 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         child: Padding(
                           padding: const EdgeInsets.all(AppTokens.spaceLg),
                           child: Text(
-                            'لا توجد رسائل بعد.\nابدأ المحادثة مع الراكب.',
+                            strings.chatEmptyBody,
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.ibmPlexSansArabic(
-                              color: muted,
+                            style: AppTokens.font(
+                              color: go.muted,
                               fontSize: 14,
                             ),
                           ),
@@ -240,9 +235,9 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                           // belongs — just above the composer.
                           if (_riderTyping && index == 0) {
                             return _TypingBubble(
-                              surface: surface,
-                              border: border,
-                              muted: muted,
+                              surface: go.surface,
+                              border: go.border,
+                              muted: go.muted,
                             );
                           }
                           final msg = _messages[_riderTyping ? index - 1 : index];
@@ -263,18 +258,18 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                                     MediaQuery.of(context).size.width * 0.74,
                               ),
                               decoration: BoxDecoration(
-                                color: isMine ? AppTokens.primary : surface,
+                                color: isMine ? AppTokens.primary : go.surface,
                                 borderRadius: BorderRadius.circular(
                                   AppTokens.radiusMd,
                                 ),
                                 border: isMine
                                     ? null
-                                    : Border.all(color: border),
+                                    : Border.all(color: go.border),
                               ),
                               child: Text(
                                 msg['body']?.toString() ?? '',
-                                style: GoogleFonts.ibmPlexSansArabic(
-                                  color: isMine ? Colors.white : text,
+                                style: AppTokens.font(
+                                  color: isMine ? Colors.white : go.text,
                                   fontSize: 14.5,
                                 ),
                               ),
@@ -291,8 +286,8 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
               AppTokens.spaceMd,
             ),
             decoration: BoxDecoration(
-              color: panel,
-              border: Border(top: BorderSide(color: border)),
+              color: go.panel,
+              border: Border(top: BorderSide(color: go.border)),
             ),
             child: SafeArea(
               top: false,
@@ -302,14 +297,14 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                     child: TextField(
                       controller: _msgCtrl,
                       onChanged: _onMessageChanged,
-                      style: GoogleFonts.ibmPlexSansArabic(color: text),
+                      style: AppTokens.font(color: go.text),
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
-                        hintText: 'اكتب رسالة...',
-                        hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted),
+                        hintText: strings.chatComposerHint,
+                        hintStyle: AppTokens.font(color: go.muted),
                         filled: true,
-                        fillColor: surface,
+                        fillColor: go.surface,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 12,
@@ -317,12 +312,12 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         border: OutlineInputBorder(
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusMd),
-                          borderSide: BorderSide(color: border),
+                          borderSide: BorderSide(color: go.border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusMd),
-                          borderSide: BorderSide(color: border),
+                          borderSide: BorderSide(color: go.border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius:
@@ -384,6 +379,7 @@ class _TypingBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -400,8 +396,8 @@ class _TypingBubble extends StatelessWidget {
             _dot(), _dot(), _dot(),
             const SizedBox(width: 8),
             Text(
-              'جاري الكتابة…',
-              style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12.5),
+              strings.chatTyping,
+              style: AppTokens.font(color: muted, fontSize: 12.5),
             ),
           ],
         ),

@@ -52,6 +52,10 @@ class AppTokens {
   static const sos = Color(0xFFDC2626); // 4.83:1 on white
   static const info = Color(0xFF1D6DBE);
 
+  /// Full-bleed emergency backdrop — a near-black red that keeps the SOS
+  /// screen unmistakable even in peripheral vision, day or night.
+  static const sosBackdrop = Color(0xFF1A0000);
+
   // Badge pairs — dark text on a light tint, all >= 6:1.
   static const badgePendingText = Color(0xFF78350F);
   static const badgePendingBg = Color(0xFFFEF3C7);
@@ -104,6 +108,16 @@ class AppTokens {
   static const lime = Color(0xFFC1F11D);
   static const limePressed = Color(0xFFA9D617);
   static const onLime = Color(0xFF101010);
+
+  // ── Splash / launch backdrop ──
+  // The brand moment before either app hands off to its first themed screen.
+  // A near-black field lit by two brand-green sources; referencing these from
+  // the token ramp keeps the splash in the design system instead of
+  // re-inventing one-off hex per app.
+  static const splashBg = Color(0xFF0C1A08);
+  static const splashGlowStart = Color(0xFF2C5518);
+  static const splashGlowTint = Color(0x333E7A22);
+  static const splashFade = Color(0x000C1A08);
 
   // ── Map & route rendering ──
   static const routeLine = Color(0xFF4E842D);      // route on light basemap

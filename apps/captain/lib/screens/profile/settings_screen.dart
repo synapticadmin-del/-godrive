@@ -15,18 +15,17 @@ import '../safety/sos_screen.dart';
 ///   4. A visually distinct danger-colour logout button that asks for
 ///      confirmation before acting — destructive actions should never fire on
 ///      an accidental tap.
+///
+/// All copy is read from [AppStrings] (resolved from the ambient locale) so
+/// this file carries no inline Arabic literals — see `app_strings.dart`.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     final captain = state.captain;
     final approval = captain?['approval_status'] ?? captain?['status'];
@@ -48,7 +47,7 @@ class SettingsScreen extends StatelessWidget {
     final initial = hasName ? captainName[0].toUpperCase() : 'C';
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       body: ListView(
         padding: EdgeInsets.only(
           top: MediaQuery.of(context).padding.top + AppTokens.spaceMd,
@@ -80,11 +79,11 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        hasName ? captainName : 'كابتن',
+                        hasName ? captainName : strings.captainFallbackName,
                         style: AppTokens.font(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: text,
+                          color: go.text,
                         ),
                       ),
                       const SizedBox(height: AppTokens.space2xs),
@@ -98,16 +97,16 @@ class SettingsScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: isApproved
-                                  ? (state.online ? AppTokens.success : muted)
+                                  ? (state.online ? AppTokens.success : go.muted)
                                   : AppTokens.accent,
                             ),
                           ),
                           const SizedBox(width: 6),
                           Text(
                             isApproved
-                                ? (state.online ? 'متصل' : 'غير متصل')
-                                : 'بانتظار الموافقة',
-                            style: AppTokens.font(fontSize: 13, color: muted),
+                                ? (state.online ? strings.online : strings.offline)
+                                : strings.pendingApproval,
+                            style: AppTokens.font(fontSize: 13, color: go.muted),
                           ),
                         ],
                       ),
@@ -133,11 +132,11 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.star_rounded,
                     iconColor: AppTokens.warning,
                     value: rating,
-                    label: 'التقييم',
-                    panel: panel,
-                    text: text,
-                    muted: muted,
-                    border: border,
+                    label: strings.ratingLabel,
+                    panel: go.panel,
+                    text: go.text,
+                    muted: go.muted,
+                    border: go.border,
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceXs),
@@ -146,11 +145,11 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.directions_car_rounded,
                     iconColor: AppTokens.info,
                     value: tripCount,
-                    label: 'رحلات',
-                    panel: panel,
-                    text: text,
-                    muted: muted,
-                    border: border,
+                    label: strings.tripsLabel,
+                    panel: go.panel,
+                    text: go.text,
+                    muted: go.muted,
+                    border: go.border,
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceXs),
@@ -160,12 +159,12 @@ class SettingsScreen extends StatelessWidget {
                         ? Icons.verified_rounded
                         : Icons.hourglass_top_rounded,
                     iconColor: isApproved ? AppTokens.success : AppTokens.accent,
-                    value: isApproved ? 'معتمد' : 'مراجعة',
-                    label: 'الحالة',
-                    panel: panel,
-                    text: text,
-                    muted: muted,
-                    border: border,
+                    value: isApproved ? strings.approvedValue : strings.underReviewValue,
+                    label: strings.statusLabelKey,
+                    panel: go.panel,
+                    text: go.text,
+                    muted: go.muted,
+                    border: go.border,
                   ),
                 ),
               ],
@@ -176,25 +175,25 @@ class SettingsScreen extends StatelessWidget {
 
           // ── Vehicle information ─────────────────────────────────────────
           if (vehicleMake.isNotEmpty || vehiclePlate.isNotEmpty) ...[
-            _SectionTitle(title: 'معلومات المركبة', muted: muted),
-            _SettingsCard(panel: panel, border: border, children: [
+            _SectionTitle(title: strings.vehicleInfoTitle, muted: go.muted),
+            _SettingsCard(panel: go.panel, border: go.border, children: [
               _InfoRow(
                 icon: Icons.directions_car_rounded,
                 iconColor: AppTokens.primary,
-                title: 'المركبة',
+                title: strings.vehicleLabel,
                 value: '$vehicleMake $vehicleModel'.trim(),
-                text: text,
-                muted: muted,
+                text: go.text,
+                muted: go.muted,
               ),
               if (vehiclePlate.isNotEmpty) ...[
-                _RowDivider(border: border),
+                _RowDivider(border: go.border),
                 _InfoRow(
                   icon: Icons.pin_rounded,
                   iconColor: AppTokens.primary,
-                  title: 'اللوحة',
+                  title: strings.plateLabel,
                   value: vehiclePlate,
-                  text: text,
-                  muted: muted,
+                  text: go.text,
+                  muted: go.muted,
                 ),
               ],
             ]),
@@ -202,16 +201,16 @@ class SettingsScreen extends StatelessWidget {
           ],
 
           // ── Documents ──────────────────────────────────────────────────
-          _SectionTitle(title: 'المستندات', muted: muted),
-          _SettingsCard(panel: panel, border: border, children: [
+          _SectionTitle(title: strings.documentsTitle, muted: go.muted),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
             _NavRow(
               icon: Icons.upload_file_rounded,
               iconColor: AppTokens.primary,
-              title: 'رفع المستندات',
-              subtitle: 'رخصة + بطاقة + فيش',
-              text: text,
-              muted: muted,
-              border: border,
+              title: strings.uploadDocuments,
+              subtitle: strings.uploadDocumentsSubtitle,
+              text: go.text,
+              muted: go.muted,
+              border: go.border,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -224,16 +223,16 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceLg),
 
           // ── Safety ─────────────────────────────────────────────────────
-          _SectionTitle(title: 'الأمان', muted: muted),
-          _SettingsCard(panel: panel, border: border, children: [
+          _SectionTitle(title: strings.safetyTitle, muted: go.muted),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
             _NavRow(
               icon: Icons.sos_rounded,
               iconColor: AppTokens.sos,
-              title: 'زر الطوارئ SOS',
-              subtitle: 'تنبيه فوري للدعم',
-              text: text,
-              muted: muted,
-              border: border,
+              title: strings.sosButton,
+              subtitle: strings.sosSubtitle,
+              text: go.text,
+              muted: go.muted,
+              border: go.border,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const SosScreen()),
@@ -244,10 +243,10 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceLg),
 
           // ── Appearance & language ───────────────────────────────────────
-          _SectionTitle(title: 'المظهر واللغة', muted: muted),
+          _SectionTitle(title: strings.appearanceTitle, muted: go.muted),
           _SettingsCard(
-            panel: panel,
-            border: border,
+            panel: go.panel,
+            border: go.border,
             children: [
               SwitchListTile(
                 contentPadding: const EdgeInsetsDirectional.only(
@@ -260,16 +259,16 @@ class SettingsScreen extends StatelessWidget {
                   size: 22,
                 ),
                 title: Text(
-                  'الوضع الداكن',
-                  style: AppTokens.font(color: text, fontSize: 14),
+                  strings.darkMode,
+                  style: AppTokens.font(color: go.text, fontSize: 14),
                 ),
                 value: state.themeMode == ThemeMode.dark ||
-                    (state.themeMode == ThemeMode.system && isDark),
+                    (state.themeMode == ThemeMode.system && go.isDark),
                 activeColor: AppTokens.primary,
                 onChanged: (val) =>
                     state.setThemeMode(val ? ThemeMode.dark : ThemeMode.light),
               ),
-              _RowDivider(border: border),
+              _RowDivider(border: go.border),
               ListTile(
                 contentPadding: const EdgeInsetsDirectional.only(
                   start: AppTokens.spaceMd,
@@ -282,12 +281,14 @@ class SettingsScreen extends StatelessWidget {
                   size: 22,
                 ),
                 title: Text(
-                  'اللغة',
-                  style: AppTokens.font(color: text, fontSize: 14),
+                  strings.languageLabel,
+                  style: AppTokens.font(color: go.text, fontSize: 14),
                 ),
                 trailing: Text(
-                  state.locale.languageCode == 'ar' ? 'العربية' : 'English',
-                  style: AppTokens.font(color: muted, fontSize: 13),
+                  state.locale.languageCode == 'ar'
+                      ? strings.arabicLanguage
+                      : strings.englishLanguage,
+                  style: AppTokens.font(color: go.muted, fontSize: 13),
                 ),
                 onTap: () => state.setLocale(
                   Locale(state.locale.languageCode == 'ar' ? 'en' : 'ar'),
@@ -299,24 +300,24 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceLg),
 
           // ── About ──────────────────────────────────────────────────────
-          _SectionTitle(title: 'معلومات', muted: muted),
-          _SettingsCard(panel: panel, border: border, children: [
+          _SectionTitle(title: strings.aboutTitle, muted: go.muted),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
             _InfoRow(
               icon: Icons.info_rounded,
               iconColor: AppTokens.info,
-              title: 'عن التطبيق',
+              title: strings.aboutApp,
               value: 'GoDrive v1.0.0',
-              text: text,
-              muted: muted,
+              text: go.text,
+              muted: go.muted,
             ),
-            _RowDivider(border: border),
+            _RowDivider(border: go.border),
             _InfoRow(
               icon: Icons.privacy_tip_rounded,
               iconColor: AppTokens.primary,
-              title: 'سياسة الخصوصية',
+              title: strings.privacyPolicy,
               value: '',
-              text: text,
-              muted: muted,
+              text: go.text,
+              muted: go.muted,
             ),
           ]),
 
@@ -334,7 +335,7 @@ class SettingsScreen extends StatelessWidget {
                 onPressed: () => _confirmLogout(context, state),
                 icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
                 label: Text(
-                  'تسجيل الخروج',
+                  strings.logout,
                   style: AppTokens.font(
                     color: Colors.white,
                     fontSize: 16,
@@ -363,22 +364,23 @@ class SettingsScreen extends StatelessWidget {
   /// captain mid-trip could accidentally disconnect themselves from an active
   /// ride. An extra tap costs nothing; an accidental logout costs a trip.
   Future<void> _confirmLogout(BuildContext context, CaptainState state) async {
+    final strings = AppStrings.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'تسجيل الخروج',
+          strings.logout,
           style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700),
         ),
         content: Text(
-          'هل أنت متأكد أنك تريد تسجيل الخروج؟',
+          strings.logoutConfirmMessage,
           style: AppTokens.font(fontSize: 14, height: 1.6),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              'إلغاء',
+              strings.cancelAction,
               style: AppTokens.font(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -389,7 +391,7 @@ class SettingsScreen extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
-              'خروج',
+              strings.exitAction,
               style: AppTokens.font(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,

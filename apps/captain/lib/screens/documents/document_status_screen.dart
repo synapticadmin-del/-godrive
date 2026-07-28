@@ -95,29 +95,25 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final state = context.watch<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     final approval =
         (state.captain?['approval_status'] ?? state.captain?['status'])?.toString();
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'حالة المستندات',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text),
+          strings.documentsStatusTooltip,
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
-            tooltip: 'تحديث',
+            tooltip: strings.refresh,
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loading
                 ? null
@@ -139,20 +135,18 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(AppTokens.spaceMd),
                 children: [
-                  _buildAccountBanner(approval, text, muted),
+                  _buildAccountBanner(approval, go.text, go.muted, strings),
                   if (_rejectedDocs.isNotEmpty) ...[
                     const SizedBox(height: AppTokens.spaceMd),
-                    _buildRejectionAlert(text, muted),
+                    _buildRejectionAlert(go.text, go.muted, strings),
                   ],
                   const SizedBox(height: AppTokens.spaceMd),
                   ..._docTypes.map((d) => _buildStatusRow(
                         d['type'] as String,
                         d['title'] as String,
                         d['icon'] as IconData,
-                        panel,
-                        text,
-                        muted,
-                        border,
+                        go,
+                        strings,
                       )),
                 ],
               ),
@@ -162,7 +156,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
 
   /// Where the whole application stands — the one line a captain opens this
   /// screen to see.
-  Widget _buildAccountBanner(String? approval, Color text, Color muted) {
+  Widget _buildAccountBanner(String? approval, Color text, Color muted, AppStrings strings) {
     final Color tone;
     final Color toneBg;
     final IconData icon;
@@ -173,20 +167,20 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
         tone = AppTokens.success;
         toneBg = AppTokens.badgeApprovedBg;
         icon = Icons.verified_rounded;
-        title = 'تم اعتماد حسابك';
-        subtitle = 'يمكنك الآن استقبال الرحلات والبدء في الكسب.';
+        title = strings.accountApprovedTitle;
+        subtitle = strings.accountApprovedSubtitle;
       case 'rejected':
         tone = AppTokens.danger;
         toneBg = AppTokens.badgeStoppedBg;
         icon = Icons.gpp_bad_rounded;
-        title = 'تم رفض الطلب';
-        subtitle = 'عالج المستندات المرفوضة بالأسفل وأعد رفعها لإعادة المراجعة.';
+        title = strings.accountRejectedTitle;
+        subtitle = strings.accountRejectedSubtitle;
       default:
         tone = AppTokens.warning;
         toneBg = AppTokens.badgePendingBg;
         icon = Icons.hourglass_top_rounded;
-        title = 'حسابك قيد المراجعة';
-        subtitle = 'سنخطرك فور اكتمال مراجعة مستنداتك.';
+        title = strings.accountUnderReviewTitle;
+        subtitle = strings.accountUnderReviewSubtitle;
     }
 
     return Container(
@@ -227,7 +221,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
 
   /// Aggregate rejection summary with the exact admin reason per document and a
   /// single, unmissable path back to re-uploading.
-  Widget _buildRejectionAlert(Color text, Color muted) {
+  Widget _buildRejectionAlert(Color text, Color muted, AppStrings strings) {
     final rejected = _rejectedDocs;
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceMd),
@@ -246,8 +240,8 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
               Expanded(
                 child: Text(
                   rejected.length == 1
-                      ? 'مستند مرفوض'
-                      : 'مستندات مرفوضة (${rejected.length})',
+                      ? strings.docRejectedTitleSingle
+                      : strings.docRejectedTitleCount(rejected.length),
                   style: AppTokens.font(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -277,8 +271,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    reason ??
-                        'لم يذكر المشرف سبباً محدداً — يرجى رفع صورة أوضح وسليمة.',
+                    reason ?? strings.docNoReasonFallback,
                     style: AppTokens.font(
                       fontSize: 12.5,
                       color: AppTokens.badgeStoppedText,
@@ -296,7 +289,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
               onPressed: _goReupload,
               icon: const Icon(Icons.upload_rounded, size: 18),
               label: Text(
-                'إعادة الرفع',
+                strings.docReuploadAction,
                 style: AppTokens.font(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -322,10 +315,8 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
     String type,
     String title,
     IconData icon,
-    Color panel,
-    Color text,
-    Color muted,
-    Color border,
+    GoTheme go,
+    AppStrings strings,
   ) {
     final status = _docStatus(type);
 
@@ -338,27 +329,27 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
       case 'approved':
         badgeText = AppTokens.badgeApprovedText;
         badgeBg = AppTokens.badgeApprovedBg;
-        statusLabel = 'مقبول';
+        statusLabel = strings.docStatusApproved;
         statusIcon = Icons.check_circle_rounded;
         cardBorder = AppTokens.success.withOpacity(0.25);
       case 'pending':
         badgeText = AppTokens.badgePendingText;
         badgeBg = AppTokens.badgePendingBg;
-        statusLabel = 'قيد المراجعة';
+        statusLabel = strings.docStatusPending;
         statusIcon = Icons.hourglass_top_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
       case 'rejected':
         badgeText = AppTokens.badgeStoppedText;
         badgeBg = AppTokens.badgeStoppedBg;
-        statusLabel = 'مرفوض';
+        statusLabel = strings.docStatusRejected;
         statusIcon = Icons.error_rounded;
         cardBorder = AppTokens.danger.withOpacity(0.3);
       default:
-        badgeText = muted;
-        badgeBg = AppTokens.lightSurface;
-        statusLabel = 'لم يتم الرفع';
+        badgeText = go.muted;
+        badgeBg = go.surface;
+        statusLabel = strings.docStatusMissing;
         statusIcon = Icons.cloud_upload_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
     }
 
     final reason = _rejectionReason(type);
@@ -368,7 +359,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
       margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
       padding: const EdgeInsets.all(AppTokens.spaceMd),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
         border: Border.all(color: cardBorder),
         boxShadow: AppTokens.shadowCard,
@@ -397,7 +388,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                       style: AppTokens.font(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                     const SizedBox(height: AppTokens.space2xs),
@@ -440,7 +431,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                           : AppTokens.primary,
                     ),
                     label: Text(
-                      status == 'rejected' ? 'إعادة الرفع' : 'رفع',
+                      status == 'rejected' ? strings.docReuploadAction : strings.docUploadAction,
                       style: AppTokens.font(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -472,8 +463,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                   const SizedBox(width: AppTokens.spaceXs),
                   Expanded(
                     child: Text(
-                      reason ??
-                          'لم يذكر المشرف سبباً محدداً — يرجى رفع صورة أوضح وسليمة.',
+                      reason ?? strings.docNoReasonFallback,
                       style: AppTokens.font(
                         fontSize: 12.5,
                         color: AppTokens.badgeStoppedText,

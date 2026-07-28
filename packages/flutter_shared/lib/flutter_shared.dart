@@ -7,6 +7,7 @@ export 'models/trip.dart';
 export 'services/api_client.dart';
 export 'services/fcm_service.dart';
 export 'theme/app_theme.dart';
+export 'l10n/app_strings.dart';
 export 'widgets/main_bottom_nav.dart';
 export 'widgets/empty_state.dart';
 export 'widgets/error_state.dart';
