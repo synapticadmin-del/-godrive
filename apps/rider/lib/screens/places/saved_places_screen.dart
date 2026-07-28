@@ -70,14 +70,12 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
   }
 
   void _showAddDialog() {
-    final nameCtrl = TextEditingController();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _PickLocationScreen(
-          onConfirm: (lat, lng, address) {
-            _addPlace(nameCtrl.text.isEmpty ? 'مكان' : nameCtrl.text, lat, lng, address);
+          onConfirm: (name, lat, lng, address) {
+            _addPlace(name, lat, lng, address);
           },
-          nameController: nameCtrl,
         ),
       ),
     );
@@ -157,11 +155,13 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
 /// Tapping to place a pin was replaced because a fingertip covers roughly 40
 /// logical pixels — at street zoom that is most of a block, so riders were
 /// saving a point near, but not at, the doorway they meant.
+///
+/// The picker owns its own name controller (created and disposed here) so a
+/// text field is never leaked across a route boundary.
 class _PickLocationScreen extends StatefulWidget {
-  final TextEditingController nameController;
-  final void Function(double lat, double lng, String address) onConfirm;
+  final void Function(String name, double lat, double lng, String address) onConfirm;
 
-  const _PickLocationScreen({required this.nameController, required this.onConfirm});
+  const _PickLocationScreen({required this.onConfirm});
 
   @override
   State<_PickLocationScreen> createState() => _PickLocationScreenState();
@@ -170,6 +170,7 @@ class _PickLocationScreen extends StatefulWidget {
 class _PickLocationScreenState extends State<_PickLocationScreen> {
   final MapController _mapController = MapController();
   final Debouncer _debouncer = Debouncer(milliseconds: 450);
+  final TextEditingController _nameCtrl = TextEditingController();
 
   /// The map centre is the chosen point, so this is only used to seed the
   /// initial camera position.
@@ -177,6 +178,12 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
   String _address = '';
   bool _geocoding = false;
   bool _ready = false;
+
+  /// The centre that [_address] was geocoded FROM. Kept in lockstep with the
+  /// address so tapping "حفظ المكان" mid-pan never pairs fresh coordinates
+  /// with a stale street name.
+  LatLng? _resolvedCentre;
+  int _addrRequestId = 0;
 
   late final LocationService _locations;
 
@@ -190,6 +197,7 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
   @override
   void dispose() {
     _debouncer.dispose();
+    _nameCtrl.dispose();
     super.dispose();
   }
 
@@ -233,11 +241,13 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
   }
 
   Future<void> _reverseGeocode(LatLng point) async {
+    final requestId = ++_addrRequestId;
     setState(() => _geocoding = true);
     final address = await _locations.reverseGeocode(point);
-    if (!mounted) return;
+    if (!mounted || requestId != _addrRequestId) return;
     setState(() {
       _address = address ?? LocationService.coordinateLabel(point);
+      _resolvedCentre = point;
       _geocoding = false;
     });
   }
@@ -353,7 +363,7 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     TextField(
-                      controller: widget.nameController,
+                      controller: _nameCtrl,
                       decoration: InputDecoration(
                         hintText: 'اسم المكان (المنزل، العمل...)',
                         hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
@@ -384,16 +394,21 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                     SizedBox(
                       width: double.infinity, height: 48,
                       child: ElevatedButton(
-                        // The map centre is always a valid point once the
-                        // camera is ready, so this only guards the first frame.
+                        // Use the centre that the displayed address was
+                        // geocoded from. Falling back to the live camera only
+                        // covers the first frame before the reverse geocode
+                        // returns; after that, the resolved pair keeps the
+                        // saved coordinates and the shown address in sync even
+                        // if the rider pans and taps quickly.
                         onPressed: !_ready
                             ? null
                             : () {
-                                final centre = _mapController.camera.center;
+                                final centre = _resolvedCentre ?? _mapController.camera.center;
                                 final label = _address.isNotEmpty
                                     ? _address
                                     : LocationService.coordinateLabel(centre);
-                                widget.onConfirm(centre.latitude, centre.longitude, label);
+                                final name = _nameCtrl.text.trim().isEmpty ? 'مكان' : _nameCtrl.text.trim();
+                                widget.onConfirm(name, centre.latitude, centre.longitude, label);
                                 Navigator.pop(context);
                               },
                         style: ElevatedButton.styleFrom(
