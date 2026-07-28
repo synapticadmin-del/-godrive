@@ -86,6 +86,7 @@ key.properties
 # ------------------------------------------
 .idea/
 .vscode/
+.zcode/
 *.iml
 *.ipr
 *.iws

@@ -8,7 +8,9 @@ export const requestOtpSchema = z
       .max(30)
       .optional()
       .transform((s) => (s ? s.replace(/[\s-]/g, "") : s)),
-    role: z.enum(["rider", "captain", "admin"]).default("rider"),
+    // Admin accounts are provisioned manually in D1 by the team; the public
+    // OTP flow must never be able to mint or enumerate an admin role.
+    role: z.enum(["rider", "captain"]).default("rider"),
     name: z.string().max(120).optional(),
     turnstileToken: z.string().max(2048).optional(),
   })
