@@ -32,11 +32,10 @@ import '../services/captain_state.dart';
 ///
 /// ## Layout
 ///
-/// Follows the reference: a hero area up top that pages between two slides
-/// (dot indicators beneath), then the auth panel. The hero currently shows
-/// the app icon as a deliberate placeholder — swap the artwork in
-/// `_HeroSlide` for real illustrations when they are designed; nothing else
-/// needs to change.
+/// Follows the inDrive reference: a hero area up top that pages between two
+/// illustrated slides (dot indicators beneath), then the auth panel. The
+/// hero now uses friendly character illustrations instead of the bare icon
+/// placeholder.
 ///
 /// Validation behaviour, Egyptian `+20` phone rules and the enforced terms
 /// checkbox are all preserved from the previous revision.
@@ -49,20 +48,14 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   // ── Palette ─────────────────────────────────────────────────────────
-  // Pinned to the night scale so the screen cannot be repainted by the
-  // ambient theme. These pins are exactly GoTheme's dark preset
-  // (nightBg/nightPanel/nightSurface/nightBorder/nightText/nightMuted +
-  // lime/onLime), so this screen already matches the design system's dark
-  // appearance token-for-token; GoTheme is left to screens that follow the
-  // ambient brightness, which this one deliberately does not.
-  static const _bg = AppTokens.nightBg; // #0E0E10 page
-  static const _panel = AppTokens.nightPanel; // #1A1A1D auth panel
-  static const _fieldFill = AppTokens.nightSurface; // #26262B inputs
-  static const _border = AppTokens.nightBorder; // #34343B hairlines
-  static const _text = AppTokens.nightText; // #F5F5F7 body
-  static const _muted = AppTokens.nightMuted; // #9A9AA2 hints
-  static const _action = AppTokens.lime; // #C1F11D CTA
-  static const _onAction = AppTokens.onLime; // #101010 on CTA
+  static const _bg = AppTokens.nightBg;
+  static const _panel = AppTokens.nightPanel;
+  static const _fieldFill = AppTokens.nightSurface;
+  static const _border = AppTokens.nightBorder;
+  static const _text = AppTokens.nightText;
+  static const _muted = AppTokens.nightMuted;
+  static const _action = AppTokens.lime;
+  static const _onAction = AppTokens.onLime;
 
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
@@ -93,8 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusScope.of(context).unfocus();
     setState(() {
       _isSignUp = signUp;
-      // Clear validation state so switching modes does not surface errors
-      // for fields the captain has not seen yet.
       _formKey.currentState?.reset();
     });
   }
@@ -145,7 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Light icons: this screen is a dark canvas, unconditionally.
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -202,27 +192,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ── Hero carousel ───────────────────────────────────────────────────
 
-  /// Two slides the captain can swipe between, with dot indicators beneath.
-  ///
-  /// The artwork slot is intentionally a placeholder: it renders the app
-  /// icon inside a rounded lime-tinted stage. When real illustrations land,
-  /// replace the artwork in `_HeroSlide` and delete the icon fallback.
   Widget _buildHero() {
     const slides = <_HeroCopy>[
       _HeroCopy(
         title: 'اكسب على طريقتك',
         body: 'اقبل الرحلات القريبة منك، وحدّد سعرك،\nواسحب أرباحك في أي وقت.',
+        image: 'assets/images/login_hero_earn.png',
       ),
       _HeroCopy(
         title: 'سلامتك هي أولويتنا',
         body: 'زر الطوارئ متاح في كل رحلة،\nوكل راكب موثّق قبل الحجز.',
+        image: 'assets/images/login_hero_safety.png',
       ),
     ];
 
     return Column(
       children: [
         SizedBox(
-          height: 296,
+          height: 300,
           child: PageView.builder(
             controller: _heroCtrl,
             itemCount: slides.length,
@@ -262,7 +249,6 @@ class _LoginScreenState extends State<LoginScreen> {
             _ModeSwitch(isSignUp: _isSignUp, onChanged: _setMode),
             const SizedBox(height: AppTokens.spaceLg),
 
-            // Join-only identity fields.
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOut,
@@ -475,9 +461,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ── Fields ──────────────────────────────────────────────────────────
 
-  /// Every visual property is declared here rather than inherited, which is
-  /// what keeps the fields from repainting themselves when the ambient
-  /// `themeMode` changes.
   InputDecoration _decoration({
     required String hint,
     Widget? prefix,
@@ -543,8 +526,6 @@ class _LoginScreenState extends State<LoginScreen> {
       textInputAction: TextInputAction.next,
       autovalidateMode: AutovalidateMode.onUserInteraction,
       cursorColor: _action,
-      // Egyptian mobile numbers are 11 digits (01X XXXX XXXX). Anything
-      // non-numeric is stripped at the source rather than rejected later.
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(11),
@@ -593,18 +574,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
 /// Copy for one hero slide.
 class _HeroCopy {
-  const _HeroCopy({required this.title, required this.body});
+  const _HeroCopy({
+    required this.title,
+    required this.body,
+    required this.image,
+  });
 
   final String title;
   final String body;
+  final String image;
 }
 
-/// One page of the hero carousel.
-///
-/// The artwork is a **placeholder**: a lime-tinted rounded stage carrying the
-/// app icon. Swap the `Image.asset` below for per-slide illustration assets
-/// once they exist — the surrounding layout, sizing and dot indicator need no
-/// changes.
+/// One page of the hero carousel — friendly illustrated artwork with
+/// headline and supporting copy, matching the inDrive auth pattern.
 class _HeroSlide extends StatelessWidget {
   const _HeroSlide({required this.copy});
 
@@ -617,23 +599,27 @@ class _HeroSlide extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Artwork placeholder — reserved space for the real illustration.
-          Container(
-            width: 132,
-            height: 132,
-            decoration: BoxDecoration(
-              color: AppTokens.lime.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(36),
-              border: Border.all(color: AppTokens.lime.withOpacity(0.22)),
-            ),
-            padding: const EdgeInsets.all(24),
+          // Friendly illustrated artwork.
+          ClipRRect(
+            borderRadius: BorderRadius.circular(28),
             child: Image.asset(
-              'assets/images/godrive_logo.png',
+              copy.image,
+              width: 148,
+              height: 148,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.navigation_rounded,
-                size: 52,
-                color: AppTokens.lime,
+              errorBuilder: (_, __, ___) => Container(
+                width: 132,
+                height: 132,
+                decoration: BoxDecoration(
+                  color: AppTokens.lime.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(36),
+                  border: Border.all(color: AppTokens.lime.withOpacity(0.22)),
+                ),
+                child: const Icon(
+                  Icons.navigation_rounded,
+                  size: 52,
+                  color: AppTokens.lime,
+                ),
               ),
             ),
           ).animate().scale(duration: 420.ms, curve: Curves.easeOutBack),
