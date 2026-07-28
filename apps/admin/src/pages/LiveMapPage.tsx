@@ -5,6 +5,7 @@ import { MapPin, Loader2, RefreshCw, Car, Users, AlertTriangle } from 'lucide-re
 import { PageHeader } from '../components/layout/PageHeader';
 import { useTheme } from '../design/ThemeContext';
 import { usePolling } from '../lib/usePolling';
+import { escapeHtml } from '../lib/escape';
 
 interface LiveTrip {
   id: string; status: string; city: string; rider_id: string; captain_id: string | null;
@@ -92,16 +93,20 @@ export default function LiveMapPage() {
     if (view === 'all' || view === 'captains') {
       for (const cap of captainsData) {
         if (cap.last_lat == null || cap.last_lng == null) continue;
-        const safeName = (cap.name || 'كابتن').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeMake = (cap.vehicle_make ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeModel = (cap.vehicle_model ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safePlate = (cap.vehicle_plate ?? '—').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Escape every dynamic value before injecting it into the popup HTML
+        // (XSS defense — includes the numeric-looking rating for depth).
+        const safeName = escapeHtml(cap.name || 'كابتن');
+        const safeMake = escapeHtml(cap.vehicle_make ?? '');
+        const safeModel = escapeHtml(cap.vehicle_model ?? '');
+        const safePlate = escapeHtml(cap.vehicle_plate ?? '—');
+        const safeRating = escapeHtml(cap.rating_avg ?? '—');
+        const safeLastSeen = escapeHtml(cap.last_seen_at ? new Date(cap.last_seen_at).toLocaleTimeString('ar-EG') : '—');
         const marker = L.circleMarker([cap.last_lat, cap.last_lng], {
           radius: 9, color: '#80b445', fillColor: '#80b445', fillOpacity: 0.9, weight: 2,
         }).bindPopup(
           `<b>🚗 ${safeName}</b><br/>${safeMake} ${safeModel}<br/>` +
-          `لوحة: ${safePlate}<br/>تقييم: ⭐${cap.rating_avg ?? '—'}<br/>` +
-          `آخر ظهور: ${cap.last_seen_at ? new Date(cap.last_seen_at).toLocaleTimeString('ar-EG') : '—'}`
+          `لوحة: ${safePlate}<br/>تقييم: ⭐${safeRating}<br/>` +
+          `آخر ظهور: ${safeLastSeen}`
         );
         layerRef.current.addLayer(marker);
         bounds.push([cap.last_lat, cap.last_lng]);
@@ -111,18 +116,21 @@ export default function LiveMapPage() {
     // Show active trips
     if (view === 'all' || view === 'trips') {
       for (const t of tripsData) {
+        // Escape trip status and id before injecting into popup HTML (XSS defense).
+        const safeStatus = escapeHtml(t.status);
+        const safeTripId = escapeHtml(t.id.slice(0, 12));
         const pickup = L.circleMarker([t.pickup_lat, t.pickup_lng], {
           radius: 7, color: '#80b445', fillColor: '#80b445', fillOpacity: 0.8,
-        }).bindPopup(`<b>انطلاق</b><br/>${t.status}<br/>${t.id.slice(0, 12)}`);
+        }).bindPopup(`<b>انطلاق</b><br/>${safeStatus}<br/>${safeTripId}`);
         layerRef.current.addLayer(pickup); bounds.push([t.pickup_lat, t.pickup_lng]);
         const drop = L.circleMarker([t.dropoff_lat, t.dropoff_lng], {
           radius: 7, color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.8,
-        }).bindPopup(`<b>وصول</b><br/>${t.id.slice(0, 12)}`);
+        }).bindPopup(`<b>وصول</b><br/>${safeTripId}`);
         layerRef.current.addLayer(drop); bounds.push([t.dropoff_lat, t.dropoff_lng]);
         if (t.captain_lat != null && t.captain_lng != null) {
           const cap = L.circleMarker([t.captain_lat, t.captain_lng], {
             radius: 8, color: '#334155', fillColor: '#80b445', fillOpacity: 1, weight: 3,
-          }).bindPopup(`<b>كابتن الرحلة</b><br/>${t.id.slice(0, 12)}`);
+          }).bindPopup(`<b>كابتن الرحلة</b><br/>${safeTripId}`);
           layerRef.current.addLayer(cap); bounds.push([t.captain_lat, t.captain_lng]);
         }
         L.polyline([[t.pickup_lat, t.pickup_lng], [t.dropoff_lat, t.dropoff_lng]], {

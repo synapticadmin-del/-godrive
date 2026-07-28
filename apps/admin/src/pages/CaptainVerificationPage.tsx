@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { api } from '../lib/api';
+import { api, fetchDocumentBlobUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
   ShieldCheck, Loader2, FileText, Check, X, Eye, ChevronDown, ChevronUp,
@@ -36,8 +36,6 @@ interface CaptainGroup {
   rejectedCount: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://api.synapticstudio.tech';
-
 const docTypeLabels: Record<string, string> = {
   license: 'رخصة القيادة',
   national_id: 'بطاقة رقم قومي',
@@ -45,19 +43,69 @@ const docTypeLabels: Record<string, string> = {
   vehicle_reg: 'رخصة السيارة',
 };
 
+/**
+ * Fetch a protected document as an authenticated blob URL and manage its
+ * lifecycle: the object URL is revoked whenever the doc changes or the caller
+ * unmounts, so we never leak blob URLs. The JWT travels in the Authorization
+ * header — never in the document URL (which would leak it into logs/history).
+ */
+function useDocumentBlobUrl(docId: string | null | undefined): string | null {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!docId) {
+      setBlobUrl(null);
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    fetchDocumentBlobUrl(docId)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        objectUrl = url;
+        setBlobUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setBlobUrl(null);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [docId]);
+
+  return blobUrl;
+}
+
+/** Authenticated document thumbnail; identical layout to the previous <img>. */
+function DocumentImage({ doc, className }: { doc: Doc; className?: string }) {
+  const blobUrl = useDocumentBlobUrl(doc.id);
+  if (!blobUrl) {
+    return (
+      <div className={`${className ?? ''} flex items-center justify-center bg-surface-tertiary`}>
+        <Loader2 className="w-6 h-6 text-text-tertiary animate-spin" />
+      </div>
+    );
+  }
+  return <img src={blobUrl} alt={doc.type} className={className} />;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Zoomable Preview Modal                                            */
 /* ------------------------------------------------------------------ */
 function ZoomablePreviewModal({
   doc,
   allDocs,
-  fileUrl,
   onClose,
   onNavigate,
 }: {
   doc: Doc;
   allDocs: Doc[];
-  fileUrl: (d: Doc) => string;
   onClose: () => void;
   onNavigate: (d: Doc) => void;
 }) {
@@ -66,6 +114,9 @@ function ZoomablePreviewModal({
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
+
+  // Authenticated blob URL for the currently-previewed doc; revoked on change/close.
+  const blobUrl = useDocumentBlobUrl(doc.id);
 
   const currentIdx = allDocs.findIndex((d) => d.id === doc.id);
   const hasPrev = currentIdx > 0;
@@ -204,15 +255,19 @@ function ZoomablePreviewModal({
         onMouseLeave={onMouseUp}
         style={{ cursor: scale > 1 ? (dragging ? 'grabbing' : 'grab') : 'default' }}
       >
-        <img
-          src={fileUrl(doc)}
-          alt={doc.type}
-          className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
-          style={{
-            transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-          }}
-          draggable={false}
-        />
+        {blobUrl ? (
+          <img
+            src={blobUrl}
+            alt={doc.type}
+            className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
+            style={{
+              transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+            }}
+            draggable={false}
+          />
+        ) : (
+          <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
+        )}
       </div>
     </div>
   );
@@ -381,9 +436,6 @@ export default function CaptainVerificationPage() {
       load();
     }
   };
-
-  const fileUrl = (doc: Doc) =>
-    `${API_BASE}/admin/documents/${doc.id}/file${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 
   const openPreview = (doc: Doc, groupDocs: Doc[]) => {
     setPreviewDoc(doc);
@@ -647,9 +699,8 @@ export default function CaptainVerificationPage() {
                           {/* Document Image / Thumbnail */}
                           <div className="relative h-56 bg-surface-tertiary flex items-center justify-center overflow-hidden group">
                             {d.r2_key && d.r2_key.startsWith('docs/') ? (
-                              <img
-                                src={fileUrl(d)}
-                                alt={d.type}
+                              <DocumentImage
+                                doc={d}
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                               />
                             ) : (
@@ -744,7 +795,6 @@ export default function CaptainVerificationPage() {
         <ZoomablePreviewModal
           doc={previewDoc}
           allDocs={previewGroup}
-          fileUrl={fileUrl}
           onClose={() => { setPreviewDoc(null); setPreviewGroup([]); }}
           onNavigate={(d) => setPreviewDoc(d)}
         />

@@ -9,6 +9,7 @@ import { useTheme } from '../design/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { usePolling } from '../lib/usePolling';
 import { downloadCsv, formatCsvDate, formatCsvNumber, type CsvColumn } from '../lib/csv';
+import { escapeHtml } from '../lib/escape';
 
 /**
  * First character of a display name, safe for non-ASCII.
@@ -167,10 +168,12 @@ export default function CaptainsPage() {
         popupAnchor: [0, -18],
       });
 
-      const safeName = (c.name || 'كابتن').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const safePhone = (c.phone || c.email || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const safeMake = (c.vehicle_make || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const safePlate = (c.vehicle_plate || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // All dynamic values are escaped before being injected into the popup HTML
+      // to prevent XSS via names / phones / plates / emails returned by the API.
+      const safeName = escapeHtml(c.name || 'كابتن');
+      const safePhone = escapeHtml(c.phone || c.email || '');
+      const safeMake = escapeHtml(c.vehicle_make || '');
+      const safePlate = escapeHtml(c.vehicle_plate || '');
 
       const popupContent = `
         <div style="text-align: right; direction: rtl; font-family: sans-serif; padding: 4px;">
@@ -577,9 +580,9 @@ export default function CaptainsPage() {
           },
           {
             // Destructive action behind a two-step inline confirm. Row actions
-            // are icon-only, so the first click arms the row (swaps the ban
-            // icon for an alert glyph and updates the accessible label, then
-            // auto-reverts after 3s); the second click performs the suspend.
+            // are icon-only, so the first click arms the row and shows a
+            // warning toast (auto-reverts after 3s); the second click performs
+            // the suspend.
             label: 'إيقاف الكابتن',
             icon: <Ban className="w-4 h-4" />,
             variant: 'danger',
