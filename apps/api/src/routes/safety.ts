@@ -162,14 +162,40 @@ safetyRoutes.post("/chat/:tripId", authMiddleware, async (c) => {
   }
   const senderRole = user.id === trip.rider_id ? "rider" : "captain";
   const msgId = id("cht");
+  const createdAt = nowIso();
   await c.env.DB.prepare(
     `INSERT INTO trip_chat_messages (id, trip_id, sender_id, sender_role, body, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(msgId, tripId, user.id, senderRole, messageBody, nowIso())
+    .bind(msgId, tripId, user.id, senderRole, messageBody, createdAt)
     .run();
 
-  // Push the other party so they open the chat.
+  // Live fan-out: push the message into the trip's WebSocket room so the
+  // other party's app renders it immediately. Both apps subscribe to the
+  // room for the active trip; without this the message existed only in D1
+  // and the captain (whose app previously had no chat surface at all) saw
+  // nothing until a manual refresh — the "رسايل الراكب مش بتظهر" bug.
+  try {
+    const room = c.env.TRIP_ROOM.get(c.env.TRIP_ROOM.idFromName(tripId));
+    await room.fetch("https://room/broadcast", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "chat.message",
+        tripId,
+        msgId,
+        senderId: user.id,
+        senderRole,
+        body: messageBody,
+        at: createdAt,
+      }),
+    });
+  } catch (e) {
+    // Chat must never fail because the live channel hiccuped — the message
+    // is already persisted and the push below still goes out.
+    console.error("chat broadcast failed", tripId, e);
+  }
+
+  // Push the other party so they open the chat even with the app closed.
   const recipientIdRaw: string | null | undefined =
     senderRole === "rider" ? trip.captain_id : trip.rider_id;
   if (recipientIdRaw) {
