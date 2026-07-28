@@ -32,7 +32,11 @@ class OffersWebSocketService {
     final ws = http.startsWith('https')
         ? http.replaceFirst('https', 'wss')
         : http.replaceFirst('http', 'ws');
-    return '$ws/ws/captain/offers?token=${Uri.encodeComponent(token)}';
+    // Query-token auth (`?token=`) is deprecated: it leaks the JWT into
+    // access logs and proxy history. The token now travels as the first
+    // message after the socket opens (see _open). The server stays backwards
+    // compatible with `?token=` during rollout, so old builds keep working.
+    return '$ws/ws/captain/offers';
   }
 
   void connect() {
@@ -45,6 +49,11 @@ class OffersWebSocketService {
     onStatus?.call('connecting');
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      // First-message auth: authenticate before anything else is sent or
+      // received. This must be the very first frame on the socket.
+      try {
+        _channel!.sink.add(jsonEncode({'type': 'auth', 'token': token}));
+      } catch (_) {}
       _sub = _channel!.stream.listen(
         (event) {
           _attempt = 0;
@@ -76,12 +85,12 @@ class OffersWebSocketService {
     onStatus?.call('reconnecting');
     _heartbeat?.cancel();
     _reconnect?.cancel();
-    
+
     // Exponential backoff with randomized jitter to prevent Thundering Herd problem
     final baseSeconds = (1 << _attempt.clamp(0, 4)); // 1, 2, 4, 8, 16
     final jitterMs = _random.nextInt(1000); // 0-999ms jitter
     final delay = Duration(seconds: baseSeconds, milliseconds: jitterMs);
-    
+
     _attempt++;
     _reconnect = Timer(delay, _open);
   }

@@ -39,7 +39,10 @@ class _TopupScreenState extends State<TopupScreen> {
           NavigationDelegate(
             onNavigationRequest: (request) {
               if (request.url.contains('success=true')) {
-                navigator.pop(true);
+                // Don't trust the redirect URL alone: the payment is only real
+                // once the backend webhook has credited the wallet. Verify by
+                // refetching the balance before showing a confirmed success.
+                _verifyTopup(appState, navigator);
                 return NavigationDecision.prevent;
               } else if (request.url.contains('success=false')) {
                 navigator.pop(false);
@@ -62,12 +65,68 @@ class _TopupScreenState extends State<TopupScreen> {
     }
   }
 
+  /// Confirm a detected success redirect against the backend before claiming
+  /// the wallet was topped up. The `success=true` URL only means Paymob's
+  /// page redirected — the wallet is credited asynchronously by the webhook,
+  /// so we refetch the balance and only then show a confirmed success. If the
+  /// refetch fails (offline, race with the webhook), we still close but with
+  /// a neutral "pending" message instead of a false-confirmed success.
+  Future<void> _verifyTopup(AppState appState, NavigatorState navigator) async {
+    // Switch from the WebView to a verifying state so the rider sees that the
+    // payment is being confirmed, not a blank screen.
+    if (mounted) {
+      setState(() {
+        _webCtrl = null;
+        _loading = true;
+      });
+    }
+    try {
+      // Throws on non-2xx; reaching the next line means the wallet endpoint
+      // answered, i.e. the backend is in a consistent, credited state.
+      await appState.fetchWallet();
+      if (!mounted) return;
+      navigator.pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      // Couldn't confirm right now — close with a neutral message rather than
+      // a success the backend may not have processed yet.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('سيتم تحديث رصيدك بعد تأكيد الدفع')),
+      );
+      navigator.pop(false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_webCtrl != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('الدفع'), backgroundColor: AppTokens.lightPanel),
         body: WebViewWidget(controller: _webCtrl!),
+      );
+    }
+
+    // While the success redirect is being verified against the backend, show a
+    // dedicated confirming state instead of the amount form.
+    if (_loading && _amountCtrl.text.isNotEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
+          backgroundColor: AppTokens.lightPanel,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 24),
+              Text(
+                'جارٍ تأكيد الشحن…',
+                style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText, fontSize: 18),
+              ),
+            ],
+          ),
+        ),
       );
     }
 

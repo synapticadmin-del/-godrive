@@ -19,9 +19,12 @@ import 'trips_tab.dart';
 
 /// The captain's main shell: a full-bleed map with floating chrome.
 ///
-/// The map is live: it subscribes to the position stream and follows the
-/// captain, including heading, instead of freezing on the first fix of the
-/// shift.
+/// The map is live: it follows the captain, including heading, instead of
+/// freezing on the first fix of the shift. It rides the SAME position stream
+/// as [CaptainState]'s server location push (exposed as
+/// [CaptainState.positionStream]) rather than opening a second GPS
+/// subscription of its own — one GPS radio feeds both the map camera and the
+/// server, which is the whole point of the shared stream.
 ///
 /// The route is drawn from the trip's stored OSRM geometry
 /// (`route_geometry`), i.e. the actual streets the captain will drive — not
@@ -87,6 +90,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Forward app lifecycle transitions to [CaptainState], which pauses the
+  /// GPS stream + offers polling while backgrounded and resumes them on
+  /// return. The map just re-renders from the shared stream on the next fix.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    context.read<CaptainState>().handleAppLifecycleState(state);
+  }
+
   // -------------------------------------------------------------------
   // Location
   // -------------------------------------------------------------------
@@ -109,12 +120,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       }
 
       // Show the last known fix immediately so the map is never empty while
-      // the first high-accuracy fix is still resolving.
+      // the first fix is still resolving.
       final cached = await Geolocator.getLastKnownPosition();
       if (cached != null && mounted) _applyPosition(cached, recenter: true);
 
+      // Seed an immediate fix for the first paint, then ride the shared
+      // stream. Medium accuracy is enough here — the precise stream below
+      // takes over for live tracking, and a cold high-accuracy fix can block
+      // for seconds.
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        desiredAccuracy: LocationAccuracy.medium,
       );
       if (!mounted) return;
       _applyPosition(position, recenter: true);
@@ -127,12 +142,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   void _subscribeToPositionStream() {
     _positionSub?.cancel();
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 8,
-      ),
-    ).listen(
+    // Subscribe to CaptainState's shared broadcast stream instead of opening
+    // a second Geolocator.getPositionStream. The single underlying GPS
+    // subscription lives in CaptainState, which also owns its accuracy
+    // profile (idle ↔ trip) and lifecycle pausing — the map simply consumes
+    // whatever fixes arrive. This removes the second always-on GPS radio the
+    // shell used to keep hot just for the camera.
+    _positionSub = context.read<CaptainState>().positionStream.listen(
       (position) {
         if (!mounted) return;
         _applyPosition(position, recenter: _followMe);

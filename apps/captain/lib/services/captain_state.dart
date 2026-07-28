@@ -20,6 +20,17 @@ class CaptainState extends ChangeNotifier {
   String? error;
 
   StreamSubscription<Position>? _positionStreamSub;
+
+  /// Single shared position stream. Both the server location push and the
+  /// map camera subscribe to this one broadcast stream instead of each
+  /// opening its own GPS stream — two independent `getPositionStream`
+  /// subscriptions used to keep the GPS radio hot twice over. Exposed for
+  /// UI consumers (the main shell's map) so there is exactly ONE underlying
+  /// platform GPS subscription for the whole app.
+  final StreamController<Position> _positionCtrl =
+      StreamController<Position>.broadcast();
+  Stream<Position> get positionStream => _positionCtrl.stream;
+
   Timer? offersTimer;
   OffersWebSocketService? offersWs;
   String offersWsStatus = 'idle';
@@ -368,8 +379,8 @@ class CaptainState extends ChangeNotifier {
       }
       notifyListeners();
       if (value) {
-        // Pull immediately rather than waiting up to 8s for the next poll —
-        // the captain just asked for work and expects to see it.
+        // Pull immediately rather than waiting for the next poll — the
+        // captain just asked for work and expects to see it.
         unawaited(refreshOffers());
       }
       return true;
@@ -380,14 +391,43 @@ class CaptainState extends ChangeNotifier {
     }
   }
 
+  // -------------------------------------------------------------------
+  // Location stream (single shared GPS subscription + adaptive accuracy)
+  // -------------------------------------------------------------------
+
+  /// GPS accuracy profiles. High accuracy + a tight distance filter is only
+  /// worth the battery while a trip is active (accepted/arrived/in_progress)
+  /// and the rider is watching the captain approach. With no active trip a
+  /// coarser fix is plenty to keep the captain on the dispatch map, so we
+  /// drop to medium accuracy and a wide filter and let the GPS radio rest.
+  static LocationSettings get _idleLocationSettings => const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 50, // only wake the radio when the captain moves 50m
+      );
+  static LocationSettings get _tripLocationSettings => const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10, // precise tracking while on a trip
+      );
+
+  /// True while a trip is in a state that justifies high-accuracy GPS.
+  bool get _hasActiveTrip {
+    final status = activeTrip?['status'] as String?;
+    return activeTrip != null &&
+        ['assigned', 'accepted', 'arrived', 'in_progress'].contains(status);
+  }
+
+  bool _lifecyclePaused = false;
+
   void _startLocationStream() {
     _stopLocationStream();
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Only send update when captain moves 10 meters
-    );
-    _positionStreamSub = Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+    if (_lifecyclePaused) return; // app is backgrounded — stay off the radio
+    final settings = _hasActiveTrip ? _tripLocationSettings : _idleLocationSettings;
+    _positionStreamSub = Geolocator.getPositionStream(locationSettings: settings).listen(
       (Position pos) {
+        // Fan every fix out to the shared broadcast stream so the map camera
+        // (and any other UI consumer) rides the SAME GPS subscription as the
+        // server push below — one radio, two listeners.
+        if (!_positionCtrl.isClosed) _positionCtrl.add(pos);
         if (online || activeTrip != null) {
           pushLocationCoordinates(pos.latitude, pos.longitude);
         }
@@ -399,6 +439,15 @@ class CaptainState extends ChangeNotifier {
   void _stopLocationStream() {
     _positionStreamSub?.cancel();
     _positionStreamSub = null;
+  }
+
+  /// Re-evaluate the GPS accuracy profile after a trip-state transition. If
+  /// the stream is running and the desired profile changed (idle ↔ trip),
+  /// restart the stream with the new settings. A no-op when the stream is
+  /// off (offline or backgrounded).
+  void _syncLocationAccuracy() {
+    if (_positionStreamSub == null || _lifecyclePaused) return;
+    _startLocationStream();
   }
 
   Future<void> pushLocationCoordinates(double lat, double lng) async {
@@ -421,16 +470,35 @@ class CaptainState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Polling cadence for the offers list. The WebSocket inbox is the primary
-  /// channel; this is only a backstop, so it can be frequent without meaning
-  /// extra cost — 8s keeps the rider↔captain gap small when a socket drops.
+  // -------------------------------------------------------------------
+  // Offers polling (REST backstop; the WebSocket inbox is primary)
+  // -------------------------------------------------------------------
+
+  /// REST polling cadence while the offers WebSocket is DOWN. Kept tight so
+  /// a dropped socket does not leave the captain blind to new work.
   static const Duration _offersPollInterval = Duration(seconds: 8);
 
+  /// REST polling cadence while the offers WebSocket is CONNECTED. The socket
+  /// already pushes new offers in real time, so the poll degrades to a slow
+  /// backstop that only re-syncs state the socket might have missed.
+  static const Duration _offersPollIntervalWsUp = Duration(seconds: 60);
+
+  Duration get _currentPollInterval =>
+      offersWsStatus == 'connected' ? _offersPollIntervalWsUp : _offersPollInterval;
+
   void startOffersPolling() {
-    offersTimer?.cancel();
-    offersTimer = Timer.periodic(_offersPollInterval, (_) => refreshOffers());
+    _restartOffersTimer();
     refreshOffers();
     _connectOffersWs();
+  }
+
+  /// (Re)arm the periodic REST poll at the cadence appropriate for the
+  /// current socket state. Called on every WS status change so reconnects
+  /// slow the poll down and drops speed it back up.
+  void _restartOffersTimer() {
+    offersTimer?.cancel();
+    if (_lifecyclePaused) return; // app is backgrounded — no polling
+    offersTimer = Timer.periodic(_currentPollInterval, (_) => refreshOffers());
   }
 
   Timer? _wsDebounce;
@@ -446,7 +514,13 @@ class CaptainState extends ChangeNotifier {
         // connection rapidly reconnects/disconnects during network jitter.
         _wsDebounce?.cancel();
         _wsDebounce = Timer(const Duration(milliseconds: 600), () {
+          final wasConnected = offersWsStatus == 'connected';
           offersWsStatus = s;
+          // The poll cadence depends on socket health: connected → 60s
+          // backstop, anything else → 8s REST fallback. Re-arm the timer on
+          // every transition so a socket that flaps doesn't leave the cadence
+          // stuck on the wrong side.
+          if ((s == 'connected') != wasConnected) _restartOffersTimer();
           notifyListeners();
         });
       },
@@ -509,6 +583,7 @@ class CaptainState extends ChangeNotifier {
           _disconnectTripWs();
           unawaited(refreshOffers());
         }
+        _syncLocationAccuracy();
         notifyListeners();
       }
     } else if (type == 'chat.message') {
@@ -550,6 +625,7 @@ class CaptainState extends ChangeNotifier {
           })
           .toList();
       final previousTripId = activeTrip?['id'] as String?;
+      final hadActiveTrip = _hasActiveTrip;
       activeTrip = active.isNotEmpty ? active.first : null;
 
       // Keep the room socket in step with the trip actually on screen: open
@@ -569,6 +645,10 @@ class CaptainState extends ChangeNotifier {
       } else {
         _disconnectTripWs();
       }
+
+      // The active trip changed (assigned → none, none → assigned, etc.):
+      // re-evaluate the GPS accuracy profile so the radio matches the work.
+      if (_hasActiveTrip != hadActiveTrip) _syncLocationAccuracy();
 
       // Clear any stale error from a previous failed poll, otherwise the UI
       // keeps showing an error banner long after connectivity is restored.
@@ -596,6 +676,8 @@ class CaptainState extends ChangeNotifier {
     // Open the live room immediately so rider cancellations and chat reach
     // this screen in real time.
     _connectTripWs(tripId);
+    // A trip just started: escalate the GPS to high-accuracy tracking.
+    _syncLocationAccuracy();
     notifyListeners();
     // Report position immediately so the rider sees the captain moving without
     // waiting for the next stream tick.
@@ -649,6 +731,7 @@ class CaptainState extends ChangeNotifier {
     if (activeTrip == null) return;
     final res = await _post('/trips/${activeTrip!['id']}/arrived');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
+    _syncLocationAccuracy();
     notifyListeners();
   }
 
@@ -656,6 +739,7 @@ class CaptainState extends ChangeNotifier {
     if (activeTrip == null) return;
     final res = await _post('/trips/${activeTrip!['id']}/start');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
+    _syncLocationAccuracy();
     notifyListeners();
   }
 
@@ -664,7 +748,42 @@ class CaptainState extends ChangeNotifier {
     final res = await _post('/trips/${activeTrip!['id']}/complete');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
     _disconnectTripWs();
+    // Trip is over: drop the GPS back to the low-power idle profile.
+    _syncLocationAccuracy();
     notifyListeners();
+  }
+
+  // -------------------------------------------------------------------
+  // App lifecycle (pause the radio + polling while backgrounded)
+  // -------------------------------------------------------------------
+
+  /// Called by the main shell's WidgetsBindingObserver. Backgrounding the app
+  /// pauses the GPS stream and the offers poll — the biggest battery drains —
+  /// and foregrounding restores them. FCM still wakes the app for real work.
+  void handleAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        if (_lifecyclePaused) return;
+        _lifecyclePaused = true;
+        _stopLocationStream();
+        offersTimer?.cancel();
+        offersTimer = null;
+        break;
+      case AppLifecycleState.resumed:
+        if (!_lifecyclePaused) return;
+        _lifecyclePaused = false;
+        // Restore the GPS stream (if the captain is online / on a trip) and
+        // re-arm the poll, then re-sync immediately so anything missed while
+        // backgrounded shows up without waiting for the next tick.
+        if (online || activeTrip != null) _startLocationStream();
+        _restartOffersTimer();
+        unawaited(refreshOffers());
+        break;
+      case AppLifecycleState.detached:
+        break;
+    }
   }
 
   Future<Map<String, dynamic>> earnings() => _get('/captain/earnings');
@@ -734,6 +853,7 @@ class CaptainState extends ChangeNotifier {
   @override
   void dispose() {
     _stopLocationStream();
+    _positionCtrl.close();
     offersTimer?.cancel();
     _wsDebounce?.cancel();
     offersWs?.dispose();
