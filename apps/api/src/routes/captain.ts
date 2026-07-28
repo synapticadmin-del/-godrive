@@ -105,11 +105,14 @@ captainRoutes.post("/online", async (c) => {
     return c.json({ error: "lat/lng required when going online", code: "LATLNG_REQUIRED" }, 400);
   }
 
+  // Persist the captain's working city too — the offers endpoints filter on
+  // it, so a captain is never shown trips from a city they are not in. NULL
+  // out on the way offline so a stale city cannot follow them later.
   await c.env.DB.prepare(
-    `UPDATE captains SET is_online = ?, last_lat = COALESCE(?, last_lat), last_lng = COALESCE(?, last_lng), last_seen_at = ?, updated_at = ?
+    `UPDATE captains SET is_online = ?, last_lat = COALESCE(?, last_lat), last_lng = COALESCE(?, last_lng), last_seen_at = ?, city = ?, updated_at = ?
      WHERE user_id = ?`,
   )
-    .bind(online ? 1 : 0, lat ?? null, lng ?? null, nowIso(), nowIso(), user.id)
+    .bind(online ? 1 : 0, lat ?? null, lng ?? null, nowIso(), online ? city : null, nowIso(), user.id)
     .run();
 
   if (typeof lat === "number" && typeof lng === "number") {
@@ -147,9 +150,9 @@ captainRoutes.post(
     const city = body.city || c.env.DEFAULT_CITY || "cairo";
 
     await c.env.DB.prepare(
-      `UPDATE captains SET last_lat = ?, last_lng = ?, last_seen_at = ?, is_online = 1, updated_at = ? WHERE user_id = ?`,
+      `UPDATE captains SET last_lat = ?, last_lng = ?, last_seen_at = ?, is_online = 1, city = ?, updated_at = ? WHERE user_id = ?`,
     )
-      .bind(body.lat, body.lng, nowIso(), nowIso(), user.id)
+      .bind(body.lat, body.lng, nowIso(), city, nowIso(), user.id)
       .run();
 
     const key = cellKey(city, body.lat, body.lng);
@@ -261,17 +264,31 @@ captainRoutes.get("/nearby-requests", async (c) => {
   const cLat = latParam ? Number(latParam) : captain?.last_lat ?? 30.0444;
   const cLng = lngParam ? Number(lngParam) : captain?.last_lng ?? 31.2357;
 
-  // Query searching/offered trips with rider details
+  // City scoping: only trips in the captain's working city. Without this the
+  // queue showed every open request nationwide, so a captain in Alexandria
+  // would be offered Cairo trips they could never serve. The city resolves
+  // from the captain's row (set on /online and /location), falling back to
+  // the deployment default for legacy rows with no city yet.
+  const city =
+    (captain as (DbCaptain & { city?: string | null }) | null)?.city ||
+    c.env.DEFAULT_CITY ||
+    "cairo";
+
+  // Query searching/offered trips with rider details. duration_min is
+  // selected explicitly: the offer card previously fell back to a rough
+  // 20km/h guess while the real OSRM estimate sat in the row unread.
   const rows = await c.env.DB.prepare(
     `SELECT t.id, t.rider_id, u.name as rider_name, u.email as rider_email, u.phone as rider_phone,
             t.pickup_lat, t.pickup_lng, t.pickup_address,
             t.dropoff_lat, t.dropoff_lng, t.dropoff_address,
-            t.distance_km, t.offered_price, t.estimated_fare, t.created_at, t.city
+            t.distance_km, t.duration_min, t.offered_price, t.estimated_fare, t.created_at, t.city
      FROM trips t
      JOIN users u ON t.rider_id = u.id
-     WHERE t.status IN ('searching', 'offered')
+     WHERE t.status IN ('searching', 'offered') AND t.city = ?
      ORDER BY t.created_at DESC LIMIT 30`
-  ).all<{
+  )
+    .bind(city)
+    .all<{
     id: string;
     rider_id: string;
     rider_name: string | null;
@@ -284,6 +301,7 @@ captainRoutes.get("/nearby-requests", async (c) => {
     dropoff_lng: number;
     dropoff_address: string | null;
     distance_km: number | null;
+    duration_min: number | null;
     offered_price: number | null;
     estimated_fare: number | null;
     created_at: string;
@@ -321,6 +339,7 @@ captainRoutes.get("/nearby-requests", async (c) => {
         dropoff_lng: r.dropoff_lng,
         dropoff_address: r.dropoff_address || "موقع الوصول",
         distance_km: r.distance_km || 5.0,
+        duration_min: r.duration_min ?? null,
         offered_price: r.offered_price || r.estimated_fare || 25.0,
         captain_to_pickup_km: captainToPickupKm,
         created_at: r.created_at,
@@ -344,10 +363,19 @@ captainRoutes.get("/offers", async (c) => {
     return c.json({ trips: [], captainLocation: captain });
   }
 
+  // City scoping mirrors /nearby-requests: offers are only for trips in the
+  // captain's working city.
+  const city =
+    (captain as (DbCaptain & { city?: string | null }) | null)?.city ||
+    c.env.DEFAULT_CITY ||
+    "cairo";
+
   const trips = await c.env.DB.prepare(
-    `SELECT * FROM trips WHERE status IN ('searching', 'offered')
+    `SELECT * FROM trips WHERE status IN ('searching', 'offered') AND city = ?
      ORDER BY created_at DESC LIMIT 20`,
-  ).all<DbTrip>();
+  )
+    .bind(city)
+    .all<DbTrip>();
 
   return c.json({ trips: trips.results ?? [], captainLocation: captain });
 });
@@ -376,7 +404,7 @@ captainRoutes.post("/documents", async (c) => {
   const docId = id("doc");
   await c.env.DB.prepare(
     `INSERT INTO driver_documents (id, captain_id, type, r2_key, status, created_at)
-     VALUES (?, ?, ?, ?, 'pending', ?)`
+     VALUES (?, ?, ?, ?, 'pending', ?)`,
   )
     .bind(docId, user.id, type, r2Key, nowIso())
     .run();
@@ -425,4 +453,3 @@ captainRoutes.get("/file/*", async (c) => {
   headers.set("Cache-Control", "private, no-store");
   return new Response(obj.body, { headers });
 });
-

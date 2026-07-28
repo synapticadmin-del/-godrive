@@ -238,6 +238,14 @@ class _TripScreenState extends State<TripScreen> {
     );
   }
 
+  /// Opens the in-trip chat.
+  void _openChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TripChatScreen(tripId: widget.tripId)),
+    );
+  }
+
   String get _status => _trip?['status'] as String? ?? 'searching';
 
   @override
@@ -530,8 +538,7 @@ class _TripScreenState extends State<TripScreen> {
       _fareRow(fare, muted),
       const SizedBox(height: 16),
       Row(children: [
-        Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => TripChatScreen(tripId: widget.tripId))),
+        Expanded(child: OutlinedButton.icon(onPressed: _openChat,
           icon: const Icon(Icons.chat_bubble_outline, size: 18), label: const Text('مراسلة'),
           style: OutlinedButton.styleFrom(foregroundColor: AppTokens.primary))),
         const SizedBox(width: 8),
@@ -555,8 +562,7 @@ class _TripScreenState extends State<TripScreen> {
       const SizedBox(height: 12),
       _fareRow(fare, muted),
       const SizedBox(height: 16),
-      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: () => Navigator.push(context,
-        MaterialPageRoute(builder: (_) => TripChatScreen(tripId: widget.tripId))),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _openChat,
         icon: const Icon(Icons.chat_bubble_outline, size: 18), label: const Text('مراسلة الكابتن'),
         style: OutlinedButton.styleFrom(foregroundColor: AppTokens.primary))),
     ];
