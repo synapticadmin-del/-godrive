@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -38,11 +39,7 @@ class _RatingSheetState extends State<RatingSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppStrings.of(context).ratingErrorPrefix('$e')),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -57,12 +54,15 @@ class _RatingSheetState extends State<RatingSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Container(
       decoration: BoxDecoration(
-        color: go.panel,
+        color: bg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Padding(
@@ -74,28 +74,12 @@ class _RatingSheetState extends State<RatingSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Handle
-            Container(
-              width: 40, height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: go.border,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
+            Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(color: border, borderRadius: BorderRadius.circular(999))),
             // Title
-            Text(
-              strings.ratingTitle,
-              style: AppTokens.font(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: go.text,
-              ),
-            ),
+            Text('كيف كانت رحلتك؟', style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
             const SizedBox(height: 4),
-            Text(
-              strings.ratingCaptainLine(widget.captainName),
-              style: AppTokens.font(fontSize: 14, color: go.muted),
-            ),
+            Text('قيّم ${widget.captainName}', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: muted)),
             const SizedBox(height: 24),
             // Stars
             Row(
@@ -109,9 +93,7 @@ class _RatingSheetState extends State<RatingSheet> {
                     child: Icon(
                       star <= _rating ? Icons.star : Icons.star_border,
                       size: 44,
-                      color: star <= _rating
-                          ? AppTokens.accent
-                          : go.muted.withOpacity(0.4),
+                      color: star <= _rating ? AppTokens.accent : muted.withOpacity(0.4),
                     ),
                   ),
                 );
@@ -125,11 +107,11 @@ class _RatingSheetState extends State<RatingSheet> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _tag(strings.ratingTagSafeDriving),
-                  _tag(strings.ratingTagPoliteCaptain),
-                  _tag(strings.ratingTagCleanCar),
-                  _tag(strings.ratingTagOnTime),
-                  _tag(strings.ratingTagComfortableMusic),
+                  _tag('قيادة آمنة'),
+                  _tag('موجّه مهذب'),
+                  _tag('سيارة نظيفة'),
+                  _tag('في الوقت'),
+                  _tag('موسيقى مريحة'),
                 ],
               ),
               const SizedBox(height: 16),
@@ -139,16 +121,13 @@ class _RatingSheetState extends State<RatingSheet> {
               controller: _commentController,
               maxLines: 2,
               decoration: InputDecoration(
-                hintText: strings.ratingCommentHint,
-                hintStyle: AppTokens.font(color: go.muted, fontSize: 14),
+                hintText: 'تعليق إضافي (اختياري)',
+                hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
                 filled: true,
-                fillColor: go.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                  borderSide: BorderSide.none,
-                ),
+                fillColor: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
               ),
-              style: AppTokens.font(color: go.text, fontSize: 14),
+              style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 14),
             ),
             const SizedBox(height: 20),
             // Submit
@@ -161,35 +140,17 @@ class _RatingSheetState extends State<RatingSheet> {
                   backgroundColor: AppTokens.primary,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: AppTokens.primary.withOpacity(0.4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
                 ),
                 child: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        strings.ratingSubmitAction,
-                        style: AppTokens.font(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text('إرسال التقييم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(
-                strings.ratingSkipAction,
-                style: AppTokens.font(color: go.muted, fontSize: 14),
-              ),
+              child: Text('تخطّي', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14)),
             ),
           ],
         ),
@@ -205,14 +166,7 @@ class _RatingSheetState extends State<RatingSheet> {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppTokens.primary.withOpacity(0.2)),
       ),
-      child: Text(
-        label,
-        style: AppTokens.font(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: AppTokens.primary,
-        ),
-      ),
+      child: Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, fontWeight: FontWeight.w600, color: AppTokens.primary)),
     );
   }
 }

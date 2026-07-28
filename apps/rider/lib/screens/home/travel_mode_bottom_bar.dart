@@ -1,127 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
-import '../../../services/app_state.dart';
 
-/// Persistent bottom navigation on the home shell.
+/// Bottom bar shown while the rider is in intercity ("سفر") mode.
 ///
-/// Two tabs only — the trip flow and the orders/activity list — plus quick
-/// theme and language actions so the rider can flip appearance without
-/// digging into profile settings. Previously these labels were hardcoded
-/// Arabic strings baked into the bar; they now come from [AppStrings] so the
-/// bar follows the active locale like every other surface.
+/// Intercity is a different job from a city ride: the rider is arranging a
+/// long-distance seat, a car, or a parcel, and then waiting on offers. The
+/// four-destination [MainBottomNav] is the wrong shape for that, so travel mode
+/// swaps in a focused two-tab bar — the booking view and the rider's own
+/// requests — matching the intercity flow in the design.
+///
+/// Ride mode keeps [MainBottomNav] untouched.
 class TravelModeBottomBar extends StatelessWidget {
   const TravelModeBottomBar({
     super.key,
-    required this.currentIndex,
-    required this.onTabSelected,
+    required this.currentTab,
+    required this.onTabChanged,
+    required this.onExitTravelMode,
+    this.pendingRequests = 0,
   });
 
-  final int currentIndex;
-  final ValueChanged<int> onTabSelected;
+  /// Which of the two tabs is active.
+  final TravelTab currentTab;
+
+  final ValueChanged<TravelTab> onTabChanged;
+
+  /// Leaves intercity mode and returns to the city-ride experience.
+  ///
+  /// Travel mode replaces the service strip, so without an explicit exit the
+  /// rider would have no way back to a normal ride — this is that way back.
+  final VoidCallback onExitTravelMode;
+
+  /// Badge count on the requests tab. Zero hides the badge.
+  final int pendingRequests;
 
   @override
   Widget build(BuildContext context) {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
-    final state = context.read<AppState>();
+    final isDark = go.isDark;
+    final bg = isDark ? AppTokens.darkPanel : Colors.white;
+    final borderColor = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Container(
       decoration: BoxDecoration(
-        color: go.panel,
-        border: Border(top: BorderSide(color: go.border)),
+        color: bg,
+        border: Border(top: BorderSide(color: borderColor)),
+        boxShadow: AppTokens.shadowSheet,
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            _TabButton(
-              icon: Icons.route_rounded,
-              label: strings.travelTabTrip,
-              tooltip: strings.backToRidesTooltip,
-              selected: currentIndex == 0,
-              onTap: () => onTabSelected(0),
-            ),
-            _TabButton(
-              icon: Icons.receipt_long_rounded,
-              label: strings.travelTabOrders,
-              selected: currentIndex == 1,
-              onTap: () => onTabSelected(1),
-            ),
-            IconButton(
-              icon: Icon(
-                // Visible brightness, not the enum — see AppState.
-                context.watch<AppState>().isDarkActive
-                    ? Icons.wb_sunny
-                    : Icons.nightlight_round,
-              ),
-              tooltip: strings.toggleThemeTooltip,
-              onPressed: () => context.read<AppState>().toggleTheme(),
-            ),
-            // The chip reads the language it will switch TO, not the one
-            // currently active — tapping it flips the locale.
-            Padding(
-              padding: const EdgeInsetsDirectional.only(
-                end: AppTokens.spaceSm,
-              ),
-              child: ActionChip(
-                avatar: const Icon(Icons.language, size: 16),
-                label: Text(
-                  strings.languageChipLabel,
-                  style: AppTokens.font(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: go.action,
-                  ),
-                ),
-                backgroundColor: go.surface,
-                side: BorderSide(color: go.border),
-                tooltip: strings.otherLanguageName,
-                onPressed: () => state.toggleLanguage(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.tooltip,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final String? tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final color = selected ? AppTokens.primary : go.muted;
-    final button = Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        child: SizedBox(
+          height: 66,
+          child: Row(
             children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: AppTokens.space2xs),
-              Text(
-                label,
-                style: AppTokens.font(
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: color,
+              // Escape hatch back to city rides, kept narrow so the two real
+              // tabs stay dominant.
+              _ExitButton(
+                go: go,
+                tooltip: isAr ? 'رجوع إلى الرحلات' : 'Back to rides',
+                onTap: onExitTravelMode,
+              ),
+              Expanded(
+                child: _TravelNavItem(
+                  go: go,
+                  icon: Icons.alt_route_outlined,
+                  activeIcon: Icons.alt_route_rounded,
+                  label: isAr ? 'رحلة' : 'Trip',
+                  active: currentTab == TravelTab.trip,
+                  onTap: () => onTabChanged(TravelTab.trip),
+                ),
+              ),
+              Expanded(
+                child: _TravelNavItem(
+                  go: go,
+                  icon: Icons.receipt_long_outlined,
+                  activeIcon: Icons.receipt_long_rounded,
+                  label: isAr ? 'طلباتي' : 'My orders',
+                  active: currentTab == TravelTab.orders,
+                  badgeCount: pendingRequests,
+                  onTap: () => onTabChanged(TravelTab.orders),
                 ),
               ),
             ],
@@ -129,8 +87,125 @@ class _TabButton extends StatelessWidget {
         ),
       ),
     );
-    return tooltip == null
-        ? button
-        : Tooltip(message: tooltip!, child: button);
+  }
+}
+
+/// The two destinations available in intercity mode.
+enum TravelTab { trip, orders }
+
+class _ExitButton extends StatelessWidget {
+  const _ExitButton({
+    required this.go,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final GoTheme go;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 58,
+          child: Center(
+            child: Icon(
+              Icons.arrow_back_rounded,
+              color: go.muted,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TravelNavItem extends StatelessWidget {
+  const _TravelNavItem({
+    required this.go,
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = go.isDark ? go.action : AppTokens.primary;
+    final color = active ? accent : go.muted;
+
+    return Semantics(
+      button: true,
+      selected: active,
+      label: label,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // The badge is stacked on the icon rather than the whole item so it
+            // stays pinned to the glyph as the label width changes with locale.
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(active ? activeIcon : icon, color: color, size: 25),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -4,
+                    right: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 17),
+                      decoration: BoxDecoration(
+                        color: AppTokens.danger,
+                        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                      ),
+                      child: Text(
+                        badgeCount > 9 ? '9+' : '$badgeCount',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.ibmPlexSansArabic(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.ibmPlexSansArabic(
+                fontSize: 12,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

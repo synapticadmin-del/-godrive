@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -36,17 +37,18 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
+    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Scaffold(
-      backgroundColor: go.bg,
+      backgroundColor: bg,
       appBar: AppBar(
-        title: Text(
-          strings.tripDetailTitle,
-          style: AppTokens.font(fontWeight: FontWeight.w700),
-        ),
-        backgroundColor: go.panel,
+        title: Text('تفاصيل الرحلة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
       body: _loading
@@ -54,246 +56,150 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           : _error != null
               ? ErrorState(message: _error!, onRetry: _load)
               : _trip == null
-                  ? EmptyState(
-                      icon: Icons.route_outlined,
-                      title: strings.tripNotFound,
-                    )
+                  ? const EmptyState(icon: Icons.route_outlined, title: 'الرحلة غير موجودة')
                   : ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
                         // Status + date
-                        _headerCard(go, strings),
+                        _headerCard(panel, text, muted, border),
                         const SizedBox(height: 16),
                         // Route
-                        _routeCard(go, strings),
+                        _routeCard(panel, text, muted, border),
                         const SizedBox(height: 16),
                         // Fare breakdown
-                        _fareCard(go, strings),
+                        _fareCard(panel, text, muted, border),
                         const SizedBox(height: 16),
                         // Captain info
                         if (_trip!['captain_name'] != null)
-                          _captainCard(go, strings),
+                          _captainCard(panel, text, muted, border),
                       ],
                     ),
     );
   }
 
-  Widget _headerCard(GoTheme go, AppStrings strings) {
+  Widget _headerCard(Color panel, Color text, Color muted, Color border) {
     final status = _trip!['status'] as String? ?? '';
     final fare = (_trip!['final_fare'] as num?)?.toDouble() ?? (_trip!['estimated_fare'] as num?)?.toDouble() ?? 0;
     final date = (_trip!['created_at'] ?? '').toString();
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: go.panel,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: go.border),
-      ),
+      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Column(children: [
-        StatusChip(label: strings.statusLabel(status), variant: _statusVariant(status), icon: _statusIcon(status)),
+        StatusChip(label: _statusLabel(status), variant: _statusVariant(status), icon: _statusIcon(status)),
         const SizedBox(height: 16),
-        Text(
-          '${fare.toStringAsFixed(0)} ${strings.egp}',
-          style: AppTokens.font(
-            fontSize: 32,
-            fontWeight: FontWeight.w800,
-            color: AppTokens.primary,
-          ),
-        ),
+        Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(fontSize: 32, fontWeight: FontWeight.w800, color: AppTokens.primary)),
         const SizedBox(height: 4),
-        Text(
-          date.substring(0, date.length >= 16 ? 16 : date.length),
-          style: AppTokens.font(fontSize: 13, color: go.muted),
-        ),
+        Text(date.substring(0, date.length >= 16 ? 16 : date.length), style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
       ]),
     );
   }
 
-  Widget _routeCard(GoTheme go, AppStrings strings) {
-    final pickup = (_trip!['pickup_address'] as String?) ?? strings.unknownPickup;
-    final dropoff = (_trip!['dropoff_address'] as String?) ?? strings.unknownDropoff;
+  Widget _routeCard(Color panel, Color text, Color muted, Color border) {
+    final pickup = _trip!['pickup_address'] ?? 'موقف النزول';
+    final dropoff = _trip!['dropoff_address'] ?? 'الوجهة';
     final distance = (_trip!['distance_km'] as num?)?.toDouble();
     final duration = (_trip!['duration_min'] as num?)?.toDouble();
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: go.panel,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: go.border),
-      ),
+      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(
-          strings.tripRouteTitle,
-          style: AppTokens.font(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: go.text,
-          ),
-        ),
+        Text('المسار', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
         const SizedBox(height: 16),
-        _routeRow(go, Icons.location_on, AppTokens.primary, pickup),
+        _routeRow(Icons.location_on, AppTokens.primary, pickup, text),
         if (distance != null) ...[
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Row(children: [
-              Text(
-                strings.tripDistanceKmLine(distance.toStringAsFixed(1)),
-                style: AppTokens.font(fontSize: 12, color: go.muted),
-              ),
+              Text('${distance.toStringAsFixed(1)} كم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
               if (duration != null) ...[
                 const SizedBox(width: 12),
-                Text(
-                  strings.tripDurationMinutes(duration.round()),
-                  style: AppTokens.font(fontSize: 12, color: go.muted),
-                ),
+                Text('${duration.round()} دقيقة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
               ],
             ]),
           ),
         ],
         const SizedBox(height: 12),
-        _routeRow(go, Icons.flag, AppTokens.accent, dropoff),
+        _routeRow(Icons.flag, AppTokens.accent, dropoff, text),
       ]),
     );
   }
 
-  Widget _fareCard(GoTheme go, AppStrings strings) {
+  Widget _fareCard(Color panel, Color text, Color muted, Color border) {
     final fare = (_trip!['final_fare'] as num?)?.toDouble() ?? (_trip!['estimated_fare'] as num?)?.toDouble() ?? 0;
     final discount = (_trip!['discount'] as num?)?.toDouble() ?? 0;
     final commission = (_trip!['commission'] as num?)?.toDouble() ?? 0;
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: go.panel,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: go.border),
-      ),
+      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(
-          strings.tripFareDetailsTitle,
-          style: AppTokens.font(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: go.text,
-          ),
-        ),
+        Text('تفاصيل الأجرة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
         const SizedBox(height: 12),
-        _fareRow(go, strings, strings.tripFareRowLabel, fare, go.text),
-        if (discount > 0) _fareRow(go, strings, strings.tripDiscountLabel, -discount, AppTokens.success),
+        _fareRow('الأجرة', fare, text),
+        if (discount > 0) _fareRow('الخصم', -discount, AppTokens.success),
         const Divider(height: 20),
-        _fareRow(go, strings, strings.tripTotalLabel, fare - discount, AppTokens.primary, bold: true),
+        _fareRow('الإجمالي', fare - discount, AppTokens.primary, bold: true),
         if (commission > 0) ...[
           const SizedBox(height: 4),
-          _fareRow(go, strings, strings.platformCommission, commission, go.muted, small: true),
+          _fareRow('عمولة المنصة', commission, muted, small: true),
         ],
       ]),
     );
   }
 
-  Widget _captainCard(GoTheme go, AppStrings strings) {
-    final name = (_trip!['captain_name'] as String?) ?? strings.riderCaptainFallback;
+  Widget _captainCard(Color panel, Color text, Color muted, Color border) {
+    final name = _trip!['captain_name'] ?? 'كابتن';
     final plate = _trip!['vehicle_plate'];
     final rating = _trip!['rating_avg'];
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: go.panel,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: go.border),
-      ),
+      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Row(children: [
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: AppTokens.primary.withOpacity(0.15),
-          child: Text(
-            name.substring(0, 1),
-            style: const TextStyle(
-              color: AppTokens.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-        ),
+        CircleAvatar(radius: 24, backgroundColor: AppTokens.primary.withOpacity(0.15),
+          child: Text(name.substring(0, 1), style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 18))),
         const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              name,
-              style: AppTokens.font(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: go.text,
-              ),
-            ),
-            if (plate != null)
-              Text(
-                plate,
-                style: AppTokens.font(fontSize: 13, color: go.muted),
-              ),
-          ]),
-        ),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+          if (plate != null) Text(plate, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+        ])),
         if (rating != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTokens.accent.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(999),
-            ),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: AppTokens.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.star, color: AppTokens.accent, size: 14),
               const SizedBox(width: 4),
-              Text(
-                '$rating',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppTokens.accent,
-                ),
-              ),
-            ]),
-          ),
+              Text('$rating', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTokens.accent)),
+            ])),
       ]),
     );
   }
 
-  Widget _routeRow(GoTheme go, IconData icon, Color color, String label) {
+  Widget _routeRow(IconData icon, Color color, String label, Color text) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 18, color: color),
       const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          label,
-          style: AppTokens.font(fontSize: 14, color: go.text),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
+      Expanded(child: Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: text), maxLines: 2, overflow: TextOverflow.ellipsis)),
     ]);
   }
 
-  Widget _fareRow(GoTheme go, AppStrings strings, String label, double amount, Color color, {bool bold = false, bool small = false}) {
+  Widget _fareRow(String label, double amount, Color color, {bool bold = false, bool small = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(
-          label,
-          style: AppTokens.font(
-            fontSize: small ? 11 : 14,
-            color: color.withOpacity(small ? 0.7 : 1),
-          ),
-        ),
-        Text(
-          '${amount.toStringAsFixed(0)} ${strings.egp}',
-          style: AppTokens.font(
-            fontSize: small ? 11 : (bold ? 18 : 14),
-            fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-            color: color,
-          ),
-        ),
+        Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: small ? 11 : 14, color: color.withOpacity(small ? 0.7 : 1))),
+        Text('${amount.toStringAsFixed(0)} ج.م',
+          style: GoogleFonts.ibmPlexSansArabic(fontSize: small ? 11 : (bold ? 18 : 14), fontWeight: bold ? FontWeight.w800 : FontWeight.w500, color: color)),
       ]),
     );
   }
 
+  String _statusLabel(String s) => switch (s) {
+    'completed' => 'مكتملة',
+    'cancelled' => 'ملغية',
+    'in_progress' => 'جارية',
+    'assigned' => 'مُعيّن',
+    _ => s,
+  };
   StatusVariant _statusVariant(String s) => switch (s) {
     'completed' => StatusVariant.success,
     'cancelled' => StatusVariant.danger,

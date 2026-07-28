@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
@@ -222,7 +223,6 @@ class _BrandLockup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = go.isDark ? go.action : AppTokens.primary;
-    final strings = AppStrings.of(context);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -260,7 +260,7 @@ class _BrandLockup extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           'GoDrive',
-          style: AppTokens.fontLatin(
+          style: GoogleFonts.inter(
             fontSize: 27,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
@@ -269,8 +269,8 @@ class _BrandLockup extends StatelessWidget {
         ).animate().fadeIn(delay: 180.ms, duration: 480.ms),
         const SizedBox(height: 7),
         Text(
-          strings.splashTagline,
-          style: AppTokens.font(
+          'رحلتك، بسعرك',
+          style: GoogleFonts.ibmPlexSansArabic(
             fontSize: 14.5,
             fontWeight: FontWeight.w500,
             color: go.muted,
@@ -304,7 +304,6 @@ class _CreatedByBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = go.isDark ? go.action : AppTokens.primary;
-    final strings = AppStrings.of(context);
 
     return GestureDetector(
       onTap: onTap,
@@ -313,8 +312,8 @@ class _CreatedByBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            strings.createdByLabel,
-            style: AppTokens.fontLatin(
+            'Created by',
+            style: GoogleFonts.inter(
               fontSize: 12,
               color: go.muted,
               fontWeight: FontWeight.w500,
@@ -348,8 +347,8 @@ class _CreatedByBadge extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                strings.synapticStudioLabel,
-                style: AppTokens.fontLatin(
+                'Synaptic Studio',
+                style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: accent,

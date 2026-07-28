@@ -44,7 +44,7 @@ import 'package:flutter/widgets.dart';
 /// `home_tab`, `active_trip_panel`, `wallet_screen`, `document_upload_screen`,
 /// `document_status_screen`, and `trip_chat_screen`. Copy their pattern.
 abstract class AppStrings {
-  const AppStrings._();
+  const AppStrings();
 
   /// Resolves the copy bundle for the ambient locale. Falls back to Arabic —
   /// the app's primary market — when the locale is neither Arabic nor English

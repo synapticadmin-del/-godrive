@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:intl/intl.dart';
 import '../../services/app_state.dart';
@@ -39,14 +40,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
-
     return Scaffold(
-      backgroundColor: go.bg,
+      backgroundColor: AppTokens.lightBg,
       appBar: AppBar(
-        title: Text(strings.tripHistoryTitle, style: AppTokens.font(color: go.text)),
-        backgroundColor: go.surface,
+        title: Text('سجل الرحلات', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
+        backgroundColor: AppTokens.lightSurface,
         elevation: 0,
       ),
       body: _loading
@@ -54,8 +52,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
           : _trips.isEmpty
               ? Center(
                   child: Text(
-                    strings.noPastTrips,
-                    style: AppTokens.font(color: go.muted, fontSize: 16),
+                    'لا توجد رحلات سابقة',
+                    style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted, fontSize: 16),
                   ),
                 )
               : ListView.builder(
@@ -68,7 +66,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     final formattedDate = date != null ? DateFormat('yyyy-MM-dd HH:mm').format(date) : '';
                     
                     return Card(
-                      color: go.panel,
+                      color: AppTokens.lightPanel,
                       margin: const EdgeInsets.only(bottom: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
                       child: InkWell(
@@ -87,7 +85,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(formattedDate, style: AppTokens.font(color: go.muted)),
+                                  Text(formattedDate, style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted)),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
@@ -95,8 +93,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                                     ),
                                     child: Text(
-                                      trip['status'] == 'completed' ? strings.tripCompleted : strings.tripCancelled,
-                                      style: AppTokens.font(
+                                      trip['status'] == 'completed' ? 'مكتملة' : 'ملغاة',
+                                      style: GoogleFonts.ibmPlexSansArabic(
                                         color: trip['status'] == 'completed' ? AppTokens.success : AppTokens.danger,
                                         fontSize: 12,
                                       ),
@@ -110,7 +108,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   Column(
                                     children: [
                                       const Icon(Icons.circle, size: 12, color: AppTokens.primary),
-                                      Container(width: 2, height: 20, color: go.border),
+                                      Container(width: 2, height: 20, color: AppTokens.lightBorder),
                                       const Icon(Icons.place, size: 12, color: AppTokens.accent),
                                     ],
                                   ),
@@ -119,9 +117,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(trip['pickup_address'] ?? trip['pickupAddress'] ?? strings.unknownPickup, style: AppTokens.font(color: go.text)),
+                                        Text(trip['pickup_address'] ?? trip['pickupAddress'] ?? 'موقع غير معروف', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
                                         const SizedBox(height: 12),
-                                        Text(trip['dropoff_address'] ?? trip['dropoffAddress'] ?? strings.unknownDropoff, style: AppTokens.font(color: go.text)),
+                                        Text(trip['dropoff_address'] ?? trip['dropoffAddress'] ?? 'وجهة غير معروفة', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
                                       ],
                                     ),
                                   ),
@@ -129,8 +127,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               ),
                               const Divider(color: AppTokens.lightBorder, height: 32),
                               Text(
-                                '${trip['final_fare'] ?? trip['estimated_fare'] ?? trip['finalFare'] ?? trip['estimatedFare'] ?? 0} ${strings.egp}',
-                                style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.bold, color: AppTokens.primary),
+                                '${trip['final_fare'] ?? trip['estimated_fare'] ?? trip['finalFare'] ?? trip['estimatedFare'] ?? 0} ج.م',
+                                style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.bold, color: AppTokens.primary),
                               ),
                             ],
                           ),

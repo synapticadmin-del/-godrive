@@ -1,368 +1,297 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
-import '../../../services/app_state.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 
-/// Result of a completed search: a resolved point for one end of the trip.
-class LocationSearchResult {
-  const LocationSearchResult({
-    required this.latitude,
-    required this.longitude,
-    required this.address,
+import '../../services/location_service.dart';
+
+/// Destination search, backed by the GoDrive geocoding endpoint.
+///
+/// Two things changed versus the previous implementation:
+///  1. Queries go to our backend (`/geocode/search`) instead of hitting
+///     Nominatim directly from the handset. Calling Nominatim from an end-user
+///     app violates their usage policy and risks an IP-range ban; the backend
+///     also caches results and rate-limits properly.
+///  2. Results are ordered by proximity to the rider and show how far away
+///     each one is, so searching "مسجد" surfaces the nearby mosque instead of
+///     one in a different governorate.
+class LocationSearchSheet extends StatefulWidget {
+  const LocationSearchSheet({
+    super.key,
+    required this.isPickup,
+    required this.locations,
+    required this.onSelectLocation,
+    this.currentLocation,
+    this.onPickOnMap,
   });
 
-  final double latitude;
-  final double longitude;
-  final String address;
-}
-
-/// Full-screen search sheet for choosing a pickup or destination point.
-///
-/// Opened from the home "from / to" fields. Text search debounces through the
-/// backend places autocomplete, popular places are offered below the results,
-/// and both the device GPS fix and "set on map" escape hatches live here so
-/// the rider never gets stuck on a place the geocoder cannot name.
-///
-/// Every string routes through [AppStrings] — previously the hints, section
-/// headers and the no-results empty state were hardcoded Arabic that
-/// disappeared when the rider switched to English.
-class LocationSearchSheet extends StatefulWidget {
-  const LocationSearchSheet({super.key, required this.isPickup});
-
-  /// Whether we are resolving the pickup (true) or the destination (false).
   final bool isPickup;
+  final LatLng? currentLocation;
+  final LocationService locations;
+  final void Function(String label, LatLng location) onSelectLocation;
 
-  /// Opens the sheet and returns the chosen point, or null when dismissed.
-  static Future<LocationSearchResult?> show(
-    BuildContext context, {
-    required bool isPickup,
-  }) {
-    return showModalBottomSheet<LocationSearchResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => LocationSearchSheet(isPickup: isPickup),
-    );
-  }
+  /// Opens the centre-pin picker. The sheet closes first so the rider sees
+  /// the map immediately.
+  final VoidCallback? onPickOnMap;
 
   @override
   State<LocationSearchSheet> createState() => _LocationSearchSheetState();
 }
 
 class _LocationSearchSheetState extends State<LocationSearchSheet> {
-  final _searchCtrl = TextEditingController();
-  final _focusNode = FocusNode();
-  Timer? _debounce;
+  final TextEditingController _controller = TextEditingController();
+  final Debouncer _debouncer = Debouncer(milliseconds: 400);
 
-  List<dynamic> _results = [];
-  List<dynamic> _popular = [];
+  List<PlaceResult> _results = const [];
   bool _searching = false;
-  bool _searchUnavailable = false;
-  bool _locating = false;
+  String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadPopular();
-    // Opening the keyboard immediately is what makes this feel like a search
-    // sheet rather than a page the rider happened to land on.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
-    });
-  }
+  /// Well-known destinations, shown before the rider types anything.
+  static const List<_QuickSpot> _quickSpots = [
+    _QuickSpot('ميدان التحرير، وسط البلد', 'Tahrir Square, Downtown Cairo',
+        30.0444, 31.2357, Icons.location_city_rounded),
+    _QuickSpot('مطار القاهرة الدولي (صالة 3)',
+        'Cairo International Airport (T3)', 30.1219, 31.4056,
+        Icons.flight_takeoff_rounded),
+    _QuickSpot('سيتي ستارز، مدينة نصر', 'Citystars, Nasr City', 30.0732,
+        31.3465, Icons.shopping_bag_outlined),
+    _QuickSpot('مول العرب، 6 أكتوبر', 'Mall of Arabia, 6th of October',
+        29.9998, 30.9701, Icons.shopping_cart_outlined),
+    _QuickSpot('شارع 9، المعادي', 'Road 9, Maadi', 29.9592, 31.2612,
+        Icons.storefront_rounded),
+    _QuickSpot('برج القاهرة، الزمالك', 'Cairo Tower, Zamalek', 30.0459,
+        31.2243, Icons.attractions_rounded),
+  ];
 
   @override
   void dispose() {
-    _debounce?.cancel();
-    _searchCtrl.dispose();
-    _focusNode.dispose();
+    _controller.dispose();
+    _debouncer.dispose();
     super.dispose();
   }
 
-  Future<void> _loadPopular() async {
-    try {
-      final res = await context.read<AppState>().apiGet('/places/popular');
-      if (!mounted) return;
-      setState(() => _popular = (res['places'] as List?) ?? []);
-    } catch (_) {
-      // Popular places are a convenience, not a blocker — stay silent.
-    }
-  }
-
   void _onQueryChanged(String query) {
-    _debounce?.cancel();
-    if (query.trim().length < 2) {
+    final q = query.trim();
+
+    if (q.length < 2) {
+      _debouncer.cancel();
       setState(() {
-        _results = [];
+        _results = const [];
         _searching = false;
+        _error = null;
       });
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 350), () {
-      _search(query.trim());
-    });
+
+    setState(() => _searching = true);
+    _debouncer.run(() => _runSearch(q));
   }
 
-  Future<void> _search(String query) async {
-    setState(() {
-      _searching = true;
-      _searchUnavailable = false;
-    });
+  Future<void> _runSearch(String query) async {
     try {
-      final res = await context
-          .read<AppState>()
-          .apiGet('/places/search?q=${Uri.encodeQueryComponent(query)}');
+      final results = await widget.locations.searchPlaces(
+        query,
+        near: widget.currentLocation,
+      );
       if (!mounted) return;
       setState(() {
-        _results = (res['places'] as List?) ?? [];
+        _results = results;
         _searching = false;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
+      final isAr = Localizations.localeOf(context).languageCode == 'ar';
       setState(() {
-        _results = [];
         _searching = false;
-        _searchUnavailable = true;
+        _results = const [];
+        _error = isAr
+            ? 'تعذّر البحث الآن. تحقق من الاتصال وحاول مرة أخرى.'
+            : 'Search unavailable. Check your connection and try again.';
       });
     }
   }
 
-  Future<void> _useDeviceLocation() async {
-    final strings = AppStrings.of(context);
-    setState(() => _locating = true);
-    try {
-      final state = context.read<AppState>();
-      final position = await state.getCurrentPosition();
-      if (!mounted) return;
-      Navigator.pop(
-        context,
-        LocationSearchResult(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          address: strings.currentLocationGps,
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _locating = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.locationPermissionDenied)),
-      );
-    }
-  }
-
-  void _setOnMap() {
-    // Dismisses without a result: the home screen then enters map-pan
-    // mode, moving its pin and reverse-geocoding the map centre.
+  void _select(String label, LatLng location) {
+    widget.onSelectLocation(label, location);
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
-    final hasQuery = _searchCtrl.text.trim().length >= 2;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.92,
-      decoration: BoxDecoration(
-        color: go.bg,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppTokens.radiusXl),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.82,
+        decoration: BoxDecoration(
+          color: go.panel,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppTokens.radiusXl),
+          ),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: go.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.isPickup
+                        ? Icons.trip_origin_rounded
+                        : Icons.place_rounded,
+                    size: 20,
+                    color: widget.isPickup ? go.pinPickup : go.pinDropoff,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.isPickup
+                        ? (isAr ? 'نقطة الانطلاق' : 'Pickup point')
+                        : (isAr ? 'الوجهة' : 'Destination'),
+                    style: GoogleFonts.ibmPlexSansArabic(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: go.text,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: TextField(
+                controller: _controller,
+                autofocus: true,
+                onChanged: _onQueryChanged,
+                textInputAction: TextInputAction.search,
+                style: GoogleFonts.ibmPlexSansArabic(
+                  fontSize: 15,
+                  color: go.text,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  hintText: widget.isPickup
+                      ? (isAr ? 'ابحث عن نقطة الانطلاق' : 'Search pickup')
+                      : (isAr ? 'ابحث عن الوجهة' : 'Search destination'),
+                  prefixIcon: Icon(Icons.search_rounded, color: go.muted),
+                  suffixIcon: _controller.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: Icon(Icons.close_rounded, color: go.muted),
+                          onPressed: () {
+                            _controller.clear();
+                            _onQueryChanged('');
+                          },
+                        ),
+                  filled: true,
+                  fillColor: go.surface,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    borderSide: BorderSide(color: go.action, width: 1.5),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            Expanded(child: _buildBody(go, isAr)),
+          ],
         ),
       ),
-      child: Column(
-        children: [
-          const SizedBox(height: AppTokens.spaceSm),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: go.border,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    );
+  }
+
+  Widget _buildBody(GoTheme go, bool isAr) {
+    if (_searching) {
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+        itemCount: 5,
+        itemBuilder: (_, __) => _ResultSkeleton(go: go),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off_rounded, size: 38, color: go.muted),
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.ibmPlexSansArabic(
+                  fontSize: 14,
+                  color: go.muted,
+                  height: 1.5,
+                ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMd,
-            ),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                widget.isPickup
-                    ? strings.pickupPointLabel
-                    : strings.destinationLabel,
-                style: AppTokens.font(
+        ),
+      );
+    }
+
+    final query = _controller.text.trim();
+
+    if (query.length >= 2 && _results.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search_off_rounded, size: 38, color: go.muted),
+              const SizedBox(height: 12),
+              Text(
+                isAr
+                    ? 'لا توجد نتائج لهذا البحث'
+                    : 'No places match that search',
+                style: GoogleFonts.ibmPlexSansArabic(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: go.text,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isAr
+                    ? 'جرّب اسمًا أبسط، أو حدّد المكان على الخريطة'
+                    : 'Try a simpler name, or set the point on the map',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.ibmPlexSansArabic(
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
                   color: go.muted,
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppTokens.spaceMd),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: strings.backTooltip,
-                  onPressed: () => Navigator.pop(context),
-                ),
-                const SizedBox(width: AppTokens.spaceSm),
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    focusNode: _focusNode,
-                    onChanged: _onQueryChanged,
-                    style: AppTokens.font(color: go.text),
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (q) {
-                      if (q.trim().length >= 2) _search(q.trim());
-                    },
-                    decoration: InputDecoration(
-                      hintText: widget.isPickup
-                          ? strings.searchPickupHint
-                          : strings.searchDestinationHint,
-                      hintStyle: AppTokens.font(color: go.muted),
-                      prefixIcon: Icon(
-                        widget.isPickup
-                            ? Icons.radio_button_checked
-                            : Icons.location_on_outlined,
-                        color: widget.isPickup
-                            ? AppTokens.primary
-                            : AppTokens.danger,
-                      ),
-                      suffixIcon: _searching
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: go.surface,
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radiusMd),
-                        borderSide: BorderSide(color: go.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radiusMd),
-                        borderSide: BorderSide(color: go.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTokens.radiusMd),
-                        borderSide: const BorderSide(color: AppTokens.primary),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Escape hatches: GPS fix + drop the pin on the map.
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTokens.spaceMd,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _locating ? null : _useDeviceLocation,
-                    icon: _locating
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.my_location, size: 18),
-                    label: Text(
-                      _locating ? strings.myCurrentLocation : strings.useDeviceLocation,
-                      style: AppTokens.font(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppTokens.spaceSm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _setOnMap,
-                    icon: const Icon(Icons.map_outlined, size: 18),
-                    label: Text(
-                      strings.setOnMapAction,
-                      style: AppTokens.font(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppTokens.spaceSm),
-          Expanded(
-            child: hasQuery ? _buildResults(go, strings) : _buildPopular(go, strings),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResults(GoTheme go, AppStrings strings) {
-    if (_searchUnavailable) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTokens.spaceLg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.cloud_off, color: go.muted, size: 40),
-              const SizedBox(height: AppTokens.spaceSm),
-              Text(
-                strings.searchUnavailable,
-                textAlign: TextAlign.center,
-                style: AppTokens.font(color: go.muted),
-              ),
-              const SizedBox(height: AppTokens.spaceSm),
-              Text(
-                strings.setOnMapSubtitle,
-                textAlign: TextAlign.center,
-                style: AppTokens.font(fontSize: 12.5, color: go.muted),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (!_searching && _results.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTokens.spaceLg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.search_off, color: go.muted, size: 40),
-              const SizedBox(height: AppTokens.spaceSm),
-              Text(
-                strings.noPlacesFound,
-                textAlign: TextAlign.center,
-                style: AppTokens.font(color: go.muted),
-              ),
-              const SizedBox(height: AppTokens.spaceSm),
-              Text(
-                strings.trySimplerNameOrMap,
-                textAlign: TextAlign.center,
-                style: AppTokens.font(fontSize: 12.5, color: go.muted),
-              ),
+              const SizedBox(height: 18),
+              _MapPickButton(go: go, isAr: isAr, onTap: _pickOnMap),
             ],
           ),
         ),
@@ -370,79 +299,326 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
     }
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
       children: [
         if (_results.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: AppTokens.spaceSm,
-            ),
-            child: Text(
-              strings.resultsSection,
-              style: AppTokens.font(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: go.muted,
-              ),
+          _SectionLabel(go: go, text: isAr ? 'نتائج البحث' : 'Results'),
+          ..._results.map(
+            (place) => _PlaceTile(
+              go: go,
+              icon: Icons.place_outlined,
+              title: place.label,
+              subtitle: place.secondary,
+              trailing: place.distanceLabel(isArabic: isAr),
+              onTap: () => _select(place.label, place.location),
             ),
           ),
-          ..._results.map((place) => _placeTile(place, go)),
+        ] else ...[
+          _ActionTile(
+            go: go,
+            icon: Icons.map_rounded,
+            title: isAr ? 'تحديد على الخريطة' : 'Set on map',
+            subtitle: isAr
+                ? 'حرّك الخريطة لضبط المكان بدقة'
+                : 'Move the map to place the pin precisely',
+            onTap: _pickOnMap,
+          ),
+          if (widget.isPickup && widget.currentLocation != null)
+            _ActionTile(
+              go: go,
+              icon: Icons.my_location_rounded,
+              title: isAr ? 'موقعي الحالي' : 'My current location',
+              subtitle: isAr ? 'استخدام موقع الجهاز' : 'Use device location',
+              onTap: () => _select(
+                isAr ? 'موقعي الحالي (GPS)' : 'Current location (GPS)',
+                widget.currentLocation!,
+              ),
+            ),
+          const SizedBox(height: 10),
+          _SectionLabel(
+            go: go,
+            text: isAr ? 'أماكن شائعة' : 'Popular places',
+          ),
+          ..._quickSpots.map((spot) {
+            final location = LatLng(spot.lat, spot.lng);
+            final label = isAr ? spot.ar : spot.en;
+            return _PlaceTile(
+              go: go,
+              icon: spot.icon,
+              title: label,
+              trailing: _quickSpotDistance(location, isAr),
+              onTap: () => _select(label, location),
+            );
+          }),
         ],
       ],
     );
   }
 
-  Widget _buildPopular(GoTheme go, AppStrings strings) {
-    if (_popular.isEmpty) return const SizedBox.shrink();
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
-          child: Text(
-            strings.popularPlacesSection,
-            style: AppTokens.font(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: go.muted,
+  String? _quickSpotDistance(LatLng target, bool isAr) {
+    final origin = widget.currentLocation;
+    if (origin == null) return null;
+    const distance = Distance();
+    final km = distance.as(LengthUnit.Kilometer, origin, target).toDouble();
+    if (km < 1) return isAr ? '${(km * 1000).round()} م' : '${(km * 1000).round()} m';
+    return isAr ? '${km.toStringAsFixed(1)} كم' : '${km.toStringAsFixed(1)} km';
+  }
+
+  void _pickOnMap() {
+    Navigator.pop(context);
+    widget.onPickOnMap?.call();
+  }
+}
+
+class _QuickSpot {
+  const _QuickSpot(this.ar, this.en, this.lat, this.lng, this.icon);
+  final String ar;
+  final String en;
+  final double lat;
+  final double lng;
+  final IconData icon;
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.go, required this.text});
+
+  final GoTheme go;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+      child: Text(
+        text,
+        style: GoogleFonts.ibmPlexSansArabic(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: go.muted,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceTile extends StatelessWidget {
+  const _PlaceTile({
+    required this.go,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.trailing,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final String? trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: go.surface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 19, color: go.muted),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.ibmPlexSansArabic(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: go.text,
+                      ),
+                    ),
+                    if (subtitle != null && subtitle!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.ibmPlexSansArabic(
+                          fontSize: 12.5,
+                          color: go.muted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[
+                const SizedBox(width: 10),
+                Text(
+                  trailing!,
+                  style: GoogleFonts.ibmPlexSansArabic(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: go.muted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.go,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final GoTheme go;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: go.surface,
+        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+            child: Row(
+              children: [
+                Icon(icon, size: 21, color: go.isDark ? go.action : AppTokens.primary),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.ibmPlexSansArabic(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: go.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.ibmPlexSansArabic(
+                          fontSize: 12.5,
+                          color: go.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: go.muted),
+              ],
             ),
           ),
         ),
-        ..._popular.map((place) => _placeTile(place, go)),
-      ],
+      ),
     );
   }
+}
 
-  Widget _placeTile(dynamic place, GoTheme go) {
-    final name = place['name']?.toString() ?? '';
-    final address = place['address']?.toString() ?? '';
-    final lat = (place['latitude'] as num?)?.toDouble();
-    final lng = (place['longitude'] as num?)?.toDouble();
+class _MapPickButton extends StatelessWidget {
+  const _MapPickButton({
+    required this.go,
+    required this.isAr,
+    required this.onTap,
+  });
 
-    return ListTile(
-      leading: Icon(Icons.place_outlined, color: go.action),
-      title: Text(
-        name,
-        style: AppTokens.font(fontWeight: FontWeight.w600, color: go.text),
+  final GoTheme go;
+  final bool isAr;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.map_rounded, size: 19),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: go.action,
+        foregroundColor: go.onAction,
+        minimumSize: const Size(220, 50),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        ),
       ),
-      subtitle: address.isEmpty
-          ? null
-          : Text(
-              address,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTokens.font(fontSize: 12.5, color: go.muted),
+      label: Text(
+        isAr ? 'تحديد على الخريطة' : 'Set on map',
+        style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _ResultSkeleton extends StatelessWidget {
+  const _ResultSkeleton({required this.go});
+
+  final GoTheme go;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: go.surface,
+            borderRadius: BorderRadius.circular(6),
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: go.surface,
+              borderRadius: BorderRadius.circular(10),
             ),
-      onTap: lat == null || lng == null
-          ? null
-          : () => Navigator.pop(
-                context,
-                LocationSearchResult(
-                  latitude: lat,
-                  longitude: lng,
-                  address: address.isEmpty ? name : address,
-                ),
-              ),
+          ),
+          const SizedBox(width: 13),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [bar(170, 11), const SizedBox(height: 7), bar(110, 9)],
+          ),
+        ],
+      ),
     );
   }
 }

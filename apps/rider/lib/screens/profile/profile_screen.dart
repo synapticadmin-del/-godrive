@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 import '../history/history_screen.dart';
@@ -19,25 +20,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nameController = TextEditingController(text: user?['name'] ?? '');
     final phoneController = TextEditingController(text: user?['phone'] ?? '');
     final emailController = TextEditingController(text: user?['email'] ?? '');
-    final strings = AppStrings.of(context);
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final go = GoTheme.of(ctx);
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
           child: Container(
-            padding: const EdgeInsets.all(AppTokens.spaceLg),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: go.panel,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppTokens.radiusXl),
-              ),
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -48,26 +47,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: go.border,
+                      color: isDark ? Colors.grey[700] : Colors.grey[300],
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
-                const SizedBox(height: AppTokens.spaceMd),
+                const SizedBox(height: 16),
                 Text(
-                  strings.editProfileInfoTitle,
-                  style: AppTokens.font(
+                  isAr ? 'تعديل البيانات الشخصية' : 'Edit Profile Information',
+                  style: GoogleFonts.ibmPlexSansArabic(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: go.text,
                   ),
                 ),
                 const SizedBox(height: 20),
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(
-                    labelText: strings.fullNameLabel,
+                    labelText: isAr ? 'الاسم الكامل' : 'Full Name',
                     prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -75,8 +74,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    labelText: strings.phoneNumberLabel,
+                    labelText: isAr ? 'رقم الهاتف' : 'Phone Number',
                     prefixIcon: const Icon(Icons.phone_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -84,12 +84,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   controller: emailController,
                   readOnly: true,
                   decoration: InputDecoration(
-                    labelText: strings.emailReadOnlyLabel,
+                    labelText: isAr ? 'البريد الإلكتروني (غير قابل للتعديل)' : 'Email Address (read only)',
                     prefixIcon: const Icon(Icons.email_outlined),
                     suffixIcon: const Icon(Icons.lock_outline),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                const SizedBox(height: AppTokens.spaceLg),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () async {
                     final messenger = ScaffoldMessenger.of(context);
@@ -102,7 +103,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.pop(ctx);
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(strings.profileUpdatedSuccess),
+                          content: Text(
+                            isAr ? 'تم حفظ التعديلات بنجاح' : 'Profile updated successfully',
+                          ),
                           backgroundColor: AppTokens.success,
                         ),
                       );
@@ -110,17 +113,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       if (!ctx.mounted) return;
                       ScaffoldMessenger.of(ctx).showSnackBar(
                         SnackBar(
-                          content: Text(
-                            e.toString().replaceFirst('Exception: ', ''),
-                          ),
+                          content: Text(e.toString().replaceFirst('Exception: ', '')),
                           backgroundColor: AppTokens.danger,
                         ),
                       );
                     }
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTokens.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   child: Text(
-                    strings.saveChangesAction,
-                    style: AppTokens.font(
+                    isAr ? 'حفظ التعديلات' : 'Save Changes',
+                    style: GoogleFonts.ibmPlexSansArabic(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -136,7 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showAvatarPickerModal(BuildContext context) {
-    final strings = AppStrings.of(context);
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final avatars = [
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
       'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
@@ -148,25 +154,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final go = GoTheme.of(ctx);
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
         return Container(
-          padding: const EdgeInsets.all(AppTokens.spaceLg),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: go.panel,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(AppTokens.radiusXl),
-            ),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                strings.changeProfilePictureTitle,
-                style: AppTokens.font(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: go.text,
-                ),
+                isAr ? 'تغيير الصورة الشخصية' : 'Change Profile Picture',
+                style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
               Row(
@@ -174,9 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: avatars.map((url) {
                   return GestureDetector(
                     onTap: () async {
-                      await ctx
-                          .read<AppState>()
-                          .updateUserProfile(avatarUrl: url);
+                      await ctx.read<AppState>().updateUserProfile(avatarUrl: url);
                       if (ctx.mounted) Navigator.pop(ctx);
                     },
                     child: CircleAvatar(
@@ -190,17 +188,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               OutlinedButton.icon(
                 onPressed: () async {
                   // Fallback simulation for custom avatar link
-                  const defaultAvatar =
-                      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
-                  await ctx
-                      .read<AppState>()
-                      .updateUserProfile(avatarUrl: defaultAvatar);
+                  const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+                  await ctx.read<AppState>().updateUserProfile(avatarUrl: defaultAvatar);
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(
-                  strings.chooseNewPhotoAction,
-                  style: AppTokens.font(),
+                  isAr ? 'اختيار صورة جديدة' : 'Choose New Photo',
+                  style: GoogleFonts.ibmPlexSansArabic(),
                 ),
               ),
             ],
@@ -226,9 +221,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final appState = context.watch<AppState>();
     final user = appState.user;
     final balance = appState.walletBalance ?? 0.0;
-    final strings = AppStrings.of(context);
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final avatarUrl = user?['avatarUrl'] as String?;
-    final go = GoTheme.of(context);
 
     final rawName = user?['name']?.toString() ?? '';
     final email = user?['email']?.toString() ?? '';
@@ -238,23 +232,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : (email.isNotEmpty ? email[0].toUpperCase() : 'U');
     final displayName = rawName.isNotEmpty
         ? rawName
-        : (email.isNotEmpty ? email.split('@').first : strings.fallbackUserName);
+        : (email.isNotEmpty ? email.split('@').first : (isAr ? 'مستخدم' : 'User'));
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.profileTitle),
+        title: Text(isAr ? 'الملف الشخصي' : 'Profile', style: GoogleFonts.ibmPlexSansArabic()),
         actions: [
           IconButton(
             icon: Icon(
               // Visible brightness, not the enum — see AppState.
               appState.isDarkActive ? Icons.wb_sunny : Icons.nightlight_round,
             ),
-            tooltip: strings.toggleThemeTooltip,
+            tooltip: isAr ? 'تغيير المظهر' : 'Toggle Theme',
             onPressed: () => appState.toggleTheme(),
           ),
           IconButton(
             icon: const Icon(Icons.language),
-            tooltip: strings.toggleLanguageTooltip,
+            tooltip: isAr ? 'English' : 'العربية',
             onPressed: () => appState.toggleLanguage(),
           ),
         ],
@@ -269,17 +263,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircleAvatar(
                   radius: 50,
                   backgroundColor: AppTokens.primary,
-                  backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                      ? NetworkImage(avatarUrl)
-                      : null,
+                  backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
                   child: (avatarUrl == null || avatarUrl.isEmpty)
                       ? Text(
                           initial,
-                          style: AppTokens.font(
-                            fontSize: 40,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(fontSize: 40, color: Colors.white, fontWeight: FontWeight.bold),
                         )
                       : null,
                 ),
@@ -293,71 +281,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: BoxDecoration(
                         color: AppTokens.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: go.panel, width: 2),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        color: Colors.white,
-                        size: 18,
-                      ),
+                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.spaceMd),
+          const SizedBox(height: 16),
           Text(
             displayName,
-            style: AppTokens.font(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: go.text,
-            ),
+            style: GoogleFonts.ibmPlexSansArabic(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           if (email.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.space2xs),
+            const SizedBox(height: 4),
             Text(
               email,
-              style: AppTokens.font(fontSize: 14, color: go.muted),
+              style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
               textAlign: TextAlign.center,
             ),
           ],
           if (phone.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: AppTokens.space2xs),
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
                 phone,
-                style: AppTokens.font(fontSize: 14, color: go.muted),
+                style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
                 textAlign: TextAlign.center,
               ),
             ),
-          const SizedBox(height: AppTokens.spaceSm),
+          const SizedBox(height: 12),
           Center(
             child: TextButton.icon(
               onPressed: () => _showEditProfileModal(context, user),
               icon: const Icon(Icons.edit_outlined, size: 18),
               label: Text(
-                strings.editDetailsAction,
-                style: AppTokens.font(fontWeight: FontWeight.w600),
+                isAr ? 'تعديل البيانات' : 'Edit Details',
+                style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w600),
               ),
             ),
           ),
-          const SizedBox(height: AppTokens.spaceLg),
+          const SizedBox(height: 24),
 
-          // Wallet Card Preview — brand gradient derived from the token ramp
-          // (primary → primaryDark) instead of a one-off blue.
+          // Wallet Card Preview
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppTokens.primaryLight, AppTokens.primaryDark],
+                colors: [AppTokens.primary, Color(0xFF0284C7)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-              boxShadow: AppTokens.glow(AppTokens.primary, opacity: 0.30),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTokens.primary.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -366,116 +351,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      strings.availableBalanceLabel,
-                      style: AppTokens.font(
-                        color: Colors.white.withOpacity(0.82),
-                        fontSize: 14,
-                      ),
+                      isAr ? 'الرصيد المتاح' : 'Available Balance',
+                      style: GoogleFonts.ibmPlexSansArabic(color: Colors.white70, fontSize: 14),
                     ),
-                    const SizedBox(height: AppTokens.space2xs),
+                    const SizedBox(height: 4),
                     Text(
-                      '${balance.toStringAsFixed(2)} ${strings.egp}',
-                      style: AppTokens.money(
-                        color: Colors.white,
-                        fontSize: 24,
-                      ),
+                      '${balance.toStringAsFixed(2)} ${isAr ? "ج.م" : "EGP"}',
+                      style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WalletScreen()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
                   },
                   icon: const Icon(Icons.add, size: 18, color: AppTokens.primary),
-                  label: Text(
-                    strings.walletTitle,
-                    style: AppTokens.font(
-                      color: AppTokens.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTokens.spaceMd,
-                    ),
-                  ),
+                  label: Text(isAr ? 'المحفظة' : 'Wallet', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.spaceLg),
+          const SizedBox(height: 24),
 
           // Menu Items
-          _buildMenuItem(
-            context,
-            Icons.history_rounded,
-            strings.myTripsLabel,
-            const HistoryScreen(),
-          ),
-          _buildMenuItem(
-            context,
-            Icons.bookmark_border_rounded,
-            strings.savedPlacesLabel,
-            const SavedPlacesScreen(),
-          ),
-          _buildMenuItem(
-            context,
-            Icons.account_balance_wallet_outlined,
-            strings.walletTitle,
-            const WalletScreen(),
-          ),
-          _buildMenuItem(
-            context,
-            Icons.settings_outlined,
-            strings.settingsTitle,
-            const SettingsScreen(),
-          ),
+          _buildMenuItem(context, Icons.history_rounded, isAr ? 'رحلاتي' : 'My Trips', const HistoryScreen()),
+          _buildMenuItem(context, Icons.bookmark_border_rounded, isAr ? 'الأماكن المحفوظة' : 'Saved Places', const SavedPlacesScreen()),
+          _buildMenuItem(context, Icons.account_balance_wallet_outlined, isAr ? 'المحفظة' : 'Wallet', const WalletScreen()),
+          _buildMenuItem(context, Icons.settings_outlined, isAr ? 'الإعدادات' : 'Settings', const SettingsScreen()),
         ],
       ),
     );
   }
 
-  Widget _buildMenuItem(
-    BuildContext context,
-    IconData icon,
-    String title,
-    Widget screen,
-  ) {
-    final go = GoTheme.of(context);
+  Widget _buildMenuItem(BuildContext context, IconData icon, String title, Widget screen) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
-      color: go.panel,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        side: BorderSide(color: go.border),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
       ),
       child: ListTile(
-        leading: Icon(icon, color: go.action),
-        title: Text(
-          title,
-          style: AppTokens.font(
-            fontWeight: FontWeight.w500,
-            color: go.text,
-          ),
-        ),
-        trailing: Icon(
-          // Point the chevron in the direction of travel for both RTL and LTR.
-          Directionality.of(context) == TextDirection.rtl
-              ? Icons.arrow_back_ios
-              : Icons.arrow_forward_ios,
-          size: 14,
-          color: go.muted,
-        ),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => screen),
-        ),
+        leading: Icon(icon, color: AppTokens.primary),
+        title: Text(title, style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w500)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTokens.lightMuted),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
       ),
     );
   }

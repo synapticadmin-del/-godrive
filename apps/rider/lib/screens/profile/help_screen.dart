@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Help center — FAQ + contact support.
@@ -18,11 +19,14 @@ class HelpScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Scaffold(
-      appBar: AppBar(title: Text(strings.helpCenterTitle, style: AppTokens.font(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text('مركز المساعدة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -37,36 +41,36 @@ class HelpScreen extends StatelessWidget {
               const Icon(Icons.support_agent, color: Colors.white, size: 32),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(strings.needHelpTitle, style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-                Text(strings.supportAvailableBody, style: AppTokens.font(fontSize: 12, color: Colors.white70)),
+                Text('تحتاج مساعدة؟', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                Text('فريق الدعم متاح 24/7', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: Colors.white70)),
               ])),
               ElevatedButton(
                 onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.supportContactSoonMessage)),
+                  const SnackBar(content: Text('سيتم التواصل معك قريبًا')),
                 ),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppTokens.primary),
-                child: Text(strings.contactAction),
+                child: const Text('تواصل'),
               ),
             ]),
           ),
           const SizedBox(height: 24),
-          Text(strings.faqTitle, style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: go.text)),
+          Text('الأسئلة الشائعة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
           const SizedBox(height: 12),
-          ..._faqs.map((faq) => _faqCard(faq['q']!, faq['a']!, go)),
+          ..._faqs.map((faq) => _faqCard(faq['q']!, faq['a']!, panel, text, muted, border)),
         ],
       ),
     );
   }
 
-  Widget _faqCard(String q, String a, GoTheme go) {
+  Widget _faqCard(String q, String a, Color panel, Color text, Color muted, Color border) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(color: go.panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: go.border)),
+      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        title: Text(q, style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w600, color: go.text)),
-        children: [Text(a, style: AppTokens.font(fontSize: 13, color: go.muted, height: 1.5))],
+        title: Text(q, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w600, color: text)),
+        children: [Text(a, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted, height: 1.5))],
       ),
     );
   }

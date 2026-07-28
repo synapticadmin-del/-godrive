@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 import 'topup_screen.dart';
@@ -35,14 +36,12 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
     final balance = context.watch<AppState>().walletBalance ?? 0.0;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.walletTitle, style: AppTokens.font()),
-        backgroundColor: go.panel,
+        title: Text('المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
+        backgroundColor: AppTokens.lightPanel,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -65,9 +64,9 @@ class _WalletScreenState extends State<WalletScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(strings.availableBalance, style: AppTokens.font(color: Colors.white70, fontSize: 16)),
+                      Text('الرصيد المتاح', style: GoogleFonts.ibmPlexSansArabic(color: Colors.white70, fontSize: 16)),
                       const SizedBox(height: 8),
-                      Text('${balance.toStringAsFixed(2)} ${strings.egp}', style: AppTokens.font(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+                      Text('${balance.toStringAsFixed(2)} ج.م', style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: () {
@@ -78,7 +77,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           foregroundColor: AppTokens.primary,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
                         ),
-                        child: Text(strings.topUpTitle, style: AppTokens.font(fontWeight: FontWeight.bold)),
+                        child: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -96,12 +95,12 @@ class _WalletScreenState extends State<WalletScreen> {
                           backgroundColor: isCredit ? AppTokens.success.withOpacity(0.2) : AppTokens.danger.withOpacity(0.2),
                           child: Icon(isCredit ? Icons.arrow_downward : Icons.arrow_upward, color: isCredit ? AppTokens.success : AppTokens.danger),
                         ),
-                        title: Text(tx['description'] ?? strings.transactionFallback, style: AppTokens.font(color: go.text)),
-                        subtitle: Text(tx['createdAt'] ?? '', style: AppTokens.font(color: go.muted, fontSize: 12)),
+                        title: Text(tx['description'] ?? 'عملية', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
+                        subtitle: Text(tx['createdAt'] ?? '', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted, fontSize: 12)),
                         trailing: Text(
-                          '${isCredit ? '+' : '-'}${tx['amount']} ${strings.egp}',
-                          style: AppTokens.font(
-                            color: isCredit ? AppTokens.success : go.text,
+                          '${isCredit ? '+' : '-'}${tx['amount']} ج.م',
+                          style: GoogleFonts.ibmPlexSansArabic(
+                            color: isCredit ? AppTokens.success : AppTokens.lightText,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

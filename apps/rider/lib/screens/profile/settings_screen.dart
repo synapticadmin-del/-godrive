@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -16,12 +17,11 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text(strings.settingsTitle, style: AppTokens.font()),
+        title: Text('الإعدادات', style: GoogleFonts.ibmPlexSansArabic()),
         backgroundColor: go.panel,
         foregroundColor: go.text,
       ),
@@ -32,23 +32,17 @@ class SettingsScreen extends StatelessWidget {
             color: go.panel,
             child: ListTile(
               title: Text(
-                strings.languageLabel,
-                style: AppTokens.font(color: go.text),
+                'اللغة',
+                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
               ),
               trailing: DropdownButton<String>(
                 value: state.locale.languageCode,
                 dropdownColor: go.panel,
-                style: AppTokens.font(color: go.text),
+                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
                 underline: const SizedBox(),
-                items: [
-                  DropdownMenuItem(
-                    value: 'ar',
-                    child: Text(strings.arabicLanguage),
-                  ),
-                  DropdownMenuItem(
-                    value: 'en',
-                    child: Text(strings.englishLanguage),
-                  ),
+                items: const [
+                  DropdownMenuItem(value: 'ar', child: Text('العربية')),
+                  DropdownMenuItem(value: 'en', child: Text('English')),
                 ],
                 onChanged: (val) {
                   if (val != null) {
@@ -63,27 +57,18 @@ class SettingsScreen extends StatelessWidget {
             color: go.panel,
             child: ListTile(
               title: Text(
-                strings.appearanceTitle,
-                style: AppTokens.font(color: go.text),
+                'المظهر',
+                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
               ),
               trailing: DropdownButton<ThemeMode>(
                 value: state.themeMode,
                 dropdownColor: go.panel,
-                style: AppTokens.font(color: go.text),
+                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
                 underline: const SizedBox(),
-                items: [
-                  DropdownMenuItem(
-                    value: ThemeMode.system,
-                    child: Text(strings.themeSystem),
-                  ),
-                  DropdownMenuItem(
-                    value: ThemeMode.light,
-                    child: Text(strings.themeLight),
-                  ),
-                  DropdownMenuItem(
-                    value: ThemeMode.dark,
-                    child: Text(strings.themeDark),
-                  ),
+                items: const [
+                  DropdownMenuItem(value: ThemeMode.system, child: Text('تلقائي')),
+                  DropdownMenuItem(value: ThemeMode.light, child: Text('فاتح')),
+                  DropdownMenuItem(value: ThemeMode.dark, child: Text('داكن')),
                 ],
                 onChanged: (val) {
                   if (val != null) {
@@ -98,8 +83,8 @@ class SettingsScreen extends StatelessWidget {
             color: go.panel,
             child: ListTile(
               title: Text(
-                strings.aboutApp,
-                style: AppTokens.font(color: go.text),
+                'عن التطبيق',
+                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
               ),
               trailing: Icon(Icons.info, color: go.muted),
               onTap: () {
@@ -123,7 +108,7 @@ class SettingsScreen extends StatelessWidget {
               foregroundColor: AppTokens.danger,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            child: Text(strings.logout, style: AppTokens.font(fontWeight: FontWeight.bold)),
+            child: Text('تسجيل الخروج', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

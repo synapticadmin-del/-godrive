@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:geolocator/geolocator.dart';
@@ -24,21 +25,19 @@ class _SosScreenState extends State<SosScreen> {
     final appState = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    final strings = AppStrings.of(context);
-    final go = GoTheme.of(context);
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: go.panel,
-        title: Text(strings.sosWarningTitle, style: AppTokens.font(color: AppTokens.danger)),
-        content: Text(strings.sosConfirmMessage, style: AppTokens.font(color: go.text)),
+        backgroundColor: AppTokens.lightPanel,
+        title: Text('تحذير', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.danger)),
+        content: Text('هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك للسلطات وإدارة التطبيق.', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(strings.cancelAction)),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTokens.danger),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(strings.sosConfirmAction, style: const TextStyle(color: Colors.white)),
+            child: const Text('تأكيد الطوارئ', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -53,7 +52,7 @@ class _SosScreenState extends State<SosScreen> {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception(strings.sosLocationServiceError);
+        throw Exception('فعّل خدمة الموقع لإرسال نداء الطوارئ');
       }
 
       var permission = await Geolocator.checkPermission();
@@ -62,7 +61,7 @@ class _SosScreenState extends State<SosScreen> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        throw Exception(strings.sosLocationPermissionError);
+        throw Exception('اسمح للتطبيق بالوصول إلى موقعك لإرسال نداء الطوارئ');
       }
 
       Position? pos;
@@ -74,7 +73,7 @@ class _SosScreenState extends State<SosScreen> {
         pos = await Geolocator.getLastKnownPosition();
       }
       if (pos == null) {
-        throw Exception(strings.sosLocationUnavailableError);
+        throw Exception('تعذّر تحديد موقعك. حاول مجددًا في مكان مفتوح');
       }
 
       await appState.apiPost('/safety/sos', {
@@ -83,7 +82,7 @@ class _SosScreenState extends State<SosScreen> {
         'lng': pos.longitude,
       });
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(strings.sosSentSuccess)));
+      messenger.showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك')));
       navigator.pop();
     } catch (e) {
       if (!mounted) return;
@@ -101,9 +100,9 @@ class _SosScreenState extends State<SosScreen> {
       );
       final url = res['url'] as String?;
       if (url == null || url.isEmpty) {
-        throw Exception(strings.shareTripError);
+        throw Exception('تعذّر إنشاء رابط تتبع الرحلة');
       }
-      await Share.share('${strings.shareTripMessage}$url');
+      await Share.share('تتبع رحلتي على GoDrive عبر الرابط التالي:\n$url');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -112,13 +111,10 @@ class _SosScreenState extends State<SosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final go = GoTheme.of(context);
-    final strings = AppStrings.of(context);
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.safetyTitle, style: AppTokens.font()),
-        backgroundColor: go.panel,
+        title: Text('الطوارئ والسلامة', style: GoogleFonts.ibmPlexSansArabic()),
+        backgroundColor: AppTokens.lightPanel,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -140,21 +136,21 @@ class _SosScreenState extends State<SosScreen> {
                 child: Center(
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : Text('SOS', style: AppTokens.font(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white)),
+                      : Text('SOS', style: GoogleFonts.ibmPlexSansArabic(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
             ),
             const SizedBox(height: 48),
             Text(
-              strings.sosEmergencyOnlyHint,
-              style: AppTokens.font(color: go.muted, fontSize: 16),
+              'اضغط على الزر أعلاه في حالة الطوارئ القصوى فقط',
+              style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: _shareTrip,
               icon: const Icon(Icons.share, color: Colors.white),
-              label: Text(strings.shareTripDetails, style: AppTokens.font(color: Colors.white, fontSize: 16)),
+              label: Text('مشاركة تفاصيل الرحلة', style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontSize: 16)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTokens.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
