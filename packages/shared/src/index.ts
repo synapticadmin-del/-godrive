@@ -86,6 +86,11 @@ export function calculateFare(
   rule: PricingRule,
   options: FareOptions = {},
 ): FareEstimate {
+  // Guard: clamp non-finite / negative inputs to 0 so a bad distance or
+  // duration can never produce a negative fare. Public API is unchanged.
+  distanceKm = Number.isFinite(distanceKm) ? Math.max(0, distanceKm) : 0;
+  durationMin = Number.isFinite(durationMin) ? Math.max(0, durationMin) : 0;
+
   const surge = options.surgeMultiplier && options.surgeMultiplier > 0 ? options.surgeMultiplier : 1.0;
   const vehicleMult = options.vehicleMultiplier && options.vehicleMultiplier > 0 ? options.vehicleMultiplier : 1.0;
   const discount = options.discount && options.discount > 0 ? options.discount : 0;

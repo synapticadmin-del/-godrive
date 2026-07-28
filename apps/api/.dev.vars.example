@@ -1,0 +1,51 @@
+# ============================================================================
+# Synaptic Go — API Secrets (نسخة قالب / Template)
+# ----------------------------------------------------------------------------
+# انسخ هذا الملف إلى `apps/api/.dev.vars` واملأ القيم الحقيقية محليًا فقط.
+# ملف `.dev.vars` الحقيقي مُستثنى من git (انظر .gitignore) — لا ترفع أي سر حقيقي.
+# للإنتاج استخدم:  wrangler secret put <KEY>
+# المصدر لأسماء المفاتيح: apps/api/wrangler.toml + apps/api/worker-configuration.d.ts
+# ============================================================================
+
+# --- المصادقة / Auth ---------------------------------------------------------
+# سر توقيع توكن JWT. أنشئه عشوائيًا: openssl rand -hex 32
+JWT_SECRET=
+# مُصدر التوكن — يجب أن يطابق JWT_ISSUER في wrangler.toml [vars]
+JWT_ISSUER=synaptic-go
+
+# --- Cloudflare Turnstile (حماية من البوتات) --------------------------------
+# المفتاح السري من Cloudflare Dashboard → Turnstile → موقعك → Secret Key
+TURNSTILE_SECRET_KEY=
+
+# --- Paymob (الدفع الإلكتروني — مصر) ----------------------------------------
+# من Paymob Dashboard → Developers → API Key
+PAYMOB_API_KEY=
+# من Paymob Dashboard → Security → HMAC Signature (للتحقق من الـ webhook)
+PAYMOB_HMAC=
+# رقم الـ iframe / integration id لعرض صفحة الدفع
+PAYMOB_IFRAME_ID=
+
+# --- Firebase Cloud Messaging (إشعارات Push) ---------------------------------
+# من Firebase Console → Project Settings → Service Accounts → مفتاح JSON
+FCM_PROJECT_ID=
+FCM_CLIENT_EMAIL=
+# المفتاح الخاص كاملًا بما فيه -----BEGIN PRIVATE KEY----- (استبدل الأسطر بـ \n)
+FCM_PRIVATE_KEY=
+
+# --- WhatsApp Business API (إرسال OTP) ---------------------------------------
+# توكن الوصول من Meta Cloud API أو 360dialog
+WHATSAPP_TOKEN=
+# معرّف رقم الهاتف (Phone Number ID) من Meta
+WHATSAPP_PHONE_NUMBER_ID=
+
+# --- البريد الإلكتروني (OTP عبر Resend) --------------------------------------
+# مفتاح API من resend.com → API Keys
+EMAIL_RESEND_API_KEY=
+
+# --- إعداد الأدمن لأول مرة ---------------------------------------------------
+# سر عشوائي قوي لحماية endpoint إنشاء أول حساب أدمن
+ADMIN_SETUP_SECRET=
+
+# --- وضع التطوير -------------------------------------------------------------
+# فعّله محليًا فقط ("true") لإرجاع رمز OTP في الاستجابة. يجب أن يبقى "false" في الإنتاج.
+DEV_OTP=false
