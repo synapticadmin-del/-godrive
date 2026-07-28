@@ -1160,6 +1160,23 @@ abstract class AppStrings {
 
   /// SnackBar shown when signing up without accepting the terms.
   String get loginMustAcceptTerms;
+  /// Divider text between the form and social sign-in buttons.
+  String get loginOrContinueWith;
+
+  /// Toast when tapping a social sign-in button that is not yet wired.
+  String get loginSocialComingSoon;
+
+  /// Hero slide 1 — safety headline.
+  String get loginHeroSafetyTitle;
+
+  /// Hero slide 1 — safety supporting copy.
+  String get loginHeroSafetyBody;
+
+  /// Hero slide 2 — price negotiation headline.
+  String get loginHeroPriceTitle;
+
+  /// Hero slide 2 — price negotiation supporting copy.
+  String get loginHeroPriceBody;
 
   // ── Rider — Fare estimate sheet
 
@@ -2593,6 +2610,20 @@ class AppStringsAr extends AppStrings {
   /// SnackBar shown when signing up without accepting the terms.
   @override
   String get loginMustAcceptTerms => 'يجب الموافقة على الشروط والأحكام';
+  @override
+  String get loginOrContinueWith => 'أو المتابعة بواسطة';
+  @override
+  String get loginSocialComingSoon => 'تسجيل الدخول عبر وسائل التواصل قريباً';
+  @override
+  String get loginHeroSafetyTitle => 'سلامتك هي أولويتنا';
+  @override
+  String get loginHeroSafetyBody =>
+      'كل كباتننا موثّقون، وزر الطوارئ متاح في كل رحلة';
+  @override
+  String get loginHeroPriceTitle => 'اختر السعر اللي يناسبك';
+  @override
+  String get loginHeroPriceBody =>
+      'حدّد أجرتك بنفسك، والكباتن يقدموا عروضهم — أنت صاحب القرار';
 
   // ── Rider — Fare estimate sheet ─────────────────────────────────
 
@@ -4085,6 +4116,20 @@ class AppStringsEn extends AppStrings {
   /// SnackBar shown when signing up without accepting the terms.
   @override
   String get loginMustAcceptTerms => 'You must accept the Terms & Conditions';
+  @override
+  String get loginOrContinueWith => 'Or continue with';
+  @override
+  String get loginSocialComingSoon => 'Social sign-in coming soon';
+  @override
+  String get loginHeroSafetyTitle => 'Your safety is our priority';
+  @override
+  String get loginHeroSafetyBody =>
+      'Every captain is verified, and the SOS button is available on every trip';
+  @override
+  String get loginHeroPriceTitle => 'Name your own price';
+  @override
+  String get loginHeroPriceBody =>
+      'Set your own fare — captains send their offers, you decide';
 
   // ── Rider — Fare estimate sheet ─────────────────────────────────
 
