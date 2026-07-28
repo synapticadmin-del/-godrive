@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,15 +42,21 @@ class CaptainState extends ChangeNotifier {
   ThemeMode themeMode = ThemeMode.system;
   String? fcmToken;
 
-  static String get defaultBaseUrl {
-    return 'https://api.synapticstudio.tech';
-  }
+  /// Auth tokens live in the platform keystore (Android Keystore / iOS
+  /// Keychain), not SharedPreferences, so a rooted-device backup or a
+  /// prefs dump cannot leak a session.
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  static String get defaultBaseUrl => const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'https://api.synapticstudio.tech',
+      );
 
   String baseUrl = defaultBaseUrl;
 
   Future<void> bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
-    token = prefs.getString('token');
+    token = await _secureStorage.read(key: 'token');
     final raw = prefs.getString('user');
     if (raw != null) {
       // Corrupt cached JSON must not brick startup — the session is still
@@ -99,20 +106,21 @@ class CaptainState extends ChangeNotifier {
   Future<http.Response> _executeWithAuthInterceptor(Future<http.Response> Function() reqFn) async {
     final res = await reqFn();
     if (res.statusCode == 401 && token != null) {
-      final prefs = await SharedPreferences.getInstance();
-      final refreshToken = prefs.getString('refreshToken');
+      final refreshToken = await _secureStorage.read(key: 'refreshToken');
       if (refreshToken != null) {
         try {
-          final refreshRes = await http.post(
-            Uri.parse('$baseUrl/auth/refresh'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'refreshToken': refreshToken}),
-          );
+          final refreshRes = await http
+              .post(
+                Uri.parse('$baseUrl/auth/refresh'),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'refreshToken': refreshToken}),
+              )
+              .timeout(const Duration(seconds: 15));
           if (refreshRes.statusCode < 400) {
             final data = jsonDecode(refreshRes.body);
             token = (data['accessToken'] ?? data['token']) as String?;
             if (token != null) {
-              await prefs.setString('token', token!);
+              await _secureStorage.write(key: 'token', value: token!);
               return await reqFn(); // Retry request with refreshed token
             }
           }
@@ -125,11 +133,13 @@ class CaptainState extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _post(String path, [Map<String, dynamic>? body]) async {
-    final res = await _executeWithAuthInterceptor(() => http.post(
+    final res = await _executeWithAuthInterceptor(() => http
+        .post(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
           body: jsonEncode(body ?? {}),
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
@@ -138,10 +148,12 @@ class CaptainState extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
-    final res = await _executeWithAuthInterceptor(() => http.get(
+    final res = await _executeWithAuthInterceptor(() => http
+        .get(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
@@ -152,10 +164,12 @@ class CaptainState extends ChangeNotifier {
   Future<Map<String, dynamic>> apiGet(String path) => _get(path);
   Future<Map<String, dynamic>> apiPost(String path, [Map<String, dynamic>? body]) => _post(path, body);
   Future<Map<String, dynamic>> apiDelete(String path) async {
-    final res = await _executeWithAuthInterceptor(() => http.delete(
+    final res = await _executeWithAuthInterceptor(() => http
+        .delete(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
@@ -179,8 +193,8 @@ class CaptainState extends ChangeNotifier {
     user = Map<String, dynamic>.from(res['user'] as Map);
     captain = res['captain'] == null ? null : Map<String, dynamic>.from(res['captain'] as Map);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token!);
-    if (refresh != null) await prefs.setString('refreshToken', refresh);
+    await _secureStorage.write(key: 'token', value: token!);
+    if (refresh != null) await _secureStorage.write(key: 'refreshToken', value: refresh);
     await prefs.setString('user', jsonEncode(user));
     notifyListeners();
     startOffersPolling();
@@ -193,8 +207,8 @@ class CaptainState extends ChangeNotifier {
     user = Map<String, dynamic>.from(res['user'] as Map);
     captain = res['captain'] == null ? null : Map<String, dynamic>.from(res['captain'] as Map);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token!);
-    if (refresh != null) await prefs.setString('refreshToken', refresh);
+    await _secureStorage.write(key: 'token', value: token!);
+    if (refresh != null) await _secureStorage.write(key: 'refreshToken', value: refresh);
     await prefs.setString('user', jsonEncode(user));
     notifyListeners();
     startOffersPolling();
@@ -217,7 +231,7 @@ class CaptainState extends ChangeNotifier {
     user = Map<String, dynamic>.from(res['user'] as Map);
     captain = {'approval_status': 'pending'};
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token!);
+    await _secureStorage.write(key: 'token', value: token!);
     await prefs.setString('user', jsonEncode(user));
     notifyListeners();
     startOffersPolling();
@@ -722,12 +736,12 @@ class CaptainState extends ChangeNotifier {
     _bidTripIds.clear();
     final prefs = await SharedPreferences.getInstance();
     // Signing out ends the session, not the person's display preference.
-    // prefs.clear() used to wipe the saved theme too, so a captain who had
-    // chosen dark mode was thrown back to system theme the moment they logged
-    // out. Preserve the theme across the clear.
-    final keepTheme = themeMode.name;
-    await prefs.clear();
-    await prefs.setString(_kThemeModeKey, keepTheme);
+    // Remove only the keys this class owns instead of prefs.clear() (which
+    // used to wipe the saved theme too), and drop the tokens from secure
+    // storage explicitly.
+    await _secureStorage.delete(key: 'token');
+    await _secureStorage.delete(key: 'refreshToken');
+    await prefs.remove('user');
     notifyListeners();
   }
 

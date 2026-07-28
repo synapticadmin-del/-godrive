@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_shared/flutter_shared.dart';
@@ -21,6 +22,11 @@ class AppState extends ChangeNotifier {
   /// only case where we follow the OS.
   static const String _kThemeMode = 'themeMode';
 
+  /// Auth tokens live in the platform keystore (Android Keystore / iOS
+  /// Keychain), not SharedPreferences, so a rooted-device backup or a
+  /// prefs dump cannot leak a session.
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
   final String role;
   bool loading = true;
   String? token;
@@ -36,9 +42,10 @@ class AppState extends ChangeNotifier {
 
   /// Production API (Cloudflare). For local API use:
   /// return kIsWeb ? 'http://127.0.0.1:8787' : 'http://10.0.2.2:8787';
-  static String get defaultBaseUrl {
-    return 'https://api.synapticstudio.tech';
-  }
+  static String get defaultBaseUrl => const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'https://api.synapticstudio.tech',
+      );
 
   String baseUrl = defaultBaseUrl;
 
@@ -107,7 +114,7 @@ class AppState extends ChangeNotifier {
     // theme — otherwise the app flashes the OS theme, then snaps to theirs.
     themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
 
-    token = prefs.getString(_kAccessToken);
+    token = await _secureStorage.read(key: _kAccessToken);
 
     final raw = prefs.getString(_kUserData);
     if (raw != null) {
@@ -149,16 +156,17 @@ class AppState extends ChangeNotifier {
   /// from the 401 interceptor so launch-time refresh and mid-session refresh
   /// share one implementation.
   Future<bool> _refreshAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString(_kRefreshToken);
+    final refreshToken = await _secureStorage.read(key: _kRefreshToken);
     if (refreshToken == null || refreshToken.isEmpty) return false;
 
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/auth/refresh'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': refreshToken}),
-      );
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/auth/refresh'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 15));
       if (res.statusCode >= 400) return false;
 
       final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
@@ -168,12 +176,12 @@ class AppState extends ChangeNotifier {
       if (fresh == null || fresh.isEmpty) return false;
 
       token = fresh;
-      await prefs.setString(_kAccessToken, fresh);
+      await _secureStorage.write(key: _kAccessToken, value: fresh);
 
       // Some backends rotate the refresh token on each use; persist if sent.
       final rotated = data['refreshToken'] as String?;
       if (rotated != null && rotated.isNotEmpty) {
-        await prefs.setString(_kRefreshToken, rotated);
+        await _secureStorage.write(key: _kRefreshToken, value: rotated);
       }
       return true;
     } catch (_) {
@@ -190,10 +198,10 @@ class AppState extends ChangeNotifier {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (accessToken != null && accessToken.isNotEmpty) {
-      await prefs.setString(_kAccessToken, accessToken);
+      await _secureStorage.write(key: _kAccessToken, value: accessToken);
     }
     if (refreshToken != null && refreshToken.isNotEmpty) {
-      await prefs.setString(_kRefreshToken, refreshToken);
+      await _secureStorage.write(key: _kRefreshToken, value: refreshToken);
     }
     if (userData != null) {
       await prefs.setString(_kUserData, jsonEncode(userData));
@@ -205,8 +213,8 @@ class AppState extends ChangeNotifier {
     token = null;
     user = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kAccessToken);
-    await prefs.remove(_kRefreshToken);
+    await _secureStorage.delete(key: _kAccessToken);
+    await _secureStorage.delete(key: _kRefreshToken);
     await prefs.remove(_kUserData);
   }
 
@@ -251,11 +259,13 @@ class AppState extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    final res = await _executeWithAuthInterceptor(() => http.post(
+    final res = await _executeWithAuthInterceptor(() => http
+        .post(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
           body: jsonEncode(body),
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
@@ -264,11 +274,13 @@ class AppState extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _patch(String path, Map<String, dynamic> body) async {
-    final res = await _executeWithAuthInterceptor(() => http.patch(
+    final res = await _executeWithAuthInterceptor(() => http
+        .patch(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
           body: jsonEncode(body),
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
@@ -277,10 +289,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
-    final res = await _executeWithAuthInterceptor(() => http.get(
+    final res = await _executeWithAuthInterceptor(() => http
+        .get(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
@@ -291,10 +305,12 @@ class AppState extends ChangeNotifier {
   Future<Map<String, dynamic>> apiGet(String path) => _get(path);
   Future<Map<String, dynamic>> apiPost(String path, [Map<String, dynamic>? body]) => _post(path, body ?? {});
   Future<Map<String, dynamic>> apiDelete(String path) async {
-    final res = await _executeWithAuthInterceptor(() => http.delete(
+    final res = await _executeWithAuthInterceptor(() => http
+        .delete(
           Uri.parse('$baseUrl$path'),
           headers: _headers,
-        ));
+        )
+        .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
       throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
