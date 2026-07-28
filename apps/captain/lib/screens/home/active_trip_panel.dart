@@ -7,6 +7,8 @@ import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'trip_chat_screen.dart';
+
 /// The captain's in-trip control panel.
 ///
 /// A trip is a sequence, and the previous panel never showed the captain
@@ -18,6 +20,11 @@ import 'package:url_launcher/url_launcher.dart';
 /// money, so it keeps its confirmation dialog, while the routine forward
 /// steps stay single-tap because a driver should not have to fight the UI at
 /// the kerb.
+///
+/// Contact with the rider is a pair of equals: the phone call for when the
+/// pickup pin is wrong, and the in-app chat for everything else. The chat
+/// button carries an unread badge fed by the live trip socket, so a rider
+/// message never arrives silently while the panel is on screen.
 class ActiveTripPanel extends StatefulWidget {
   const ActiveTripPanel({super.key, required this.trip});
 
@@ -32,6 +39,11 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
   Duration _elapsed = Duration.zero;
   bool _busy = false;
 
+  /// Unread rider messages, driven by the live trip socket. Reset whenever
+  /// the chat screen is opened (its fetch marks the thread read server-side).
+  int _unreadMessages = 0;
+  StreamSubscription<Map<String, dynamic>>? _tripEventsSub;
+
   static const _stages = ['assigned', 'arrived', 'in_progress'];
 
   @override
@@ -39,11 +51,24 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     super.initState();
     _tick();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+
+    // Count rider messages as they land on the room socket. The captain's own
+    // messages obviously do not increment the badge.
+    final state = context.read<CaptainState>();
+    _tripEventsSub = state.activeTripWsMessages.listen((ev) {
+      if (!mounted) return;
+      if (ev['type'] == 'chat.message' &&
+          ev['senderRole'] != 'captain' &&
+          (ev['tripId'] == null || ev['tripId'] == widget.trip['id'])) {
+        setState(() => _unreadMessages++);
+      }
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _tripEventsSub?.cancel();
     super.dispose();
   }
 
@@ -110,6 +135,21 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
         const SnackBar(content: Text('تعذّر فتح تطبيق الاتصال')),
       );
     }
+  }
+
+  Future<void> _openChat() async {
+    final tripId = widget.trip['id'] as String?;
+    if (tripId == null) return;
+    setState(() => _unreadMessages = 0);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CaptainTripChatScreen(tripId: tripId),
+      ),
+    );
+    // Returning from the thread: it marks everything read server-side, so
+    // the badge stays cleared unless new messages land afterwards.
+    if (mounted) setState(() => _unreadMessages = 0);
   }
 
   @override
@@ -325,6 +365,20 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
             '${fare.toStringAsFixed(0)} ج.م',
             style: AppTokens.money(fontSize: 22, color: AppTokens.primary),
           ),
+          const SizedBox(width: AppTokens.spaceSm),
+          // In-app chat with the rider. This button was missing entirely —
+          // rider messages were stored and pushed, but the captain had no
+          // surface that displayed them. The badge counts rider messages
+          // arriving over the live trip socket while the panel is up.
+          _RoundActionButton(
+            icon: Icons.chat_bubble_rounded,
+            color: isDark ? AppTokens.darkText : AppTokens.lightText,
+            background: isDark ? AppTokens.darkBg : AppTokens.lightBg,
+            borderColor: border,
+            badgeCount: _unreadMessages,
+            tooltip: 'محادثة الراكب',
+            onTap: _openChat,
+          ),
           if (phone != null && phone.isNotEmpty) ...[
             const SizedBox(width: AppTokens.spaceSm),
             // A phone call is the captain's escape hatch when the pickup pin
@@ -468,6 +522,78 @@ class _TripAction {
   final IconData icon;
   final Color color;
   final VoidCallback? onPressed;
+}
+
+/// A circular 48dp action button with an optional unread badge, matching the
+/// phone-call button's hit target so both contact paths feel identical.
+class _RoundActionButton extends StatelessWidget {
+  const _RoundActionButton({
+    required this.icon,
+    required this.color,
+    required this.background,
+    required this.borderColor,
+    required this.tooltip,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color background;
+  final Color borderColor;
+  final String tooltip;
+  final VoidCallback onTap;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Material(
+            color: background,
+            shape: CircleBorder(side: BorderSide(color: borderColor)),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                width: AppTokens.tapTarget,
+                height: AppTokens.tapTarget,
+                child: Icon(icon, color: color, size: 21),
+              ),
+            ),
+          ),
+          if (badgeCount > 0)
+            PositionedDirectional(
+              top: -4,
+              end: -4,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 18),
+                decoration: BoxDecoration(
+                  color: AppTokens.danger,
+                  borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                  border: Border.all(color: background, width: 1.5),
+                ),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  textAlign: TextAlign.center,
+                  style: AppTokens.font(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Four-beat progress rail: en route → arrived → underway → done.
