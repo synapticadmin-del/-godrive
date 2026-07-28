@@ -61,25 +61,29 @@ class _EarningsScreenState extends State<EarningsScreen> {
   /// `GET /captain/earnings` responds with a flat payload:
   /// `{from, to, trips, gross, commission, net, currency}`. Amounts are
   /// formatted to two decimals because the server returns raw REAL sums
-  /// (e.g. 137.5), which would otherwise render as "137.5 ج.م".
+  /// (e.g. 137.5), which would otherwise render as "137.5 EGP".
   double _value(String key) => (_data?[key] as num?)?.toDouble() ?? 0;
   String _money(String key) => _value(key).toStringAsFixed(2);
-  String _count(String key) => ((_data?[key] as num?)?.toInt() ?? 0).toString();
+  int _countInt(String key) => (_data?[key] as num?)?.toInt() ?? 0;
 
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
+    // Localised copy — the screen reads every label from here instead of
+    // inline literals, so Arabic and English are guaranteed to exist in pairs
+    // and the screen carries no `isAr ? … : …` ternaries.
+    final strings = AppStrings.of(context);
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: const Text('الأرباح'),
+        title: Text(strings.earningsTitle),
         backgroundColor: go.bg,
         actions: [
           IconButton(
             onPressed: _loading ? null : _load,
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'تحديث',
+            tooltip: strings.refresh,
           ),
         ],
       ),
@@ -87,7 +91,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _data == null
               ? ErrorState(
-                  message: _error ?? 'خطأ في تحميل بيانات الأرباح',
+                  message: _error ?? strings.earningsLoadError,
                   onRetry: _load,
                 )
               : RefreshIndicator(
@@ -95,11 +99,11 @@ class _EarningsScreenState extends State<EarningsScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(AppTokens.spaceMd),
                     children: [
-                      _buildHero(),
+                      _buildHero(strings),
                       const SizedBox(height: AppTokens.spaceMd),
-                      _buildBreakdown(go),
+                      _buildBreakdown(go, strings),
                       const SizedBox(height: AppTokens.spaceMd),
-                      _buildWalletCta(),
+                      _buildWalletCta(strings),
                       const SizedBox(height: AppTokens.spaceMd),
                     ],
                   ),
@@ -107,7 +111,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
     );
   }
 
-  Widget _buildHero() {
+  Widget _buildHero(AppStrings strings) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
@@ -126,7 +130,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
       child: Column(
         children: [
           Text(
-            'صافي الأرباح',
+            strings.netEarnings,
             style: AppTokens.font(
               color: Colors.white.withOpacity(0.85),
               fontSize: 14,
@@ -147,7 +151,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'ج.م',
+                  strings.egp,
                   style: AppTokens.font(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
@@ -177,7 +181,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${_count('trips')} رحلة • آخر ٧ أيام',
+                  strings.tripsLast7Days(_countInt('trips')),
                   style: AppTokens.font(
                     color: Colors.white.withOpacity(0.95),
                     fontSize: 12,
@@ -194,7 +198,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
   /// Gross → commission → net, stated plainly. The arithmetic is the point:
   /// the captain should be able to check the platform's maths themselves.
-  Widget _buildBreakdown(GoTheme go) {
+  Widget _buildBreakdown(GoTheme go, AppStrings strings) {
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceMd),
       decoration: BoxDecoration(
@@ -208,8 +212,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
           _row(
             icon: Icons.payments_rounded,
             tone: AppTokens.success,
-            label: 'إجمالي الدخل',
-            value: '${_money('gross')} ج.م',
+            label: strings.grossIncome,
+            value: '${_money('gross')} ${strings.egp}',
             go: go,
           ),
           Padding(
@@ -219,8 +223,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
           _row(
             icon: Icons.pie_chart_rounded,
             tone: AppTokens.accent,
-            label: 'عمولة المنصة',
-            value: '− ${_money('commission')} ج.م',
+            label: strings.platformCommission,
+            value: '− ${_money('commission')} ${strings.egp}',
             go: go,
           ),
           Padding(
@@ -230,8 +234,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
           _row(
             icon: Icons.account_balance_wallet_rounded,
             tone: AppTokens.primary,
-            label: 'الصافي لك',
-            value: '${_money('net')} ج.م',
+            label: strings.netForYou,
+            value: '${_money('net')} ${strings.egp}',
             go: go,
             emphasise: true,
           ),
@@ -282,7 +286,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
     );
   }
 
-  Widget _buildWalletCta() {
+  Widget _buildWalletCta(AppStrings strings) {
     return SizedBox(
       height: AppTokens.primaryActionHeight,
       child: ElevatedButton.icon(
@@ -291,7 +295,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
           MaterialPageRoute(builder: (_) => const WalletScreen()),
         ),
         icon: const Icon(Icons.account_balance_wallet_rounded, size: 21),
-        label: const Text('المحفظة والسحب'),
+        label: Text(strings.walletAndWithdraw),
       ),
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0);
   }
