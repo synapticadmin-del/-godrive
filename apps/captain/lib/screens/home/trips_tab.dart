@@ -22,6 +22,9 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 ///    `trip.updated` the moment the row flips), and
 ///  * `CaptainState` clearing `activeTrip` — the client-side signal that
 ///    the captain's trip just ended (complete or rider-cancel).
+///
+/// All copy is read from [AppStrings] (resolved from the ambient locale) so
+/// this file carries no inline Arabic literals — see `app_strings.dart`.
 class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
@@ -107,6 +110,7 @@ class _TripsTabState extends State<TripsTab> {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
       // Transparent so the IndexedStack retains the map widget on tab 0.
@@ -126,10 +130,10 @@ class _TripsTabState extends State<TripsTab> {
                   : _error != null
                       ? ErrorState(message: _error!, onRetry: _load)
                       : _trips.isEmpty
-                          ? const EmptyState(
+                          ? EmptyState(
                               icon: Icons.route_outlined,
-                              title: 'لا توجد رحلات بعد',
-                              subtitle: 'ستظهر رحلاتك المكتملة هنا',
+                              title: strings.noTripsYet,
+                              subtitle: strings.noTripsYetSubtitle,
                             )
                           : RefreshIndicator(
                               color: AppTokens.primary,
@@ -170,6 +174,7 @@ class _TripsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Container(
       color: go.panel,
@@ -189,7 +194,7 @@ class _TripsHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'رحلاتي',
+            strings.tripsTabTitle,
             textAlign: TextAlign.start,
             style: AppTokens.font(
               fontSize: 24,
@@ -202,7 +207,7 @@ class _TripsHeader extends StatelessWidget {
             Text(
               // Gives the captain a quick count at a glance — derived entirely
               // from already-loaded data, no extra network call.
-              '$tripCount ${tripCount == 1 ? 'رحلة' : 'رحلات'} مسجّلة',
+              strings.tripsRecorded(tripCount!),
               style: AppTokens.font(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -226,6 +231,7 @@ class _TripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     final status = trip['status'] as String? ?? '';
 
@@ -273,7 +279,7 @@ class _TripCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppTokens.space2xs),
                 Text(
-                  'ج.م',
+                  strings.egp,
                   style: AppTokens.font(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -282,7 +288,7 @@ class _TripCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 StatusChip(
-                  label: _statusLabel(status),
+                  label: strings.statusLabel(status),
                   variant: _statusVariant(status),
                 ),
               ],
@@ -293,9 +299,10 @@ class _TripCard extends StatelessWidget {
             // Route — dot + connector idiom mirrors offer_card.dart so the
             // captain reads the same visual language across the product.
             _buildRoute(
-              pickup: (pickup == null || pickup.isEmpty) ? 'موقف غير محدد' : pickup,
-              dropoff: (dropoff == null || dropoff.isEmpty) ? 'وجهة غير محددة' : dropoff,
+              pickup: (pickup == null || pickup.isEmpty) ? strings.unknownPickup : pickup,
+              dropoff: (dropoff == null || dropoff.isEmpty) ? strings.unknownDropoff : dropoff,
               go: go,
+              strings: strings,
             ),
 
             const SizedBox(height: AppTokens.spaceSm),
@@ -319,12 +326,13 @@ class _TripCard extends StatelessWidget {
     required String pickup,
     required String dropoff,
     required GoTheme go,
+    required AppStrings strings,
   }) {
     return Column(
       children: [
         _addressRow(
           dotColor: AppTokens.primary,
-          label: 'من',
+          label: strings.fromLabel,
           value: pickup,
           go: go,
         ),
@@ -342,7 +350,7 @@ class _TripCard extends StatelessWidget {
         ),
         _addressRow(
           dotColor: AppTokens.danger,
-          label: 'إلى',
+          label: strings.toLabel,
           value: dropoff,
           go: go,
         ),
@@ -397,27 +405,6 @@ class _TripCard extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _statusLabel(String s) {
-    switch (s) {
-      case 'searching':
-        return 'بحث';
-      case 'offered':
-        return 'عرض';
-      case 'assigned':
-        return 'مُعيّن';
-      case 'arrived':
-        return 'وصل';
-      case 'in_progress':
-        return 'جارية';
-      case 'completed':
-        return 'مكتملة';
-      case 'cancelled':
-        return 'ملغية';
-      default:
-        return s;
-    }
   }
 
   StatusVariant _statusVariant(String s) {

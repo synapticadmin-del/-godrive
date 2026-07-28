@@ -26,6 +26,7 @@ import 'package:flutter/widgets.dart';
 /// final strings = AppStrings.of(context);
 /// Text(strings.netEarnings);
 /// Text(strings.tripsLast7Days(12));
+/// Text(strings.statusLabel('completed'));
 /// ```
 ///
 /// ## Adding copy
@@ -37,8 +38,9 @@ import 'package:flutter/widgets.dart';
 /// concatenation, so translators see the full sentence in one place.
 ///
 /// When a screen is migrated, delete its inline literals and ternaries and
-/// read from here. `earnings_screen.dart` and `settings_screen.dart` in the
-/// Captain app are the reference migrations — copy their pattern.
+/// read from here. `earnings_screen.dart`, `settings_screen.dart` and
+/// `trips_tab.dart` in the Captain app are the reference migrations — copy
+/// their pattern.
 abstract class AppStrings {
   const AppStrings._();
 
@@ -65,6 +67,12 @@ abstract class AppStrings {
 
   /// Generic cancel action in dialogs and sheets.
   String get cancelAction;
+
+  /// Localised label for a trip status key coming from the API
+  /// (searching / offered / assigned / arrived / in_progress / completed /
+  /// cancelled). Centralised so every screen that renders a trip status —
+  /// history, home, active panel — speaks one vocabulary.
+  String statusLabel(String status);
 
   // ──────────────────────────────────────────────────────────────────
   // Captain — Earnings screen (reference migration)
@@ -95,6 +103,34 @@ abstract class AppStrings {
   String get walletAndWithdraw;
 
   // ──────────────────────────────────────────────────────────────────
+  // Captain — Trips history tab
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Header title of the trips history tab.
+  String get tripsTabTitle;
+
+  /// "N trips recorded" summary under the header.
+  String tripsRecorded(int count);
+
+  /// Empty-state title when the captain has no trips yet.
+  String get noTripsYet;
+
+  /// Empty-state subtitle under [noTripsYet].
+  String get noTripsYetSubtitle;
+
+  /// Fallback when a trip has no pickup address.
+  String get unknownPickup;
+
+  /// Fallback when a trip has no dropoff address.
+  String get unknownDropoff;
+
+  /// Route origin label ("from").
+  String get fromLabel;
+
+  /// Route destination label ("to").
+  String get toLabel;
+
+  // ──────────────────────────────────────────────────────────────────
   // Captain — Settings / profile screen
   // ──────────────────────────────────────────────────────────────────
 
@@ -117,7 +153,7 @@ abstract class AppStrings {
   String get tripsLabel;
 
   /// Stat card label for the approval state.
-  String get statusLabel;
+  String get statusLabelKey;
 
   /// Stat card value when the account is approved.
   String get approvedValue;
@@ -202,6 +238,28 @@ class AppStringsAr extends AppStrings {
   @override
   String get cancelAction => 'إلغاء';
 
+  @override
+  String statusLabel(String status) {
+    switch (status) {
+      case 'searching':
+        return 'بحث';
+      case 'offered':
+        return 'عرض';
+      case 'assigned':
+        return 'مُعيّن';
+      case 'arrived':
+        return 'وصل';
+      case 'in_progress':
+        return 'جارية';
+      case 'completed':
+        return 'مكتملة';
+      case 'cancelled':
+        return 'ملغية';
+      default:
+        return status;
+    }
+  }
+
   // ── Earnings ──────────────────────────────────────────────────────
 
   @override
@@ -228,6 +286,33 @@ class AppStringsAr extends AppStrings {
   @override
   String get walletAndWithdraw => 'المحفظة والسحب';
 
+  // ── Trips ─────────────────────────────────────────────────────────
+
+  @override
+  String get tripsTabTitle => 'رحلاتي';
+
+  @override
+  String tripsRecorded(int count) =>
+      '$count ${count == 1 ? 'رحلة' : 'رحلات'} مسجّلة';
+
+  @override
+  String get noTripsYet => 'لا توجد رحلات بعد';
+
+  @override
+  String get noTripsYetSubtitle => 'ستظهر رحلاتك المكتملة هنا';
+
+  @override
+  String get unknownPickup => 'موقف غير محدد';
+
+  @override
+  String get unknownDropoff => 'وجهة غير محددة';
+
+  @override
+  String get fromLabel => 'من';
+
+  @override
+  String get toLabel => 'إلى';
+
   // ── Settings ──────────────────────────────────────────────────────
 
   @override
@@ -249,7 +334,7 @@ class AppStringsAr extends AppStrings {
   String get tripsLabel => 'رحلات';
 
   @override
-  String get statusLabel => 'الحالة';
+  String get statusLabelKey => 'الحالة';
 
   @override
   String get approvedValue => 'معتمد';
@@ -334,6 +419,28 @@ class AppStringsEn extends AppStrings {
   @override
   String get cancelAction => 'Cancel';
 
+  @override
+  String statusLabel(String status) {
+    switch (status) {
+      case 'searching':
+        return 'Searching';
+      case 'offered':
+        return 'Offered';
+      case 'assigned':
+        return 'Assigned';
+      case 'arrived':
+        return 'Arrived';
+      case 'in_progress':
+        return 'In progress';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return status;
+    }
+  }
+
   // ── Earnings ──────────────────────────────────────────────────────
 
   @override
@@ -361,6 +468,33 @@ class AppStringsEn extends AppStrings {
   @override
   String get walletAndWithdraw => 'Wallet & payout';
 
+  // ── Trips ─────────────────────────────────────────────────────────
+
+  @override
+  String get tripsTabTitle => 'My trips';
+
+  @override
+  String tripsRecorded(int count) =>
+      '$count ${count == 1 ? 'trip' : 'trips'} recorded';
+
+  @override
+  String get noTripsYet => 'No trips yet';
+
+  @override
+  String get noTripsYetSubtitle => 'Your completed trips will appear here';
+
+  @override
+  String get unknownPickup => 'Unknown pickup';
+
+  @override
+  String get unknownDropoff => 'Unknown destination';
+
+  @override
+  String get fromLabel => 'From';
+
+  @override
+  String get toLabel => 'To';
+
   // ── Settings ──────────────────────────────────────────────────────
 
   @override
@@ -382,7 +516,7 @@ class AppStringsEn extends AppStrings {
   String get tripsLabel => 'Trips';
 
   @override
-  String get statusLabel => 'Status';
+  String get statusLabelKey => 'Status';
 
   @override
   String get approvedValue => 'Approved';

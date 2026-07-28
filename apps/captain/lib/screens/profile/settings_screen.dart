@@ -160,7 +160,7 @@ class SettingsScreen extends StatelessWidget {
                         : Icons.hourglass_top_rounded,
                     iconColor: isApproved ? AppTokens.success : AppTokens.accent,
                     value: isApproved ? strings.approvedValue : strings.underReviewValue,
-                    label: strings.statusLabel,
+                    label: strings.statusLabelKey,
                     panel: go.panel,
                     text: go.text,
                     muted: go.muted,
