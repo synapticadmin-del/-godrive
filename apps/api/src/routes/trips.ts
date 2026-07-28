@@ -272,9 +272,13 @@ tripRoutes.post(
         candidates: nearby.captains.map((x) => x.userId),
       });
 
-      // Push live offers to nearby captains' inboxes
+      // Staged offer rollout — the closest captains see the offer first;
+      // the rest only if nobody accepts within the grace window.
+      // Previously every nearby captain got the card at once → a ~10-captain
+      // sprint on every trip. The rollout lives in this trip's OfferScheduler
+      // DO, whose alarm drives the next wave even after this request returns.
       const offerPayload = {
-        type: "trip.offer",
+        type: "trip.offer" as const,
         tripId,
         city,
         pickupLat: body.pickupLat,
@@ -285,21 +289,19 @@ tripRoutes.post(
         currency: est.fare.currency,
         at: nowIso(),
       };
-      await Promise.all(
-        nearby.captains.slice(0, 10).map(async (cap) => {
-          try {
-            const inbox = c.env.CAPTAIN_INBOX.get(c.env.CAPTAIN_INBOX.idFromName(cap.userId));
-            await inbox.fetch("https://inbox/push", {
-              method: "POST",
-              body: JSON.stringify({ ...offerPayload, distanceKm: cap.distanceKm }),
-            });
-          } catch (e) {
-            console.error("offer push failed", cap.userId, e);
-          }
-        }),
+      const scheduler = c.env.OFFER_SCHEDULER.get(
+        c.env.OFFER_SCHEDULER.idFromName(tripId),
       );
-      // FCM fanout runs alongside the inbox pushes, not behind them — a slow
-      // Google token exchange used to hold every captain's live offer.
+      await scheduler.fetch("https://scheduler/schedule", {
+        method: "POST",
+        body: JSON.stringify({
+          tripId,
+          captains: nearby.captains.slice(0, 10),
+          offer: offerPayload,
+        }),
+      });
+      // FCM fanout keeps the previous blast — push is what wakes a captain
+      // whose app is closed, so it still reaches everyone who could accept.
       await Promise.all(
         nearby.captains.slice(0, 10).map((cap) =>
           pushToUser({
@@ -476,6 +478,16 @@ tripRoutes.post("/:id/cancel", async (c) => {
   // on screen — while the reverse (a captain who got the offer never
   // hearing the cancel) would strand the card.
   if (cancelledByRider && ["searching", "offered"].includes(trip.status)) {
+    // Stop the staged rollout first — no further wave fires after the trip
+    // died, and the scheduler's alarm would otherwise re-offer a dead trip.
+    try {
+      const scheduler = c.env.OFFER_SCHEDULER.get(
+        c.env.OFFER_SCHEDULER.idFromName(trip.id),
+      );
+      await scheduler.fetch("https://scheduler/cancel", { method: "POST" });
+    } catch (e) {
+      console.error("offer scheduler teardown failed", trip.id, e);
+    }
     try {
       // Same neighbourhood the offer reached on the way in — widening the
       // dispatch radius without widening the cancel radius would strand
