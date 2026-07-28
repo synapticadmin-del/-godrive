@@ -20,6 +20,7 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 const TOKEN_KEY = "sg_admin_token";
 const USER_KEY = "sg_admin_user";
+const REFRESH_KEY = "sg_admin_refresh";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
@@ -43,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const tok = res.accessToken || res.token;
         if (!tok) throw new Error("لم يتم إرجاع توكن الدخول");
         localStorage.setItem(TOKEN_KEY, tok);
-        if (res.refreshToken) localStorage.setItem("sg_admin_refresh", res.refreshToken);
+        if (res.refreshToken) localStorage.setItem(REFRESH_KEY, res.refreshToken);
         localStorage.setItem(USER_KEY, JSON.stringify(res.user));
         setToken(tok);
         setUser(res.user);
@@ -65,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const tok = res.accessToken || res.token;
         if (!tok) throw new Error("No token returned");
         localStorage.setItem(TOKEN_KEY, tok);
-        if (res.refreshToken) localStorage.setItem("sg_admin_refresh", res.refreshToken);
+        if (res.refreshToken) localStorage.setItem(REFRESH_KEY, res.refreshToken);
         localStorage.setItem(USER_KEY, JSON.stringify(res.user));
         setToken(tok);
         setUser(res.user);
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout() {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(REFRESH_KEY);
         setToken(null);
         setUser(null);
       },

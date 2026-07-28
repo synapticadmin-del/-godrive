@@ -1,13 +1,12 @@
 import { FormEvent, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { getApiUrl } from "../lib/api";
 import { ArrowLeft, Mail, Shield, Loader2 } from "lucide-react";
 import GoDriveLogo from "../components/common/GoDriveLogo";
 
 export default function LoginPage() {
   const { token, loginWithPassword } = useAuth();
-  const [email, setEmail] = useState("admin@synapticstudio.tech");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,12 +43,6 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="bg-surface-primary border border-border-primary rounded-2xl p-6 shadow-xl">
-          {/* API indicator */}
-          <div className="mb-4 px-3 py-2 bg-surface-secondary rounded-lg flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-success-main animate-pulse" />
-            <span className="text-xs text-text-tertiary truncate">{getApiUrl()}</span>
-          </div>
-
           {/* Error */}
           {error && (
             <div className="mb-4 p-3 bg-error-main/10 border border-error-main/30 rounded-lg flex items-center gap-2 text-error-main text-sm animate-fade-in">
