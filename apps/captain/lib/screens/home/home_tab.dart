@@ -35,6 +35,7 @@ class HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final state = context.watch<CaptainState>();
 
     final approval = state.captain?['approval_status'] ?? state.captain?['status'];
@@ -58,7 +59,7 @@ class HomeTab extends StatelessWidget {
           start: AppTokens.spaceMd,
           end: AppTokens.spaceMd,
           child: _StatusHeader(
-            name: hasName ? rawName : 'كابتن',
+            name: hasName ? rawName : strings.captainFallbackName,
             online: online,
             isApproved: isApproved,
             connected: state.offersWsStatus == 'connected',
@@ -103,19 +104,20 @@ class _StatusHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
 
     final Color stateColor;
     final String stateLabel;
     if (!isApproved) {
       stateColor = AppTokens.warning;
-      stateLabel = 'بانتظار الموافقة';
+      stateLabel = strings.homeAwaitingApproval;
     } else if (online) {
       stateColor = AppTokens.success;
-      stateLabel = 'متصل ومستعد للرحلات';
+      stateLabel = strings.homeOnlineReady;
     } else {
       stateColor = go.muted;
-      stateLabel = 'غير متصل';
+      stateLabel = strings.homeOffline;
     }
 
     return Container(
@@ -193,7 +195,7 @@ class _StatusHeader extends StatelessWidget {
           // nothing said so.
           if (online)
             Tooltip(
-              message: connected ? 'الاتصال المباشر يعمل' : 'إعادة الاتصال…',
+              message: connected ? strings.homeSocketLive : strings.homeSocketReconnecting,
               child: Padding(
                 padding: const EdgeInsetsDirectional.only(start: 6, end: 4),
                 child: Icon(
@@ -230,6 +232,7 @@ class _OffersSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
 
     // Strict online guard: trip offer cards must NEVER render while the
@@ -302,6 +305,7 @@ class _OffersSheet extends StatelessWidget {
   }
 
   Widget _idleBody(BuildContext context) {
+    final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
 
     return Padding(
@@ -318,7 +322,7 @@ class _OffersSheet extends StatelessWidget {
             const _SearchingPulse(),
             const SizedBox(height: AppTokens.spaceSm),
             Text(
-              'جاري البحث عن رحلات قريبة…',
+              strings.homeSearchingTitle,
               style: AppTokens.font(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -327,13 +331,13 @@ class _OffersSheet extends StatelessWidget {
             ),
             const SizedBox(height: AppTokens.space2xs),
             Text(
-              'ابقَ في منطقة مزدحمة لزيادة فرص الطلبات',
+              strings.homeSearchingSubtitle,
               textAlign: TextAlign.center,
               style: AppTokens.font(fontSize: 13, color: go.muted),
             ),
           ] else ...[
             Text(
-              isApproved ? 'أنت غير متصل حالياً' : 'حسابك قيد المراجعة',
+              isApproved ? strings.homeOfflineTitle : strings.homeUnderReviewTitle,
               style: AppTokens.font(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -343,8 +347,8 @@ class _OffersSheet extends StatelessWidget {
             const SizedBox(height: AppTokens.space2xs),
             Text(
               isApproved
-                  ? 'اضغط لبدء استقبال الرحلات والأرباح'
-                  : 'سنخطرك فور اعتماد مستنداتك',
+                  ? strings.homeGoOnlineHint
+                  : strings.homeApprovalHint,
               textAlign: TextAlign.center,
               style: AppTokens.font(fontSize: 13, color: go.muted),
             ),

@@ -70,9 +70,10 @@ class _WalletScreenState extends State<WalletScreen> {
   double get _balance => (_wallet?['balance'] as num?)?.toDouble() ?? 0;
 
   void _requestPayout() {
+    final strings = AppStrings.of(context);
     if (_balance < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا يوجد رصيد كافٍ للسحب')),
+        SnackBar(content: Text(strings.noBalanceToWithdraw)),
       );
       return;
     }
@@ -81,6 +82,7 @@ class _WalletScreenState extends State<WalletScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
+        final strings = AppStrings.of(sheetCtx);
         final go = GoTheme.of(sheetCtx);
         return Container(
           padding: const EdgeInsets.fromLTRB(
@@ -112,7 +114,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
               ),
               Text(
-                'طلب سحب الأرباح',
+                strings.payoutSheetTitle,
                 style: AppTokens.font(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -121,7 +123,7 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
               const SizedBox(height: AppTokens.space2xs),
               Text(
-                'الرصيد المتاح: ${_balance.toStringAsFixed(2)} ج.م',
+                strings.availableBalanceLine(_balance.toStringAsFixed(2)),
                 style: AppTokens.font(
                   fontSize: 13,
                   color: go.muted,
@@ -132,13 +134,13 @@ class _WalletScreenState extends State<WalletScreen> {
                 icon: Icons.phone_android_rounded,
                 iconColor: AppTokens.primary,
                 surface: go.surface,
-                label: 'فودافون كاش',
+                label: strings.vodafoneCashMethod,
                 onTap: () {
                   Navigator.pop(sheetCtx);
                   _collectAccountAndSubmit(
                     method: 'vodafone_cash',
-                    label: 'فودافون كاش',
-                    hint: 'رقم محفظة فودافون كاش',
+                    label: strings.vodafoneCashMethod,
+                    hint: strings.vodafoneCashHint,
                     keyboardType: TextInputType.phone,
                   );
                 },
@@ -148,13 +150,13 @@ class _WalletScreenState extends State<WalletScreen> {
                 icon: Icons.account_balance_rounded,
                 iconColor: AppTokens.accent,
                 surface: go.surface,
-                label: 'انستا باي (InstaPay)',
+                label: strings.instaPayMethod,
                 onTap: () {
                   Navigator.pop(sheetCtx);
                   _collectAccountAndSubmit(
                     method: 'instapay',
-                    label: 'انستا باي',
-                    hint: 'عنوان الدفع (IPA) أو رقم الحساب',
+                    label: strings.instaPayMethod,
+                    hint: strings.instaPayHint,
                     keyboardType: TextInputType.text,
                   );
                 },
@@ -178,43 +180,47 @@ class _WalletScreenState extends State<WalletScreen> {
     final controller = TextEditingController();
     final account = await showDialog<String>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: Text('السحب عبر $label'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'سيتم سحب ${_balance.toStringAsFixed(2)} ج.م',
-              style: AppTokens.font(fontWeight: FontWeight.w700),
+      builder: (dialogCtx) {
+        final strings = AppStrings.of(dialogCtx);
+        return AlertDialog(
+          title: Text(strings.payoutViaTitle(label)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                strings.payoutAmountLine(_balance.toStringAsFixed(2)),
+                style: AppTokens.font(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppTokens.spaceSm),
+              TextField(
+                controller: controller,
+                keyboardType: keyboardType,
+                autofocus: true,
+                decoration: InputDecoration(labelText: hint),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(strings.cancelAction),
             ),
-            const SizedBox(height: AppTokens.spaceSm),
-            TextField(
-              controller: controller,
-              keyboardType: keyboardType,
-              autofocus: true,
-              decoration: InputDecoration(labelText: hint),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, controller.text.trim()),
+              child: Text(strings.confirmPayoutAction),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogCtx, controller.text.trim()),
-            child: const Text('تأكيد السحب'),
-          ),
-        ],
-      ),
+        );
+      },
     );
     controller.dispose();
 
     if (!mounted || account == null) return;
+    final strings = AppStrings.of(context);
     if (account.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('برجاء إدخال بيانات حساب صحيحة'),
+        SnackBar(
+          content: Text(strings.invalidAccountError),
           backgroundColor: AppTokens.danger,
         ),
       );
@@ -232,7 +238,7 @@ class _WalletScreenState extends State<WalletScreen> {
       });
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('تم إرسال طلب السحب بنجاح إلى $label')),
+        SnackBar(content: Text(strings.payoutSuccessToast(label))),
       );
       await _load();
     } catch (e) {
@@ -240,7 +246,7 @@ class _WalletScreenState extends State<WalletScreen> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            'فشل طلب السحب: ${e.toString().replaceAll('Exception:', '').trim()}',
+            strings.payoutFailedToast(e.toString().replaceAll('Exception:', '').trim()),
           ),
           backgroundColor: AppTokens.danger,
         ),
@@ -250,13 +256,14 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'المحفظة',
+          strings.walletTitle,
           style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
         backgroundColor: go.panel,
@@ -265,7 +272,7 @@ class _WalletScreenState extends State<WalletScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'تحديث',
+            tooltip: strings.refresh,
             onPressed: _load,
           ),
         ],
@@ -274,7 +281,7 @@ class _WalletScreenState extends State<WalletScreen> {
           ? const Center(child: CircularProgressIndicator(color: AppTokens.primary))
           : _wallet == null
               ? ErrorState(
-                  message: _error ?? 'خطأ في تحميل المحفظة',
+                  message: _error ?? strings.walletLoadError,
                   onRetry: _load,
                 )
               : ListView(
@@ -286,7 +293,7 @@ class _WalletScreenState extends State<WalletScreen> {
                         ),
                     const SizedBox(height: AppTokens.spaceXl),
                     Text(
-                      'سجل المعاملات',
+                      strings.transactionHistoryTitle,
                       style: AppTokens.font(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -295,9 +302,9 @@ class _WalletScreenState extends State<WalletScreen> {
                     ),
                     const SizedBox(height: AppTokens.spaceMd),
                     if (_transactions.isEmpty)
-                      const EmptyState(
+                      EmptyState(
                         icon: Icons.account_balance_wallet_outlined,
-                        title: 'لا توجد معاملات سابقة بالمحفظة حتى الآن',
+                        title: strings.noTransactionsYet,
                       )
                     else
                       ..._transactions.map(
@@ -312,6 +319,7 @@ class _WalletScreenState extends State<WalletScreen> {
   /// gradient card, an oversized numeral via AppTokens.money, and the single
   /// primary action at exactly primaryActionHeight.
   Widget _buildBalanceHero() {
+    final strings = AppStrings.of(context);
     final nextPayout = _wallet?['nextPayoutWindow']?.toString();
     final weekTrips = (_wallet?['weekTrips'] as num?)?.toInt();
     final weekCommission = (_wallet?['weekCommission'] as num?)?.toDouble();
@@ -331,7 +339,7 @@ class _WalletScreenState extends State<WalletScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'الرصيد المتاح للسحب',
+            strings.availableBalanceHero,
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -351,7 +359,7 @@ class _WalletScreenState extends State<WalletScreen> {
               ),
               const SizedBox(width: AppTokens.spaceXs),
               Text(
-                'ج.م',
+                strings.egp,
                 style: AppTokens.font(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -363,7 +371,7 @@ class _WalletScreenState extends State<WalletScreen> {
           if (nextPayout != null) ...[
             const SizedBox(height: AppTokens.space2xs),
             Text(
-              'موعد الصرف: $nextPayout',
+              strings.payoutWindowLine(nextPayout),
               style: AppTokens.font(
                 fontSize: 12,
                 color: Colors.white.withOpacity(0.7),
@@ -378,10 +386,10 @@ class _WalletScreenState extends State<WalletScreen> {
               spacing: AppTokens.spaceXs,
               children: [
                 if (weekTrips != null)
-                  _HeroChip(label: 'رحلات هذا الأسبوع: $weekTrips'),
+                  _HeroChip(label: strings.weekTripsChip(weekTrips)),
                 if (weekCommission != null)
                   _HeroChip(
-                    label: 'عمولة: ${weekCommission.toStringAsFixed(0)} ج.م',
+                    label: strings.weekCommissionChip(weekCommission.toStringAsFixed(0)),
                   ),
               ],
             ),
@@ -396,7 +404,7 @@ class _WalletScreenState extends State<WalletScreen> {
               onPressed: _requestPayout,
               icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
               label: Text(
-                'سحب الآن',
+                strings.withdrawNowAction,
                 style: AppTokens.font(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -425,10 +433,11 @@ class _WalletScreenState extends State<WalletScreen> {
     Color muted,
     Color border,
   ) {
+    final strings = AppStrings.of(context);
     final isCredit = tx['direction'] == 'credit';
     final amount = (tx['amount'] as num?)?.toDouble() ?? 0;
     final note = tx['note']?.toString() ??
-        (isCredit ? 'إضافة رصيد' : 'خصم معاملة');
+        (isCredit ? strings.creditNoteFallback : strings.debitNoteFallback);
 
     // substring(0,10) throws on timestamps shorter than 10 chars, so trim by
     // length rather than blindly slicing.
@@ -483,7 +492,7 @@ class _WalletScreenState extends State<WalletScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  pending ? '$date  •  قيد التنفيذ' : date,
+                  pending ? '$date  •  ${strings.pendingMarker}' : date,
                   style: AppTokens.font(
                     fontSize: 12,
                     color: pending ? AppTokens.accent : muted,
@@ -495,7 +504,7 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(width: AppTokens.spaceXs),
           // The amount in money-weight numerals so it pops against the label.
           Text(
-            '${isCredit ? "+" : "−"} ${amount.toStringAsFixed(0)} ج.م',
+            '${isCredit ? "+" : "−"} ${amount.toStringAsFixed(0)} ${strings.egp}',
             style: AppTokens.money(
               fontSize: 16,
               color: amountColor,

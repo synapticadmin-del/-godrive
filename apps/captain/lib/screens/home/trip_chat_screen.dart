@@ -186,13 +186,14 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'محادثة الراكب',
+          strings.chatTitle,
           style: AppTokens.font(
             fontWeight: FontWeight.w800,
             color: go.text,
@@ -213,7 +214,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         child: Padding(
                           padding: const EdgeInsets.all(AppTokens.spaceLg),
                           child: Text(
-                            'لا توجد رسائل بعد.\nابدأ المحادثة مع الراكب.',
+                            strings.chatEmptyBody,
                             textAlign: TextAlign.center,
                             style: AppTokens.font(
                               color: go.muted,
@@ -300,7 +301,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
                       decoration: InputDecoration(
-                        hintText: 'اكتب رسالة...',
+                        hintText: strings.chatComposerHint,
                         hintStyle: AppTokens.font(color: go.muted),
                         filled: true,
                         fillColor: go.surface,
@@ -378,6 +379,7 @@ class _TypingBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -394,7 +396,7 @@ class _TypingBubble extends StatelessWidget {
             _dot(), _dot(), _dot(),
             const SizedBox(width: 8),
             Text(
-              'جاري الكتابة…',
+              strings.chatTyping,
               style: AppTokens.font(color: muted, fontSize: 12.5),
             ),
           ],
