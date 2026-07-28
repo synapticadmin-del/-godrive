@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
@@ -64,17 +63,20 @@ class _TopupScreenState extends State<TopupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
+
     if (_webCtrl != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('الدفع'), backgroundColor: AppTokens.lightPanel),
+        appBar: AppBar(title: Text(strings.paymentTitle), backgroundColor: go.panel),
         body: WebViewWidget(controller: _webCtrl!),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
-        backgroundColor: AppTokens.lightPanel,
+        title: Text(strings.topUpTitle, style: AppTokens.font()),
+        backgroundColor: go.panel,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -82,20 +84,20 @@ class _TopupScreenState extends State<TopupScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('أدخل المبلغ المراد شحنه', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText, fontSize: 18), textAlign: TextAlign.center),
+            Text(strings.topUpAmountPrompt, style: AppTokens.font(color: go.text, fontSize: 18), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             TextField(
               controller: _amountCtrl,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(color: go.text, fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
               decoration: InputDecoration(
                 hintText: '0.0',
-                hintStyle: const TextStyle(color: AppTokens.lightMuted),
-                suffixText: 'ج.م',
-                suffixStyle: const TextStyle(color: AppTokens.lightMuted),
+                hintStyle: TextStyle(color: go.muted),
+                suffixText: strings.egp,
+                suffixStyle: TextStyle(color: go.muted),
                 filled: true,
-                fillColor: AppTokens.lightSurface,
+                fillColor: go.surface,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
               ),
             ),
@@ -109,7 +111,7 @@ class _TopupScreenState extends State<TopupScreen> {
               ),
               child: _loading
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white))
-                  : Text('متابعة الدفع', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                  : Text(strings.continuePayment, style: AppTokens.font(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

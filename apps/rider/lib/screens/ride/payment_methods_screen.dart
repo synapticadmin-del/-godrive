@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -37,64 +36,75 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text('طرق الدفع', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(
+        title: Text(
+          strings.paymentMethodsTitle,
+          style: AppTokens.font(fontWeight: FontWeight.w700),
+        ),
+      ),
       body: _loading
           ? const SkeletonList(count: 3)
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 _methodCard(
+                  go: go,
+                  strings: strings,
                   icon: Icons.payments_outlined,
-                  title: 'كاش',
-                  subtitle: 'ادفع للكابتن مباشرة',
-                  panel: panel,
-                  text: text,
-                  muted: muted,
-                  border: border,
+                  title: strings.paymentCashTitle,
+                  subtitle: strings.paymentCashSubtitle,
                   value: 'cash',
                 ),
                 const SizedBox(height: 10),
                 _methodCard(
+                  go: go,
+                  strings: strings,
                   icon: Icons.account_balance_wallet_outlined,
-                  title: 'المحفظة',
-                  subtitle: 'الرصيد: ${_walletBalance.toStringAsFixed(0)} ج.م',
-                  panel: panel,
-                  text: text,
-                  muted: muted,
-                  border: border,
+                  title: strings.paymentWalletTitle,
+                  subtitle: strings.paymentWalletBalanceLine(
+                      _walletBalance.toStringAsFixed(0)),
                   value: 'wallet',
-                  trailing: TextButton(onPressed: () => Navigator.pushNamed(context, '/wallet'), child: const Text('شحن')),
+                  trailing: TextButton(
+                    onPressed: () => Navigator.pushNamed(context, '/wallet'),
+                    child: Text(strings.paymentTopUpAction),
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _methodCard(
+                  go: go,
+                  strings: strings,
                   icon: Icons.credit_card_outlined,
-                  title: 'بطاقة بنكية',
-                  subtitle: 'إضافة بطاقة عبر Paymob',
-                  panel: panel,
-                  text: text,
-                  muted: muted,
-                  border: border,
+                  title: strings.paymentCardTitle,
+                  subtitle: strings.paymentCardSubtitle,
                   value: 'card',
                   trailing: TextButton(
                     onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('سيتم تفعيل الدفع بالبطاقة قريبًا')),
+                      SnackBar(content: Text(strings.paymentCardComingSoonToast)),
                     ),
-                    child: const Text('إضافة'),
+                    child: Text(strings.paymentAddAction),
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text('ملاحظة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, fontWeight: FontWeight.w700, color: muted)),
+                Text(
+                  strings.paymentNoteTitle,
+                  style: AppTokens.font(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: go.muted,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
-                  'يمكنك تغيير طريقة الدفع الافتراضية في أي وقت. سيتم استخدامها تلقائيًا في رحلاتك القادمة.',
-                  style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted, height: 1.5),
+                  strings.paymentNoteBody,
+                  style: AppTokens.font(
+                    fontSize: 12,
+                    color: go.muted,
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),
@@ -102,13 +112,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   Widget _methodCard({
+    required GoTheme go,
+    required AppStrings strings,
     required IconData icon,
     required String title,
     required String subtitle,
-    required Color panel,
-    required Color text,
-    required Color muted,
-    required Color border,
     required String value,
     Widget? trailing,
   }) {
@@ -118,28 +126,55 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: panel,
+          color: go.panel,
           borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-          border: Border.all(color: selected ? AppTokens.primary : border, width: selected ? 2 : 1),
+          border: Border.all(
+            color: selected ? AppTokens.primary : go.border,
+            width: selected ? 2 : 1,
+          ),
         ),
         child: Row(children: [
           Container(
-            width: 44, height: 44,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: selected ? AppTokens.primary.withOpacity(0.1) : (muted.withOpacity(0.08)),
+              color: selected
+                  ? AppTokens.primary.withOpacity(0.1)
+                  : (go.muted.withOpacity(0.08)),
               borderRadius: BorderRadius.circular(AppTokens.radiusMd),
             ),
-            child: Icon(icon, color: selected ? AppTokens.primary : muted, size: 22),
+            child: Icon(icon,
+                color: selected ? AppTokens.primary : go.muted, size: 22),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 15, fontWeight: FontWeight.w700, color: text)),
-            const SizedBox(height: 2),
-            Text(subtitle, style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
-          ])),
-          if (trailing != null) trailing
-          else Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
-            color: selected ? AppTokens.primary : muted, size: 22),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTokens.font(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: go.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: AppTokens.font(fontSize: 12, color: go.muted),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null)
+            trailing
+          else
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? AppTokens.primary : go.muted,
+              size: 22,
+            ),
         ]),
       ),
     );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -43,7 +42,12 @@ class _PromoScreenState extends State<PromoScreen> {
       if (mounted) {
         final discount = (res['discount'] as num?)?.toDouble() ?? 0;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم تطبيق الكود! خصم $discount ج.م'), backgroundColor: AppTokens.success),
+          SnackBar(
+            content: Text(
+              AppStrings.of(context).promoAppliedToast('$discount'),
+            ),
+            backgroundColor: AppTokens.success,
+          ),
         );
         _codeController.clear();
         _load();
@@ -51,7 +55,10 @@ class _PromoScreenState extends State<PromoScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('كود غير صالح أو منتهي'), backgroundColor: AppTokens.danger),
+          SnackBar(
+            content: Text(AppStrings.of(context).promoInvalidToast),
+            backgroundColor: AppTokens.danger,
+          ),
         );
       }
     } finally {
@@ -67,15 +74,16 @@ class _PromoScreenState extends State<PromoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
-    final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text('أكواد الخصم', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(
+        title: Text(
+          strings.promoTitle,
+          style: AppTokens.font(fontWeight: FontWeight.w700),
+        ),
+      ),
       body: Column(
         children: [
           // Enter code
@@ -86,13 +94,18 @@ class _PromoScreenState extends State<PromoScreen> {
                 child: TextField(
                   controller: _codeController,
                   decoration: InputDecoration(
-                    hintText: 'أدخل كود الخصم',
-                    hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
-                    filled: true, fillColor: surface,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.local_offer, color: AppTokens.primary, size: 20),
+                    hintText: strings.promoCodeHint,
+                    hintStyle: AppTokens.font(color: go.muted, fontSize: 14),
+                    filled: true,
+                    fillColor: go.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                      borderSide: BorderSide.none,
+                    ),
+                    prefixIcon: const Icon(Icons.local_offer,
+                        color: AppTokens.primary, size: 20),
                   ),
-                  style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 14),
+                  style: AppTokens.font(color: go.text, fontSize: 14),
                 ),
               ),
               const SizedBox(width: 8),
@@ -100,11 +113,23 @@ class _PromoScreenState extends State<PromoScreen> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: _applying ? null : _applyCode,
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTokens.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                  ),
                   child: _applying
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('تطبيق'),
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(strings.promoApplyAction),
                 ),
               ),
             ]),
@@ -114,7 +139,11 @@ class _PromoScreenState extends State<PromoScreen> {
             child: _loading
                 ? const SkeletonList(count: 3)
                 : _promos.isEmpty
-                    ? const EmptyState(icon: Icons.local_offer_outlined, title: 'لا توجد أكواد نشطة', subtitle: 'أدخل كود خصم لتستفيد من العروض')
+                    ? EmptyState(
+                        icon: Icons.local_offer_outlined,
+                        title: strings.promoEmptyTitle,
+                        subtitle: strings.promoEmptySubtitle,
+                      )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _promos.length,
@@ -123,32 +152,66 @@ class _PromoScreenState extends State<PromoScreen> {
                           final type = p['type'] as String? ?? 'percent';
                           final value = (p['value'] as num?)?.toDouble() ?? 0;
                           final code = p['code'] as String? ?? '';
-                          final expires = (p['expires_at'] ?? '').toString().substring(0, 10);
+                          final expires =
+                              (p['expires_at'] ?? '').toString().substring(0, 10);
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: panel,
-                              borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                              border: Border.all(color: border),
+                              color: go.panel,
+                              borderRadius:
+                                  BorderRadius.circular(AppTokens.radiusLg),
+                              border: Border.all(color: go.border),
                             ),
                             child: Row(children: [
                               Container(
-                                width: 44, height: 44,
-                                decoration: BoxDecoration(color: AppTokens.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
-                                child: const Icon(Icons.local_offer, color: AppTokens.primary, size: 22),
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: AppTokens.primary.withOpacity(0.1),
+                                  borderRadius:
+                                      BorderRadius.circular(AppTokens.radiusMd),
+                                ),
+                                child: const Icon(Icons.local_offer,
+                                    color: AppTokens.primary, size: 22),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(code, style: GoogleFonts.ibmPlexSansArabic(fontSize: 15, fontWeight: FontWeight.w800, color: text)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  type == 'percent' ? 'خصم ${value.toInt()}%' : 'خصم ${value.toInt()} ج.م',
-                                  style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: AppTokens.primary, fontWeight: FontWeight.w600),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      code,
+                                      style: AppTokens.font(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: go.text,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      type == 'percent'
+                                          ? strings.promoDiscountPercent(
+                                              value.toInt())
+                                          : strings.promoDiscountFixed(
+                                              '${value.toInt()}'),
+                                      style: AppTokens.font(
+                                        fontSize: 13,
+                                        color: AppTokens.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (expires.isNotEmpty)
+                                      Text(
+                                        strings.promoExpiresLine(expires),
+                                        style: AppTokens.font(
+                                          fontSize: 11,
+                                          color: go.muted,
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                if (expires.isNotEmpty)
-                                  Text('ينتهي $expires', style: GoogleFonts.ibmPlexSansArabic(fontSize: 11, color: muted)),
-                              ])),
+                              ),
                             ]),
                           );
                         },
