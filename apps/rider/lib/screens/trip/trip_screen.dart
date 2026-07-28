@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 import '../../services/trip_ws.dart';
@@ -14,6 +13,10 @@ import '../ride/captain_bids_sheet.dart';
 /// Rider trip screen — progressive states like Uber/Careem:
 /// searching → offered → assigned → arrived → in_progress → completed
 /// Each state shows a different bottom panel with contextual info + actions.
+///
+/// All theming reads [GoTheme.of] (no manual isDark ternaries) and all copy
+/// reads [AppStrings.of] (no inline literals; AppTokens.font supplies Cairo,
+/// the old per-call GoogleFonts helper is gone). Rider reference migration.
 class TripScreen extends StatefulWidget {
   final String tripId;
   const TripScreen({super.key, required this.tripId});
@@ -232,7 +235,7 @@ class _TripScreenState extends State<TripScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => RatingSheet(
         tripId: widget.tripId,
-        captainName: _trip!['captain_name'] ?? 'الكابتن',
+        captainName: _trip!['captain_name'] ?? AppStrings.of(context).riderCaptainFallback,
         onDone: () => Navigator.pop(context),
       ),
     );
@@ -250,8 +253,8 @@ class _TripScreenState extends State<TripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     return Scaffold(
       backgroundColor: go.bg,
@@ -259,7 +262,7 @@ class _TripScreenState extends State<TripScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _trip == null
               ? ErrorState(
-                  message: 'تعذّر تحميل بيانات الرحلة',
+                  message: strings.tripLoadError,
                   icon: Icons.route_outlined,
                   onRetry: _loadTrip,
                 )
@@ -311,11 +314,11 @@ class _TripScreenState extends State<TripScreen> {
                   right: 16,
                   child: Row(
                     children: [
-                      _circleButton(Icons.arrow_back, () => Navigator.pop(context)),
+                      _circleButton(go, Icons.arrow_back, () => Navigator.pop(context)),
                       const SizedBox(width: 8),
-                      Expanded(child: _statusBadge()),
+                      Expanded(child: _statusBadge(go, strings)),
                       const SizedBox(width: 8),
-                      _circleButton(Icons.sos, () => Navigator.push(
+                      _circleButton(go, Icons.sos, () => Navigator.push(
                         context, MaterialPageRoute(builder: (_) => SosScreen(tripId: widget.tripId))),
                         color: AppTokens.sos),
                     ],
@@ -323,7 +326,7 @@ class _TripScreenState extends State<TripScreen> {
                 ),
                 Positioned(
                   left: 0, right: 0, bottom: 0,
-                  child: _buildBottomPanel(isDark),
+                  child: _buildBottomPanel(go),
                 ),
               ],
             ),
@@ -415,24 +418,23 @@ class _TripScreenState extends State<TripScreen> {
     return markers;
   }
 
-  Widget _circleButton(IconData icon, VoidCallback onTap, {Color? color}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _circleButton(GoTheme go, IconData icon, VoidCallback onTap, {Color? color}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44, height: 44,
         decoration: BoxDecoration(
-          color: color ?? (isDark ? AppTokens.darkPanel : AppTokens.lightPanel),
+          color: color ?? go.panel,
           shape: BoxShape.circle,
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8)],
         ),
-        child: Icon(icon, color: color != null ? Colors.white : (isDark ? AppTokens.darkText : AppTokens.lightText), size: 22),
+        child: Icon(icon, color: color != null ? Colors.white : go.text, size: 22),
       ),
     );
   }
 
-  Widget _statusBadge() {
-    final config = _statusConfig(_status);
+  Widget _statusBadge(GoTheme go, AppStrings strings) {
+    final config = _statusConfig(go, strings, _status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: config['color'] as Color, borderRadius: BorderRadius.circular(999)),
@@ -442,196 +444,208 @@ class _TripScreenState extends State<TripScreen> {
           const SizedBox(width: 6),
         ],
         Text(config['label'] as String,
-          style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+          style: AppTokens.font(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
       ]),
     );
   }
 
-  Widget _buildBottomPanel(bool isDark) {
-    final bg = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+  Widget _buildBottomPanel(GoTheme go) {
     return Container(
-      decoration: BoxDecoration(color: bg,
+      decoration: BoxDecoration(color: go.panel,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, -4))]),
       child: SafeArea(top: false, child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder, borderRadius: BorderRadius.circular(999)))),
-          ..._buildPanelContent(text, muted),
+            decoration: BoxDecoration(color: go.border, borderRadius: BorderRadius.circular(999)))),
+          ..._buildPanelContent(go),
         ]),
       )),
     );
   }
 
-  List<Widget> _buildPanelContent(Color text, Color muted) {
+  List<Widget> _buildPanelContent(GoTheme go) {
     switch (_status) {
-      case 'searching': return _searchingContent(text, muted);
-      case 'offered': return _offeredContent(text, muted);
-      case 'assigned': case 'arrived': return _assignedContent(text, muted);
-      case 'in_progress': return _inProgressContent(text, muted);
-      case 'completed': return _completedContent(text, muted);
-      case 'cancelled': return _cancelledContent(text, muted);
-      default: return _searchingContent(text, muted);
+      case 'searching': return _searchingContent(go);
+      case 'offered': return _offeredContent(go);
+      case 'assigned': case 'arrived': return _assignedContent(go);
+      case 'in_progress': return _inProgressContent(go);
+      case 'completed': return _completedContent(go);
+      case 'cancelled': return _cancelledContent(go);
+      default: return _searchingContent(go);
     }
   }
 
-  List<Widget> _searchingContent(Color text, Color muted) => [
-    Center(child: SizedBox(width: 48, height: 48,
-      child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation<Color>(AppTokens.primary)))),
-    const SizedBox(height: 16),
-    Text('جارٍ البحث عن كابتن…', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
-    const SizedBox(height: 4),
-    Text('سنبلغك فور قبول كابتن لرحلتك', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
-    const SizedBox(height: 20),
-    SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
-      icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
-      style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
-  ];
+  List<Widget> _searchingContent(GoTheme go) {
+    final strings = AppStrings.of(context);
+    return [
+      Center(child: SizedBox(width: 48, height: 48,
+        child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation<Color>(AppTokens.primary)))),
+      const SizedBox(height: 16),
+      Text(strings.tripSearchingTitle, style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text)),
+      const SizedBox(height: 4),
+      Text(strings.tripSearchingSubtitle, style: AppTokens.font(fontSize: 13, color: go.muted)),
+      const SizedBox(height: 20),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
+        icon: const Icon(Icons.close, size: 18), label: Text(strings.tripCancelAction),
+        style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
+    ];
+  }
 
   /// Panel shown behind the offers sheet while captains are bidding.
   ///
   /// The sheet itself carries the decision, but it can be popped — and on a
   /// cold restart the status may already be `offered` — so this panel keeps a
   /// way back to the offers rather than leaving the rider on a dead screen.
-  List<Widget> _offeredContent(Color text, Color muted) {
-    final go = GoTheme.of(context);
+  List<Widget> _offeredContent(GoTheme go) {
+    final strings = AppStrings.of(context);
     return [
       Row(children: [
         Icon(Icons.local_offer_rounded,
             color: go.isDark ? go.action : AppTokens.primary, size: 20),
         const SizedBox(width: 8),
-        Expanded(child: Text('وصلت عروض من الكباتن',
-          style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
+        Expanded(child: Text(strings.tripOffersArrivedTitle,
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text))),
       ]),
       const SizedBox(height: 4),
-      Text('اختار العرض اللي يناسبك من القايمة',
-        style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+      Text(strings.tripOffersArrivedSubtitle,
+        style: AppTokens.font(fontSize: 13, color: go.muted)),
       const SizedBox(height: 20),
       SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _syncBidsSheet,
-        icon: const Icon(Icons.visibility_outlined, size: 18), label: const Text('عرض العروض'),
+        icon: const Icon(Icons.visibility_outlined, size: 18), label: Text(strings.tripViewOffersAction),
         style: ElevatedButton.styleFrom(
           backgroundColor: go.isDark ? go.action : AppTokens.primary,
           foregroundColor: go.isDark ? go.onAction : Colors.white))),
       const SizedBox(height: 8),
       SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
-        icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
+        icon: const Icon(Icons.close, size: 18), label: Text(strings.tripCancelAction),
         style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
     ];
   }
 
-  List<Widget> _assignedContent(Color text, Color muted) {
+  List<Widget> _assignedContent(GoTheme go) {
+    final strings = AppStrings.of(context);
     final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
     final isArrived = _status == 'arrived';
     return [
-      if (_trip?['captain_name'] != null) _driverCard(text, muted),
+      if (_trip?['captain_name'] != null) _driverCard(go),
       const SizedBox(height: 16),
       Row(children: [
         Icon(isArrived ? Icons.access_time : Icons.directions_car, color: AppTokens.primary, size: 20),
         const SizedBox(width: 8),
-        Expanded(child: Text(isArrived ? 'وصل الكابتن — تفضّل بالنزول' : 'الكابتن في الطريق إليك',
-          style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text))),
+        Expanded(child: Text(isArrived ? strings.tripCaptainArrived : strings.tripCaptainEnRoute,
+          style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: go.text))),
       ]),
       const SizedBox(height: 12),
-      _fareRow(fare, muted),
+      _fareRow(go, fare),
       const SizedBox(height: 16),
       Row(children: [
         Expanded(child: OutlinedButton.icon(onPressed: _openChat,
-          icon: const Icon(Icons.chat_bubble_outline, size: 18), label: const Text('مراسلة'),
+          icon: const Icon(Icons.chat_bubble_outline, size: 18), label: Text(strings.tripMessageAction),
           style: OutlinedButton.styleFrom(foregroundColor: AppTokens.primary))),
         const SizedBox(width: 8),
         Expanded(child: OutlinedButton.icon(onPressed: _cancelTrip,
-          icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء'),
+          icon: const Icon(Icons.close, size: 18), label: Text(strings.cancelAction),
           style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger))),
       ]),
     ];
   }
 
-  List<Widget> _inProgressContent(Color text, Color muted) {
+  List<Widget> _inProgressContent(GoTheme go) {
+    final strings = AppStrings.of(context);
     final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
     return [
-      if (_trip?['captain_name'] != null) _driverCard(text, muted),
+      if (_trip?['captain_name'] != null) _driverCard(go),
       const SizedBox(height: 16),
       Row(children: [
         Icon(Icons.navigation, color: AppTokens.primary, size: 20),
         const SizedBox(width: 8),
-        Expanded(child: Text('الرحلة جارية', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text))),
+        Expanded(child: Text(strings.tripUnderway, style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: go.text))),
       ]),
       const SizedBox(height: 12),
-      _fareRow(fare, muted),
+      _fareRow(go, fare),
       const SizedBox(height: 16),
       SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _openChat,
-        icon: const Icon(Icons.chat_bubble_outline, size: 18), label: const Text('مراسلة الكابتن'),
+        icon: const Icon(Icons.chat_bubble_outline, size: 18), label: Text(strings.tripMessageCaptainAction),
         style: OutlinedButton.styleFrom(foregroundColor: AppTokens.primary))),
     ];
   }
 
-  List<Widget> _completedContent(Color text, Color muted) {
+  List<Widget> _completedContent(GoTheme go) {
+    final strings = AppStrings.of(context);
     final fare = (_trip?['final_fare'] as num?)?.toDouble() ?? (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
     return [
       const Icon(Icons.check_circle, color: AppTokens.success, size: 48),
       const SizedBox(height: 12),
-      Text('وصلت بسلامة!', style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
+      Text(strings.tripCompletedTitle, style: AppTokens.font(fontSize: 20, fontWeight: FontWeight.w800, color: go.text)),
       const SizedBox(height: 4),
-      Text('الأجرة النهائية', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+      Text(strings.tripFinalFareLabel, style: AppTokens.font(fontSize: 13, color: go.muted)),
       const SizedBox(height: 4),
-      Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+      Text('${fare.toStringAsFixed(0)} ${strings.egp}', style: AppTokens.font(fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary)),
       const SizedBox(height: 20),
       SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _rateTrip,
-        icon: const Icon(Icons.star, size: 20), label: const Text('قيّم رحلتك'),
+        icon: const Icon(Icons.star, size: 20), label: Text(strings.tripRateAction),
         style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white))),
     ];
   }
 
-  List<Widget> _cancelledContent(Color text, Color muted) => [
-    const Icon(Icons.cancel, color: AppTokens.danger, size: 48),
-    const SizedBox(height: 12),
-    Text('تم إلغاء الرحلة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
-    const SizedBox(height: 20),
-    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context),
-      style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white),
-      child: const Text('حسنًا'))),
-  ];
+  List<Widget> _cancelledContent(GoTheme go) {
+    final strings = AppStrings.of(context);
+    return [
+      const Icon(Icons.cancel, color: AppTokens.danger, size: 48),
+      const SizedBox(height: 12),
+      Text(strings.tripCancelledTitle, style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text)),
+      const SizedBox(height: 20),
+      SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context),
+        style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white),
+        child: Text(strings.tripDoneButton))),
+    ];
+  }
 
-  Widget _driverCard(Color text, Color muted) => Row(children: [
-    CircleAvatar(radius: 24, backgroundColor: AppTokens.primary.withOpacity(0.15),
-      child: Text((_trip?['captain_name'] as String?)?.substring(0, 1) ?? 'C',
-        style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 18))),
-    const SizedBox(width: 12),
-    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(_trip?['captain_name'] ?? 'كابتن', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
-      if (_trip?['vehicle_plate'] != null)
-        Text(_trip!['vehicle_plate'], style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
-    ])),
-    if (_trip?['rating_avg'] != null)
-      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: AppTokens.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.star, color: AppTokens.accent, size: 14),
-          const SizedBox(width: 4),
-          Text('${_trip!['rating_avg']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTokens.accent)),
-        ])),
-  ]);
-
-  Widget _fareRow(double fare, Color muted) => Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-      Text('الأجرة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: muted)),
-      Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+  Widget _driverCard(GoTheme go) {
+    final strings = AppStrings.of(context);
+    return Row(children: [
+      CircleAvatar(radius: 24, backgroundColor: AppTokens.primary.withOpacity(0.15),
+        child: Text((_trip?['captain_name'] as String?)?.substring(0, 1) ?? 'C',
+          style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 18))),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(_trip?['captain_name'] ?? strings.riderCaptainFallback, style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: go.text)),
+        if (_trip?['vehicle_plate'] != null)
+          Text(_trip!['vehicle_plate'], style: AppTokens.font(fontSize: 13, color: go.muted)),
+      ])),
+      if (_trip?['rating_avg'] != null)
+        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(color: AppTokens.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.star, color: AppTokens.accent, size: 14),
+            const SizedBox(width: 4),
+            Text('${_trip!['rating_avg']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTokens.accent)),
+          ])),
     ]);
+  }
 
-  Map<String, dynamic> _statusConfig(String status) {
+  Widget _fareRow(GoTheme go, double fare) {
+    final strings = AppStrings.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(strings.tripFareRowLabel, style: AppTokens.font(fontSize: 14, color: go.muted)),
+        Text('${fare.toStringAsFixed(0)} ${strings.egp}', style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+      ]);
+  }
+
+  Map<String, dynamic> _statusConfig(GoTheme go, AppStrings strings, String status) {
     switch (status) {
-      case 'searching': return {'label': 'جارٍ البحث', 'color': AppTokens.warning, 'icon': Icons.search};
-      case 'offered': return {'label': 'عروض متاحة', 'color': AppTokens.success, 'icon': Icons.local_offer};
-      case 'assigned': return {'label': 'كابتن في الطريق', 'color': AppTokens.primary, 'icon': Icons.directions_car};
-      case 'arrived': return {'label': 'وصل الكابتن', 'color': AppTokens.primary, 'icon': Icons.location_on};
-      case 'in_progress': return {'label': 'الرحلة جارية', 'color': AppTokens.primary, 'icon': Icons.navigation};
-      case 'completed': return {'label': 'وصلت', 'color': AppTokens.success, 'icon': Icons.check_circle};
-      case 'cancelled': return {'label': 'ملغية', 'color': AppTokens.danger, 'icon': Icons.cancel};
-      default: return {'label': status, 'color': AppTokens.lightMuted, 'icon': null};
+      case 'searching': return {'label': strings.tripBadgeSearching, 'color': AppTokens.warning, 'icon': Icons.search};
+      case 'offered': return {'label': strings.tripBadgeOffered, 'color': AppTokens.success, 'icon': Icons.local_offer};
+      case 'assigned': return {'label': strings.tripBadgeAssigned, 'color': AppTokens.primary, 'icon': Icons.directions_car};
+      case 'arrived': return {'label': strings.tripBadgeArrived, 'color': AppTokens.primary, 'icon': Icons.location_on};
+      case 'in_progress': return {'label': strings.tripBadgeInProgress, 'color': AppTokens.primary, 'icon': Icons.navigation};
+      case 'completed': return {'label': strings.tripBadgeCompleted, 'color': AppTokens.success, 'icon': Icons.check_circle};
+      case 'cancelled': return {'label': strings.tripBadgeCancelled, 'color': AppTokens.danger, 'icon': Icons.cancel};
+      default: return {'label': status, 'color': go.muted, 'icon': null};
     }
   }
 }

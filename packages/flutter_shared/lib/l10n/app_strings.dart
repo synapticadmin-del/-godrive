@@ -517,6 +517,88 @@ abstract class AppStrings {
   String get chatTyping;
 
   // ──────────────────────────────────────────────────────────────────
+  // Rider — Trip screen (searching → offered → assigned → in_progress → done)
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Error body when the trip payload fails to load.
+  String get tripLoadError;
+
+  /// Fallback captain display name when none has loaded.
+  String get riderCaptainFallback;
+
+  /// Panel title while searching for a captain.
+  String get tripSearchingTitle;
+
+  /// Panel subtitle while searching.
+  String get tripSearchingSubtitle;
+
+  /// Button that cancels the trip request.
+  String get tripCancelAction;
+
+  /// Panel title when captain offers have arrived.
+  String get tripOffersArrivedTitle;
+
+  /// Panel subtitle telling the rider to pick an offer.
+  String get tripOffersArrivedSubtitle;
+
+  /// Button that reopens the captain offers sheet.
+  String get tripViewOffersAction;
+
+  /// Panel title when the captain is en route to the rider.
+  String get tripCaptainEnRoute;
+
+  /// Panel title when the captain has arrived at pickup.
+  String get tripCaptainArrived;
+
+  /// Panel title while the trip is underway.
+  String get tripUnderway;
+
+  /// Panel title when the trip completed successfully.
+  String get tripCompletedTitle;
+
+  /// Panel title when the trip was cancelled.
+  String get tripCancelledTitle;
+
+  /// Dismiss button on the cancelled panel.
+  String get tripDoneButton;
+
+  /// Button that opens the rating sheet.
+  String get tripRateAction;
+
+  /// Button that opens the in-trip chat (single).
+  String get tripMessageAction;
+
+  /// Button that opens the in-trip chat (addressed to captain).
+  String get tripMessageCaptainAction;
+
+  /// "Fare" row label on the assigned/in-progress panels.
+  String get tripFareRowLabel;
+
+  /// "Final fare" label on the completed panel.
+  String get tripFinalFareLabel;
+
+  /// Status badge: searching.
+  String get tripBadgeSearching;
+
+  /// Status badge: offers available.
+  String get tripBadgeOffered;
+
+  /// Status badge: captain en route.
+  String get tripBadgeAssigned;
+
+  /// Status badge: captain arrived.
+  String get tripBadgeArrived;
+
+  /// Status badge: trip underway.
+  String get tripBadgeInProgress;
+
+  /// Status badge: arrived / completed.
+  String get tripBadgeCompleted;
+
+  /// Status badge: cancelled.
+  String get tripBadgeCancelled;
+
+  // ──────────────────────────────────────────────────────────────────
   // Captain — Settings / profile screen
   // ──────────────────────────────────────────────────────────────────
 
@@ -1081,6 +1163,86 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get chatTyping => 'جاري الكتابة…';
+
+  // ── Rider — Trip screen ───────────────────────────────────────────
+
+  @override
+  String get tripLoadError => 'تعذّر تحميل بيانات الرحلة';
+
+  @override
+  String get riderCaptainFallback => 'كابتن';
+
+  @override
+  String get tripSearchingTitle => 'جارٍ البحث عن كابتن…';
+
+  @override
+  String get tripSearchingSubtitle => 'سنبلغك فور قبول كابتن لرحلتك';
+
+  @override
+  String get tripCancelAction => 'إلغاء الرحلة';
+
+  @override
+  String get tripOffersArrivedTitle => 'وصلت عروض من الكباتن';
+
+  @override
+  String get tripOffersArrivedSubtitle => 'اختار العرض اللي يناسبك من القايمة';
+
+  @override
+  String get tripViewOffersAction => 'عرض العروض';
+
+  @override
+  String get tripCaptainEnRoute => 'الكابتن في الطريق إليك';
+
+  @override
+  String get tripCaptainArrived => 'وصل الكابتن — تفضّل بالنزول';
+
+  @override
+  String get tripUnderway => 'الرحلة جارية';
+
+  @override
+  String get tripCompletedTitle => 'وصلت بسلامة!';
+
+  @override
+  String get tripCancelledTitle => 'تم إلغاء الرحلة';
+
+  @override
+  String get tripDoneButton => 'حسنًا';
+
+  @override
+  String get tripRateAction => 'قيّم رحلتك';
+
+  @override
+  String get tripMessageAction => 'مراسلة';
+
+  @override
+  String get tripMessageCaptainAction => 'مراسلة الكابتن';
+
+  @override
+  String get tripFareRowLabel => 'الأجرة';
+
+  @override
+  String get tripFinalFareLabel => 'الأجرة النهائية';
+
+  @override
+  String get tripBadgeSearching => 'جارٍ البحث';
+
+  @override
+  String get tripBadgeOffered => 'عروض متاحة';
+
+  @override
+  String get tripBadgeAssigned => 'كابتن في الطريق';
+
+  @override
+  String get tripBadgeArrived => 'وصل الكابتن';
+
+  @override
+  String get tripBadgeInProgress => 'الرحلة جارية';
+
+  @override
+  String get tripBadgeCompleted => 'وصلت';
+
+  @override
+  String get tripBadgeCancelled => 'ملغية';
 
   // ── Settings ──────────────────────────────────────────────────────
 
@@ -1648,6 +1810,87 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get chatTyping => 'Typing…';
+
+  // ── Rider — Trip screen ───────────────────────────────────────────
+
+  @override
+  String get tripLoadError => 'Could not load trip data';
+
+  @override
+  String get riderCaptainFallback => 'Captain';
+
+  @override
+  String get tripSearchingTitle => 'Searching for a captain…';
+
+  @override
+  String get tripSearchingSubtitle =>
+      "We'll notify you as soon as a captain accepts";
+
+  @override
+  String get tripCancelAction => 'Cancel trip';
+
+  @override
+  String get tripOffersArrivedTitle => 'Captain offers arrived';
+
+  @override
+  String get tripOffersArrivedSubtitle => 'Pick the offer that suits you';
+
+  @override
+  String get tripViewOffersAction => 'View offers';
+
+  @override
+  String get tripCaptainEnRoute => 'Captain is on the way to you';
+
+  @override
+  String get tripCaptainArrived => 'Captain arrived — hop in';
+
+  @override
+  String get tripUnderway => 'Trip in progress';
+
+  @override
+  String get tripCompletedTitle => 'Arrived safely!';
+
+  @override
+  String get tripCancelledTitle => 'Trip cancelled';
+
+  @override
+  String get tripDoneButton => 'Done';
+
+  @override
+  String get tripRateAction => 'Rate your trip';
+
+  @override
+  String get tripMessageAction => 'Message';
+
+  @override
+  String get tripMessageCaptainAction => 'Message captain';
+
+  @override
+  String get tripFareRowLabel => 'Fare';
+
+  @override
+  String get tripFinalFareLabel => 'Final fare';
+
+  @override
+  String get tripBadgeSearching => 'Searching';
+
+  @override
+  String get tripBadgeOffered => 'Offers available';
+
+  @override
+  String get tripBadgeAssigned => 'Captain en route';
+
+  @override
+  String get tripBadgeArrived => 'Captain arrived';
+
+  @override
+  String get tripBadgeInProgress => 'Trip in progress';
+
+  @override
+  String get tripBadgeCompleted => 'Arrived';
+
+  @override
+  String get tripBadgeCancelled => 'Cancelled';
 
   // ── Settings ──────────────────────────────────────────────────────
 
