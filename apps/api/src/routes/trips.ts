@@ -409,6 +409,7 @@ tripRoutes.get("/:id/path", async (c) => {
   return c.json({ tripId, points: points.results ?? [] });
 });
 
+
 tripRoutes.post("/:id/cancel", async (c) => {
   const user = c.get("user");
   const body = await parseBody(c, cancelTripSchema);
@@ -438,6 +439,75 @@ tripRoutes.post("/:id/cancel", async (c) => {
     .bind(trip.id)
     .first<DbTrip>();
   if (updated) await broadcastTrip(c.env, updated);
+
+  const cancelledByRider = user.id === trip.rider_id;
+
+  // (1) Rider cancelled an open request → clear it from every nearby
+  // captain's inbox in real time. Without this the offer card lingered on
+  // captains' screens until the next offers poll (up to 20s later), and a
+  // captain could tap accept on a dead trip and hit a 409 — the visible
+  // "تأخير بين الالغاء" the captain experiences.
+  if (cancelledByRider && ["searching", "offered"].includes(trip.status)) {
+    try {
+      const key = cellKey(trip.city, trip.pickup_lat, trip.pickup_lng);
+      const cell = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
+      const nearbyRes = await cell.fetch(
+        `https://cell/nearby?lat=${trip.pickup_lat}&lng=${trip.pickup_lng}&limit=25`,
+      );
+      const nearby = (await nearbyRes.json()) as {
+        captains: Array<{ userId: string }>;
+      };
+      await Promise.all(
+        (nearby.captains ?? []).map(async (cap) => {
+          try {
+            const inbox = c.env.CAPTAIN_INBOX.get(
+              c.env.CAPTAIN_INBOX.idFromName(cap.userId),
+            );
+            await inbox.fetch("https://inbox/push", {
+              method: "POST",
+              body: JSON.stringify({
+                type: "trip.cancelled",
+                tripId: trip.id,
+                at: nowIso(),
+              }),
+            });
+          } catch (e) {
+            console.error("cancel inbox push failed", cap.userId, e);
+          }
+        }),
+      );
+    } catch (e) {
+      console.error("cancel fanout failed", trip.id, e);
+    }
+  }
+
+  // (2) Tell the other side by push, so the cancellation lands even when
+  // their app is not watching the trip room (rider on the home screen /
+  // captain with the app closed).
+  try {
+    if (cancelledByRider && trip.captain_id) {
+      await pushToUser({
+        env: c.env,
+        userId: trip.captain_id,
+        topic: "trip.cancelled",
+        title: "ألغى الراكب الرحلة",
+        body: "قام الراكب بإلغاء الرحلة. لا حاجة لأي إجراء منك.",
+        data: { tripId: trip.id, status: "cancelled" },
+      });
+    } else if (!cancelledByRider && trip.rider_id) {
+      await pushToUser({
+        env: c.env,
+        userId: trip.rider_id,
+        topic: "trip.cancelled",
+        title: "تم إلغاء الرحلة",
+        body: "نعتذر — تم إلغاء رحلتك. يمكنك طلب رحلة جديدة فورًا.",
+        data: { tripId: trip.id, status: "cancelled" },
+      });
+    }
+  } catch (e) {
+    console.error("cancel push failed", trip.id, e);
+  }
+
   return c.json({ trip: updated });
 });
 

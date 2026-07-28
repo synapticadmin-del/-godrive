@@ -1,43 +1,59 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
-import '../../services/app_state.dart';
+import 'package:synaptic_go_captain/services/captain_state.dart';
 
-/// The rider's in-trip chat with the captain.
+/// The captain's in-trip chat with the rider.
 ///
-/// Colour was the bug here: the message text and the input were hardwired to
-/// `Colors.white`, which is invisible on the light theme's white cards — the
-/// "الخطوط البيضاء مش بتظهر" complaint. Everything now resolves through the
-/// active theme: white only on the brand-coloured bubble, the theme's text
-/// colour everywhere else.
+/// Until now only the rider app had this screen: messages the rider sent were
+/// stored on the server and a push was fired, but the captain had no surface
+/// that read them back — so rider texts effectively disappeared. This screen
+/// is the captain-side counterpart of the rider's TripChatScreen and talks to
+/// the same `/safety/chat/:tripId` endpoints.
 ///
-/// A light 6s poll keeps the thread current while the screen is open (the
-/// trip WebSocket drives the map screen, not this one).
-class TripChatScreen extends StatefulWidget {
+/// Two delivery paths keep the thread current while it is open:
+///  * The trip WebSocket (`CaptainState.activeTripWsMessages`) relays a chat
+///    event the moment it is broadcast, so the new message appears instantly.
+///  * A light 6s poll backstops the socket, because a chat that silently
+///    freezes is worse than one that is a few seconds behind.
+class CaptainTripChatScreen extends StatefulWidget {
+  const CaptainTripChatScreen({super.key, required this.tripId});
+
   final String tripId;
-  const TripChatScreen({super.key, required this.tripId});
 
   @override
-  State<TripChatScreen> createState() => _TripChatScreenState();
+  State<CaptainTripChatScreen> createState() => _CaptainTripChatScreenState();
 }
 
-class _TripChatScreenState extends State<TripChatScreen> {
+class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+
   List<dynamic> _messages = [];
   bool _loading = true;
   bool _sending = false;
   Timer? _pollTimer;
+  StreamSubscription<Map<String, dynamic>>? _wsSub;
 
   @override
   void initState() {
     super.initState();
     _fetchMessages(initial: true);
-    // Poll quietly so new captain messages appear while the rider is in the
-    // thread, without requiring them to leave and re-enter.
+
+    // Live path: the trip room relays chat events as they happen.
+    final state = context.read<CaptainState>();
+    _wsSub = state.activeTripWsMessages.listen((ev) {
+      if (!mounted) return;
+      final type = ev['type'] as String?;
+      if (type == 'chat.message' || type == 'trip.chat') {
+        _fetchMessages();
+      }
+    });
+
+    // Backstop path: refresh quietly so a dropped socket never freezes chat.
     _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) {
       if (mounted) _fetchMessages();
     });
@@ -46,19 +62,20 @@ class _TripChatScreenState extends State<TripChatScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _wsSub?.cancel();
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _fetchMessages({bool initial = false}) async {
-    final appState = context.read<AppState>();
+    final state = context.read<CaptainState>();
     try {
-      final res = await appState.apiGet('/safety/chat/${widget.tripId}');
-      // Leaving the chat while the fetch is in flight would otherwise call
-      // setState on a disposed State.
+      final res = await state.apiGet('/safety/chat/${widget.tripId}');
       if (!mounted) return;
       final incoming = (res['messages'] as List?) ?? [];
+      // Newest-first from the API; flip so the list reads top → bottom and
+      // only scroll to the end when a genuinely new message arrived.
       final changed = incoming.length != _messages.length ||
           (incoming.isNotEmpty &&
               (_messages.isEmpty || incoming.first['id'] != _messages.first['id']));
@@ -67,7 +84,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
         _loading = false;
       });
       if (changed) _scrollToBottom();
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       if (initial) setState(() => _loading = false);
     }
@@ -90,18 +107,19 @@ class _TripChatScreenState extends State<TripChatScreen> {
     _msgCtrl.clear();
     setState(() => _sending = true);
 
-    // Captured before the await so the error path does not touch a
-    // BuildContext that may no longer be mounted.
-    final appState = context.read<AppState>();
+    // Captured before the await so the error path never touches a disposed
+    // context.
+    final state = context.read<CaptainState>();
     final messenger = ScaffoldMessenger.of(context);
-
     try {
-      await appState.apiPost('/safety/chat/${widget.tripId}', {'body': text});
+      await state.apiPost('/safety/chat/${widget.tripId}', {'body': text});
       if (!mounted) return;
       await _fetchMessages();
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception:', '').trim())),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -109,12 +127,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Theme-resolved palette. The previous version hardcoded light-theme
-    // tokens AND white text, so in light mode it drew white-on-white and in
-    // dark mode it kept a light background. Both directions now follow the
-    // active theme.
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
     final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
     final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
     final text = isDark ? AppTokens.darkText : AppTokens.lightText;
@@ -122,10 +135,10 @@ class _TripChatScreenState extends State<TripChatScreen> {
     final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: isDark ? AppTokens.darkBg : AppTokens.lightBg,
       appBar: AppBar(
         title: Text(
-          'المحادثة',
+          'محادثة الراكب',
           style: GoogleFonts.ibmPlexSansArabic(
             fontWeight: FontWeight.w800,
             color: text,
@@ -144,9 +157,9 @@ class _TripChatScreenState extends State<TripChatScreen> {
                 : _messages.isEmpty
                     ? Center(
                         child: Padding(
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(AppTokens.spaceLg),
                           child: Text(
-                            'لا توجد رسائل بعد.\nابدأ المحادثة مع الكابتن.',
+                            'لا توجد رسائل بعد.\nابدأ المحادثة مع الراكب.',
                             textAlign: TextAlign.center,
                             style: GoogleFonts.ibmPlexSansArabic(
                               color: muted,
@@ -158,11 +171,12 @@ class _TripChatScreenState extends State<TripChatScreen> {
                     : ListView.builder(
                         controller: _scrollCtrl,
                         reverse: true,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(AppTokens.spaceMd),
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
-                          final isMine = msg['sender_role'] == 'rider';
+                          // From the captain's perspective, mine == captain.
+                          final isMine = msg['sender_role'] == 'captain';
                           return Align(
                             alignment: isMine
                                 ? Alignment.centerRight
@@ -178,11 +192,6 @@ class _TripChatScreenState extends State<TripChatScreen> {
                                     MediaQuery.of(context).size.width * 0.74,
                               ),
                               decoration: BoxDecoration(
-                                // My bubble keeps the brand colour, so ITS
-                                // text is white. Their bubble is the themed
-                                // surface, so ITS text is the themed ink —
-                                // this is the line that was always white and
-                                // vanished against the light cards.
                                 color: isMine ? AppTokens.primary : surface,
                                 borderRadius: BorderRadius.circular(
                                   AppTokens.radiusMd,
@@ -204,7 +213,12 @@ class _TripChatScreenState extends State<TripChatScreen> {
                       ),
           ),
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceMd,
+              AppTokens.spaceSm,
+              AppTokens.spaceMd,
+              AppTokens.spaceMd,
+            ),
             decoration: BoxDecoration(
               color: panel,
               border: Border(top: BorderSide(color: border)),
@@ -216,8 +230,6 @@ class _TripChatScreenState extends State<TripChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _msgCtrl,
-                      // The input text itself also used to be forced white —
-                      // unreadable while typing in light mode.
                       style: GoogleFonts.ibmPlexSansArabic(color: text),
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
@@ -249,7 +261,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppTokens.spaceXs),
                   Material(
                     color: AppTokens.primary,
                     shape: const CircleBorder(),
@@ -257,8 +269,8 @@ class _TripChatScreenState extends State<TripChatScreen> {
                     child: InkWell(
                       onTap: _sending ? null : _sendMessage,
                       child: SizedBox(
-                        width: 48,
-                        height: 48,
+                        width: AppTokens.tapTarget,
+                        height: AppTokens.tapTarget,
                         child: _sending
                             ? const Padding(
                                 padding: EdgeInsets.all(12),

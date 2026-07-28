@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'offers_ws.dart';
+import 'trip_ws.dart';
 
 class CaptainState extends ChangeNotifier {
   bool loading = true;
@@ -17,11 +18,24 @@ class CaptainState extends ChangeNotifier {
   Map<String, dynamic>? activeTrip;
   List<Map<String, dynamic>> offers = [];
   String? error;
-  
+
   StreamSubscription<Position>? _positionStreamSub;
   Timer? offersTimer;
   OffersWebSocketService? offersWs;
   String offersWsStatus = 'idle';
+
+  /// Live room socket for the active trip. Opened as soon as a trip is
+  /// assigned so status changes, cancellations and chat events reach the
+  /// captain immediately instead of on the next offers poll.
+  CaptainTripWebSocketService? _tripWs;
+  StreamSubscription<Map<String, dynamic>>? _tripWsSub;
+
+  /// Broadcast stream of every event received on the active trip's room
+  /// socket. UI surfaces (e.g. the chat screen) subscribe to this to react
+  /// the moment a message or status change arrives.
+  final StreamController<Map<String, dynamic>> _tripEventsCtrl =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get activeTripWsMessages => _tripEventsCtrl.stream;
 
   Locale locale = const Locale('ar', 'EG');
   ThemeMode themeMode = ThemeMode.system;
@@ -354,7 +368,7 @@ class CaptainState extends ChangeNotifier {
       }
       notifyListeners();
       if (value) {
-        // Pull immediately rather than waiting up to 20s for the next poll —
+        // Pull immediately rather than waiting up to 8s for the next poll —
         // the captain just asked for work and expects to see it.
         unawaited(refreshOffers());
       }
@@ -407,9 +421,14 @@ class CaptainState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Polling cadence for the offers list. The WebSocket inbox is the primary
+  /// channel; this is only a backstop, so it can be frequent without meaning
+  /// extra cost — 8s keeps the rider↔captain gap small when a socket drops.
+  static const Duration _offersPollInterval = Duration(seconds: 8);
+
   void startOffersPolling() {
     offersTimer?.cancel();
-    offersTimer = Timer.periodic(const Duration(seconds: 20), (_) => refreshOffers());
+    offersTimer = Timer.periodic(_offersPollInterval, (_) => refreshOffers());
     refreshOffers();
     _connectOffersWs();
   }
@@ -426,18 +445,78 @@ class CaptainState extends ChangeNotifier {
         // Debounce WS status changes — prevents UI flicker when the
         // connection rapidly reconnects/disconnects during network jitter.
         _wsDebounce?.cancel();
-        _wsDebounce = Timer(const Duration(milliseconds: 1500), () {
+        _wsDebounce = Timer(const Duration(milliseconds: 600), () {
           offersWsStatus = s;
           notifyListeners();
         });
       },
       onMessage: (msg) {
         final type = msg['type'] as String?;
-        if (type == 'trip.offer') {
+        // Any inbox event (new offer, offer withdrawn, trip cancelled by the
+        // rider) means the offers list is stale — refetch immediately rather
+        // than waiting out the poll interval.
+        if (type == 'trip.offer' ||
+            type == 'trip.cancelled' ||
+            type == 'offer.withdrawn' ||
+            type == 'trip.updated') {
           refreshOffers();
         }
       },
     )..connect();
+  }
+
+  /// Opens (or re-opens) the live room socket for [tripId]. Idempotent —
+  /// repeated calls for the same trip are a no-op.
+  void _connectTripWs(String tripId) {
+    if (token == null) return;
+    if (_tripWs?.currentTripId == tripId) return;
+    _tripWsSub?.cancel();
+    _tripWs?.dispose();
+    _tripWs = CaptainTripWebSocketService(
+      baseUrl: baseUrl,
+      tripId: tripId,
+      token: token!,
+    );
+    _tripWsSub = _tripWs!.messages.listen(_onTripWsEvent);
+    _tripWs!.connect();
+  }
+
+  void _disconnectTripWs() {
+    _tripWsSub?.cancel();
+    _tripWsSub = null;
+    _tripWs?.dispose();
+    _tripWs = null;
+  }
+
+  void _onTripWsEvent(Map<String, dynamic> ev) {
+    final type = ev['type'] as String?;
+
+    // Fan the raw event out to UI subscribers (chat screen, trip panel) so
+    // they can react without a poll round-trip.
+    if (!_tripEventsCtrl.isClosed) _tripEventsCtrl.add(ev);
+
+    if (type == 'trip.updated' && ev['trip'] is Map) {
+      final updated = Map<String, dynamic>.from(ev['trip'] as Map);
+      final current = activeTrip;
+      if (current != null && updated['id'] == current['id']) {
+        final status = updated['status'] as String?;
+        if (['assigned', 'arrived', 'in_progress'].contains(status)) {
+          activeTrip = updated;
+        } else {
+          // Completed or cancelled on the other side: clear immediately so the
+          // captain is never acting on a dead trip, and re-sync the queue.
+          activeTrip = null;
+          _disconnectTripWs();
+          unawaited(refreshOffers());
+        }
+        notifyListeners();
+      }
+    } else if (type == 'chat.message') {
+      // Nothing else to do here: the event was already fanned out above and
+      // the chat screen (if open) refetches on it. When the screen is closed
+      // the unread count is surfaced via the panel's badge.
+      notifyListeners();
+    }
   }
 
   Future<void> refreshOffers() async {
@@ -470,7 +549,18 @@ class CaptainState extends ChangeNotifier {
                 ['assigned', 'arrived', 'in_progress'].contains(s);
           })
           .toList();
+      final previousTripId = activeTrip?['id'] as String?;
       activeTrip = active.isNotEmpty ? active.first : null;
+
+      // Keep the room socket in step with the trip actually on screen: open
+      // it the moment a trip is assigned, close it the moment there is none.
+      final newTripId = activeTrip?['id'] as String?;
+      if (newTripId != null) {
+        if (newTripId != previousTripId) _connectTripWs(newTripId);
+      } else {
+        _disconnectTripWs();
+      }
+
       // Clear any stale error from a previous failed poll, otherwise the UI
       // keeps showing an error banner long after connectivity is restored.
       error = null;
@@ -494,6 +584,9 @@ class CaptainState extends ChangeNotifier {
     offers.removeWhere((o) => o['id'] == tripId);
     // The captain now has a trip; previously dismissed offers are irrelevant.
     _declinedTripIds.clear();
+    // Open the live room immediately so rider cancellations and chat reach
+    // this screen in real time.
+    _connectTripWs(tripId);
     notifyListeners();
     // Report position immediately so the rider sees the captain moving without
     // waiting for the next stream tick.
@@ -561,6 +654,7 @@ class CaptainState extends ChangeNotifier {
     if (activeTrip == null) return;
     final res = await _post('/trips/${activeTrip!['id']}/complete');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
+    _disconnectTripWs();
     notifyListeners();
   }
 
@@ -606,6 +700,7 @@ class CaptainState extends ChangeNotifier {
     offersWs?.dispose();
     offersWs = null;
     offersWsStatus = 'idle';
+    _disconnectTripWs();
     token = null;
     user = null;
     captain = null;
@@ -633,6 +728,8 @@ class CaptainState extends ChangeNotifier {
     offersTimer?.cancel();
     _wsDebounce?.cancel();
     offersWs?.dispose();
+    _disconnectTripWs();
+    _tripEventsCtrl.close();
     super.dispose();
   }
 }
