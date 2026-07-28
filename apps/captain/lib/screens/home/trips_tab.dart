@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
@@ -11,6 +13,15 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 /// it just stays hidden behind this screen. Because the map tiles are visible
 /// through a transparent background, every content region gets an explicit
 /// opaque backdrop using the theme background colour.
+///
+/// Freshness: the list used to load once in `initState` and then sit stale
+/// until a manual pull-to-refresh, so a trip the captain had just completed
+/// stayed missing from the history — the "رحلاتي مش بيتحدث" complaint. Two
+/// triggers now keep it current:
+///  * any event on the live trip socket (a completion broadcasts
+///    `trip.updated` the moment the row flips), and
+///  * `CaptainState` clearing `activeTrip` — the client-side signal that
+///    the captain's trip just ended (complete or rider-cancel).
 class TripsTab extends StatefulWidget {
   const TripsTab({super.key});
 
@@ -23,10 +34,50 @@ class _TripsTabState extends State<TripsTab> {
   bool _loading = true;
   String? _error;
 
+  StreamSubscription<Map<String, dynamic>>? _tripEventsSub;
+
+  /// The trip id the list currently treats as in-flight. When CaptainState
+  /// drops it (completion/cancel pushed the trip out), the history is stale
+  /// and reloads — without waiting for the captain to pull-to-refresh.
+  String? _watchedTripId;
+
   @override
   void initState() {
     super.initState();
     _load();
+
+    final state = context.read<CaptainState>();
+    _watchedTripId = state.activeTrip?['id'] as String?;
+
+    // Any room event (completion, cancellation, a status flip) means the
+    // history behind this tab is older than the server's truth.
+    _tripEventsSub = state.activeTripWsMessages.listen((ev) {
+      if (!mounted) return;
+      if (ev['type'] == 'trip.updated') _load();
+    });
+
+    state.addListener(_onCaptainStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _tripEventsSub?.cancel();
+    context.read<CaptainState>().removeListener(_onCaptainStateChanged);
+    super.dispose();
+  }
+
+  void _onCaptainStateChanged() {
+    if (!mounted) return;
+    final state = context.read<CaptainState>();
+    final currentId = state.activeTrip?['id'] as String?;
+    if (_watchedTripId != null && currentId == null) {
+      // The trip just left the captain's hands — reload so the completed
+      // (or cancelled) row appears immediately.
+      _watchedTripId = null;
+      _load();
+    } else {
+      _watchedTripId = currentId;
+    }
   }
 
   Future<void> _load() async {

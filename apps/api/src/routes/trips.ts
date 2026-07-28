@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { canTransition, type TripStatus } from "@synaptic-go/shared";
 import type { Context } from "hono";
-import { pricingFromRow, cellKey } from "../lib/pricing";
+import { pricingFromRow } from "../lib/pricing";
+import { findNearbyCaptains } from "../lib/nearby";
 import { fareFromRoute, getRoute } from "../lib/routing";
 import {
   createTripSchema,
@@ -243,21 +244,23 @@ tripRoutes.post(
         .run();
     }
 
-    await logEvent(c.env.DB, tripId, "created", user.id, {
+    const createdEvent = logEvent(c.env.DB, tripId, "created", user.id, {
       estimate: est.fare,
       discount,
       promoCode,
       routeSource: est.source,
     });
 
-    const key = cellKey(city, body.pickupLat, body.pickupLng);
-    const cell = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
-    const nearbyRes = await cell.fetch(
-      `https://cell/nearby?lat=${body.pickupLat}&lng=${body.pickupLng}&limit=10`,
-    );
-    const nearby = (await nearbyRes.json()) as {
-      captains: Array<{ userId: string; distanceKm: number }>;
-    };
+    // Neighbourhood matching: the pickup's cell PLUS its 8 surrounding cells,
+    // so a captain idling just over a geohash boundary is no longer invisible
+    // to dispatch. Runs in parallel with the audit write above — they are
+    // independent, and awaiting them serially used to add a full D1/DO
+    // round-trip to every booking.
+    const [nearbyCaptains] = await Promise.all([
+      findNearbyCaptains(c.env, city, body.pickupLat, body.pickupLng, 10),
+      createdEvent,
+    ]);
+    const nearby = { captains: nearbyCaptains };
 
     let status: TripStatus = "searching";
     if (nearby.captains?.length) {
@@ -293,16 +296,21 @@ tripRoutes.post(
           } catch (e) {
             console.error("offer push failed", cap.userId, e);
           }
-          // FCM push so the captain sees the new offer even with app closed
-          await pushToUser({
+        }),
+      );
+      // FCM fanout runs alongside the inbox pushes, not behind them — a slow
+      // Google token exchange used to hold every captain's live offer.
+      await Promise.all(
+        nearby.captains.slice(0, 10).map((cap) =>
+          pushToUser({
             env: c.env,
             userId: cap.userId,
             topic: "trip.offer",
             title: "رحلة جديدة متاحة",
             body: `الأجرة المتوقعة ${finalEstimate} ${est.fare.currency}. تبعد عنك ${cap.distanceKm.toFixed(1)} كم.`,
             data: { tripId, channel: "trip_offer", city },
-          });
-        }),
+          }).catch((e) => console.error("offer fcm failed", cap.userId, e)),
+        ),
       );
     }
 
@@ -339,10 +347,23 @@ tripRoutes.get("/", async (c) => {
   if (user.role === "admin") {
     q = c.env.DB.prepare(`SELECT * FROM trips ORDER BY created_at DESC LIMIT 100`);
   } else if (user.role === "captain") {
+    // City scoping: open trips (searching/offered) are only surfaced from the
+    // captain's working city, mirroring /captain/offers and
+    // /captain/nearby-requests. Without this the endpoint leaked every open
+    // request nationwide to any authenticated captain — trips in cities they
+    // could never serve — while the curated offers endpoints were filtered.
+    // The captain's own trips (any status) are unaffected by the filter.
+    const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+      .bind(user.id)
+      .first<DbCaptain>();
+    const city =
+      (captain as (DbCaptain & { city?: string | null }) | null)?.city ||
+      c.env.DEFAULT_CITY ||
+      "cairo";
     q = c.env.DB.prepare(
-      `SELECT * FROM trips WHERE captain_id = ? OR status IN ('searching','offered')
+      `SELECT * FROM trips WHERE captain_id = ? OR (status IN ('searching','offered') AND city = ?)
        ORDER BY created_at DESC LIMIT 50`,
-    ).bind(user.id);
+    ).bind(user.id, city);
   } else {
     q = c.env.DB.prepare(
       `SELECT * FROM trips WHERE rider_id = ? ORDER BY created_at DESC LIMIT 50`,
@@ -447,18 +468,27 @@ tripRoutes.post("/:id/cancel", async (c) => {
   // captains' screens until the next offers poll (up to 20s later), and a
   // captain could tap accept on a dead trip and hit a 409 — the visible
   // "تأخير بين الالغاء" the captain experiences.
+  //
+  // The fanout queries the same neighbourhood with a WIDER limit (25) than
+  // dispatch (10). In the theoretical case of >10 captains in the
+  // neighbourhood the cancel event may reach captains who never got the
+  // offer; that is harmless — their app simply removes a card that is not
+  // on screen — while the reverse (a captain who got the offer never
+  // hearing the cancel) would strand the card.
   if (cancelledByRider && ["searching", "offered"].includes(trip.status)) {
     try {
-      const key = cellKey(trip.city, trip.pickup_lat, trip.pickup_lng);
-      const cell = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
-      const nearbyRes = await cell.fetch(
-        `https://cell/nearby?lat=${trip.pickup_lat}&lng=${trip.pickup_lng}&limit=25`,
+      // Same neighbourhood the offer reached on the way in — widening the
+      // dispatch radius without widening the cancel radius would strand
+      // offer cards on captains in the outer cells.
+      const nearbyCaptains = await findNearbyCaptains(
+        c.env,
+        trip.city,
+        trip.pickup_lat,
+        trip.pickup_lng,
+        25,
       );
-      const nearby = (await nearbyRes.json()) as {
-        captains: Array<{ userId: string }>;
-      };
       await Promise.all(
-        (nearby.captains ?? []).map(async (cap) => {
+        nearbyCaptains.map(async (cap) => {
           try {
             const inbox = c.env.CAPTAIN_INBOX.get(
               c.env.CAPTAIN_INBOX.idFromName(cap.userId),
