@@ -13,7 +13,7 @@ import {
   refreshSchema,
 } from "../lib/schemas";
 import type { DbCaptain, DbUser } from "../lib/types";
-import { asBool, id, nowIso, otpCode, hashPassword, verifyPassword } from "../lib/utils";
+import { asBool, id, nowIso, otpCode, hashPassword, verifyPassword, isLegacyHash } from "../lib/utils";
 import { authMiddleware, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 import { sendWhatsAppOtp, sendEmailOtp } from "../lib/notifications";
@@ -78,19 +78,9 @@ authRoutes.post(
       }
     }
 
-    if ((role as string) === "admin") {
-      const existingAdmin = await c.env.DB.prepare(
-        "SELECT id FROM users WHERE role = 'admin' LIMIT 1",
-      ).first();
-      const thisAdmin = await c.env.DB.prepare(
-        "SELECT id FROM users WHERE email = ? AND role = 'admin'",
-      )
-        .bind(email ?? "")
-        .first();
-      if (existingAdmin && !thisAdmin) {
-        return c.json({ error: "Admin access denied for this email", code: "ADMIN_DENIED" }, 403);
-      }
-    }
+    // NOTE: the previous `role === "admin"` gate was removed together with the
+    // "admin" option in requestOtpSchema — admin accounts are now managed
+    // manually in D1 and keep logging in via /auth/login with a password.
 
     const code = otpCode();
     const otpId = id("otp");
@@ -406,6 +396,15 @@ authRoutes.post("/login", rateLimit({ prefix: "login", limit: 15, windowSec: 60 
   const pwOk = await verifyPassword(body.password, user.password_hash);
   if (!pwOk) return c.json({ error: "Invalid credentials", code: "INVALID_CREDENTIALS" }, 401);
   if (user.status === "suspended") return c.json({ error: "Account suspended", code: "SUSPENDED" }, 403);
+  // Upgrade legacy unsalted SHA-256 hashes to salted PBKDF2 on the first
+  // successful login — the password is only available in plaintext here, so
+  // this is the only place the rehash can happen without forcing a reset.
+  if (isLegacyHash(user.password_hash)) {
+    const upgradedHash = await hashPassword(body.password);
+    await c.env.DB.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`)
+      .bind(upgradedHash, user.id)
+      .run();
+  }
   const authUser = { id: user.id, email: user.email, role: user.role, name: user.name };
   const accessToken = await signAccessToken(authUser, c.env.JWT_SECRET, c.env.JWT_ISSUER);
   const jti = id("rt");

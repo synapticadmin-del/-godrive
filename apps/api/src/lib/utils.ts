@@ -46,6 +46,16 @@ export async function hashPassword(password: string): Promise<string> {
   return `$pbkdf2$100000$${saltHex}$${hashHex}`;
 }
 
+/**
+ * Returns true when the stored hash is a legacy unsalted SHA-256 hex digest
+ * rather than the current PBKDF2 format ($pbkdf2$iterations$salt$hash).
+ * Used by /auth/login to transparently upgrade legacy hashes after a
+ * successful password verification.
+ */
+export function isLegacyHash(hash: string): boolean {
+  return !hash.startsWith("$pbkdf2$");
+}
+
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   if (storedHash.startsWith("$pbkdf2$")) {
     const parts = storedHash.split("$");
