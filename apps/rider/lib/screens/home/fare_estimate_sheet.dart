@@ -252,13 +252,13 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
     final Color hintColor;
     final diff = offer - suggested;
     if (diff.abs() < 0.01) {
-      hint = strings.offerHintFairPrice;
+      hint = strings.offerHintFairPrice(suggested.round());
       hintColor = AppTokens.success;
     } else if (diff > 0) {
-      hint = strings.offerHintAbove;
+      hint = strings.offerHintAbove(diff.round(), suggested.round());
       hintColor = AppTokens.success;
     } else {
-      hint = strings.offerHintBelow;
+      hint = strings.offerHintBelow(diff.abs().round(), suggested.round());
       hintColor = AppTokens.warning;
     }
 

@@ -68,7 +68,7 @@ class TravelModeBottomBar extends StatelessWidget {
                 avatar: const Icon(Icons.language, size: 16),
                 label: Text(
                   strings.languageChipLabel,
-                  style: AppTokens.fontLatin(
+                  style: AppTokens.font(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                     color: go.action,
