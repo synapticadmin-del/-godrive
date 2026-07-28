@@ -105,6 +105,16 @@ class AppTokens {
   static const limePressed = Color(0xFFA9D617);
   static const onLime = Color(0xFF101010);
 
+  // ── Splash / launch backdrop ──
+  // The brand moment before either app hands off to its first themed screen.
+  // A near-black field lit by two brand-green sources; referencing these from
+  // the token ramp keeps the splash in the design system instead of
+  // re-inventing one-off hex per app.
+  static const splashBg = Color(0xFF0C1A08);
+  static const splashGlowStart = Color(0xFF2C5518);
+  static const splashGlowTint = Color(0x333E7A22);
+  static const splashFade = Color(0x000C1A08);
+
   // ── Map & route rendering ──
   static const routeLine = Color(0xFF4E842D);      // route on light basemap
   static const routeLineNight = Color(0xFFFFFFFF); // route on dark basemap

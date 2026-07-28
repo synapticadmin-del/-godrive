@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 import '../../services/app_state.dart';
@@ -280,7 +279,7 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
 
         Text(
           isAr ? 'تفاصيل الرحلة' : 'Trip details',
-          style: GoogleFonts.ibmPlexSansArabic(
+          style: AppTokens.font(
             fontSize: 19,
             fontWeight: FontWeight.w800,
             color: go.text,
@@ -331,7 +330,7 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
           children: [
             Text(
               isAr ? 'طريقة الدفع' : 'Payment method',
-              style: GoogleFonts.ibmPlexSansArabic(
+              style: AppTokens.font(
                 color: go.muted,
                 fontSize: 14,
               ),
@@ -346,7 +345,7 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
                 const SizedBox(width: 7),
                 Text(
                   isAr ? 'نقداً' : 'Cash',
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     color: go.text,
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
@@ -379,7 +378,7 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
                 )
               : Text(
                   isAr ? 'اطلب رحلة' : 'Request ride',
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
@@ -452,7 +451,7 @@ class _JourneyCard extends StatelessWidget {
                 const SizedBox(width: 7),
                 Text(
                   route!.distanceLabel(isArabic: isAr),
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
                     color: go.text,
@@ -463,7 +462,7 @@ class _JourneyCard extends StatelessWidget {
                 const SizedBox(width: 7),
                 Text(
                   route!.durationLabel(isArabic: isAr),
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
                     color: go.text,
@@ -473,7 +472,7 @@ class _JourneyCard extends StatelessWidget {
                 if (route!.isApproximate)
                   Text(
                     isAr ? 'تقديري' : 'estimated',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 11.5,
                       color: go.muted,
                     ),
@@ -500,7 +499,7 @@ class _JourneyCard extends StatelessWidget {
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 13.5,
               fontWeight: FontWeight.w600,
               color: go.text,
@@ -529,7 +528,7 @@ class _LoadingBody extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             isAr ? 'جارٍ حساب الأجرة...' : 'Calculating fare...',
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 14,
               color: go.muted,
             ),
@@ -564,7 +563,7 @@ class _ErrorBody extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             isAr ? 'تعذّر حساب الأجرة' : 'Could not calculate the fare',
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: go.text,
@@ -574,7 +573,7 @@ class _ErrorBody extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 13,
               color: go.muted,
               height: 1.5,
@@ -593,7 +592,7 @@ class _ErrorBody extends StatelessWidget {
             ),
             child: Text(
               isAr ? 'إعادة المحاولة' : 'Try again',
-              style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700),
+              style: AppTokens.font(fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -662,7 +661,7 @@ class _PriceOfferCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   isAr ? 'السعر الذي تقترحه' : 'Your offer',
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: go.text,
@@ -674,7 +673,7 @@ class _PriceOfferCard extends StatelessWidget {
                   onTap: onResetToSuggested,
                   child: Text(
                     isAr ? 'السعر المقترح' : 'Reset',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: accent,
@@ -703,7 +702,7 @@ class _PriceOfferCard extends StatelessWidget {
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     textDirection: TextDirection.ltr,
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
                       color: go.text,
@@ -716,7 +715,7 @@ class _PriceOfferCard extends StatelessWidget {
                       contentPadding:
                           const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                       suffixText: isAr ? 'ج.م' : 'EGP',
-                      suffixStyle: GoogleFonts.ibmPlexSansArabic(
+                      suffixStyle: AppTokens.font(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: go.muted,
@@ -750,7 +749,7 @@ class _PriceOfferCard extends StatelessWidget {
           Text(
             _hintText(suggestion, diff),
             textAlign: TextAlign.center,
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 12,
               color: go.muted,
               height: 1.45,

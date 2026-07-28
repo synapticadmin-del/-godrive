@@ -85,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0C1A08),
+      backgroundColor: AppTokens.splashBg,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -292,7 +292,7 @@ class _BrandBackdrop extends StatelessWidget {
         gradient: RadialGradient(
           center: Alignment(-0.7, -0.9),
           radius: 1.5,
-          colors: [Color(0xFF2C5518), Color(0xFF0C1A08)],
+          colors: [AppTokens.splashGlowStart, AppTokens.splashBg],
         ),
       ),
       child: DecoratedBox(
@@ -300,7 +300,7 @@ class _BrandBackdrop extends StatelessWidget {
           gradient: RadialGradient(
             center: Alignment(0.9, 1.0),
             radius: 1.2,
-            colors: [Color(0x333E7A22), Color(0x000C1A08)],
+            colors: [AppTokens.splashGlowTint, AppTokens.splashFade],
           ),
         ),
         child: SizedBox.expand(),
