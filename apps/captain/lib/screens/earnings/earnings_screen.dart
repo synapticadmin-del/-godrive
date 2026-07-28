@@ -68,14 +68,13 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
+    final go = GoTheme.of(context);
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: const Text('الأرباح'),
-        backgroundColor: bg,
+        backgroundColor: go.bg,
         actions: [
           IconButton(
             onPressed: _loading ? null : _load,
@@ -98,9 +97,9 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     children: [
                       _buildHero(),
                       const SizedBox(height: AppTokens.spaceMd),
-                      _buildBreakdown(isDark),
+                      _buildBreakdown(go),
                       const SizedBox(height: AppTokens.spaceMd),
-                      _buildWalletCta(isDark),
+                      _buildWalletCta(),
                       const SizedBox(height: AppTokens.spaceMd),
                     ],
                   ),
@@ -195,18 +194,13 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
   /// Gross → commission → net, stated plainly. The arithmetic is the point:
   /// the captain should be able to check the platform's maths themselves.
-  Widget _buildBreakdown(bool isDark) {
-    final panel = isDark ? AppTokens.darkPanel : Colors.white;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-
+  Widget _buildBreakdown(GoTheme go) {
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceMd),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: border),
+        border: Border.all(color: go.border),
         boxShadow: AppTokens.shadowCard,
       ),
       child: Column(
@@ -216,32 +210,29 @@ class _EarningsScreenState extends State<EarningsScreen> {
             tone: AppTokens.success,
             label: 'إجمالي الدخل',
             value: '${_money('gross')} ج.م',
-            text: text,
-            muted: muted,
+            go: go,
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
-            child: Divider(color: border, height: 1),
+            child: Divider(color: go.border, height: 1),
           ),
           _row(
             icon: Icons.pie_chart_rounded,
             tone: AppTokens.accent,
             label: 'عمولة المنصة',
             value: '− ${_money('commission')} ج.م',
-            text: text,
-            muted: muted,
+            go: go,
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
-            child: Divider(color: border, height: 1),
+            child: Divider(color: go.border, height: 1),
           ),
           _row(
             icon: Icons.account_balance_wallet_rounded,
             tone: AppTokens.primary,
             label: 'الصافي لك',
             value: '${_money('net')} ج.م',
-            text: text,
-            muted: muted,
+            go: go,
             emphasise: true,
           ),
         ],
@@ -254,8 +245,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
     required Color tone,
     required String label,
     required String value,
-    required Color text,
-    required Color muted,
+    required GoTheme go,
     bool emphasise = false,
   }) {
     return Row(
@@ -276,7 +266,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: emphasise ? FontWeight.w700 : FontWeight.w500,
-              color: emphasise ? text : muted,
+              color: emphasise ? go.text : go.muted,
             ),
           ),
         ),
@@ -284,7 +274,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
           value,
           style: AppTokens.money(
             fontSize: emphasise ? 19 : 16,
-            color: emphasise ? AppTokens.primary : text,
+            color: emphasise ? AppTokens.primary : go.text,
             fontWeight: emphasise ? FontWeight.w900 : FontWeight.w700,
           ),
         ),
@@ -292,7 +282,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
     );
   }
 
-  Widget _buildWalletCta(bool isDark) {
+  Widget _buildWalletCta() {
     return SizedBox(
       height: AppTokens.primaryActionHeight,
       child: ElevatedButton.icon(

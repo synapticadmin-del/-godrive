@@ -36,7 +36,6 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final approval = state.captain?['approval_status'] ?? state.captain?['status'];
     final isApproved = approval == 'approved';
@@ -63,7 +62,6 @@ class HomeTab extends StatelessWidget {
             online: online,
             isApproved: isApproved,
             connected: state.offersWsStatus == 'connected',
-            isDark: isDark,
           ),
         ),
 
@@ -81,7 +79,6 @@ class HomeTab extends StatelessWidget {
               busy: busy,
               isApproved: isApproved,
               onToggleOnline: onToggleOnline,
-              isDark: isDark,
             ),
           ),
       ],
@@ -97,20 +94,16 @@ class _StatusHeader extends StatelessWidget {
     required this.online,
     required this.isApproved,
     required this.connected,
-    required this.isDark,
   });
 
   final String name;
   final bool online;
   final bool isApproved;
   final bool connected;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    final panel = isDark ? AppTokens.darkPanel : Colors.white;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final go = GoTheme.of(context);
 
     final Color stateColor;
     final String stateLabel;
@@ -121,7 +114,7 @@ class _StatusHeader extends StatelessWidget {
       stateColor = AppTokens.success;
       stateLabel = 'متصل ومستعد للرحلات';
     } else {
-      stateColor = muted;
+      stateColor = go.muted;
       stateLabel = 'غير متصل';
     }
 
@@ -131,7 +124,7 @@ class _StatusHeader extends StatelessWidget {
         vertical: AppTokens.spaceXs + 2,
       ),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusPill),
         boxShadow: AppTokens.shadowFloating,
       ),
@@ -167,7 +160,7 @@ class _StatusHeader extends StatelessWidget {
                   style: AppTokens.font(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: text,
+                    color: go.text,
                   ),
                 ),
                 const SizedBox(height: 1),
@@ -227,7 +220,6 @@ class _OffersSheet extends StatelessWidget {
     required this.busy,
     required this.isApproved,
     required this.onToggleOnline,
-    required this.isDark,
   });
 
   final List<Map<String, dynamic>> offers;
@@ -235,11 +227,10 @@ class _OffersSheet extends StatelessWidget {
   final bool busy;
   final bool isApproved;
   final ValueChanged<bool> onToggleOnline;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    final panel = isDark ? AppTokens.darkPanel : Colors.white;
+    final go = GoTheme.of(context);
 
     // Strict online guard: trip offer cards must NEVER render while the
     // captain is offline. Going offline clears CaptainState.offers, but a
@@ -253,7 +244,7 @@ class _OffersSheet extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppTokens.radiusXl),
         ),
@@ -269,7 +260,7 @@ class _OffersSheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: AppTokens.spaceSm),
-              _grabHandle(),
+              _grabHandle(context),
               const SizedBox(height: AppTokens.spaceMd),
               if (hasOffers)
                 Flexible(child: _offersList())
@@ -283,14 +274,17 @@ class _OffersSheet extends StatelessWidget {
     );
   }
 
-  Widget _grabHandle() => Container(
-        width: 42,
-        height: 4,
-        decoration: BoxDecoration(
-          color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
-          borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-        ),
-      );
+  Widget _grabHandle(BuildContext context) {
+    final go = GoTheme.of(context);
+    return Container(
+      width: 42,
+      height: 4,
+      decoration: BoxDecoration(
+        color: go.border,
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+      ),
+    );
+  }
 
   Widget _offersList() {
     return ListView.builder(
@@ -308,8 +302,7 @@ class _OffersSheet extends StatelessWidget {
   }
 
   Widget _idleBody(BuildContext context) {
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final go = GoTheme.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -329,14 +322,14 @@ class _OffersSheet extends StatelessWidget {
               style: AppTokens.font(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: text,
+                color: go.text,
               ),
             ),
             const SizedBox(height: AppTokens.space2xs),
             Text(
               'ابقَ في منطقة مزدحمة لزيادة فرص الطلبات',
               textAlign: TextAlign.center,
-              style: AppTokens.font(fontSize: 13, color: muted),
+              style: AppTokens.font(fontSize: 13, color: go.muted),
             ),
           ] else ...[
             Text(
@@ -344,7 +337,7 @@ class _OffersSheet extends StatelessWidget {
               style: AppTokens.font(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: text,
+                color: go.text,
               ),
             ),
             const SizedBox(height: AppTokens.space2xs),
@@ -353,7 +346,7 @@ class _OffersSheet extends StatelessWidget {
                   ? 'اضغط لبدء استقبال الرحلات والأرباح'
                   : 'سنخطرك فور اعتماد مستنداتك',
               textAlign: TextAlign.center,
-              style: AppTokens.font(fontSize: 13, color: muted),
+              style: AppTokens.font(fontSize: 13, color: go.muted),
             ),
           ],
           const SizedBox(height: AppTokens.spaceMd),

@@ -262,11 +262,7 @@ class _OfferCardState extends State<OfferCard>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkSurface : Colors.white;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     return AnimatedBuilder(
       animation: _countdown,
@@ -280,10 +276,10 @@ class _OfferCardState extends State<OfferCard>
           child: Container(
             margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
             decoration: BoxDecoration(
-              color: panel,
+              color: go.panel,
               borderRadius: BorderRadius.circular(AppTokens.radiusLg),
               border: Border.all(
-                color: urgent ? AppTokens.danger.withOpacity(0.5) : border,
+                color: urgent ? AppTokens.danger.withOpacity(0.5) : go.border,
                 width: urgent ? 1.5 : 1,
               ),
               boxShadow: AppTokens.shadowOffer,
@@ -292,15 +288,15 @@ class _OfferCardState extends State<OfferCard>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildHeader(accent, text, muted, urgent),
-                _buildMetaStrip(muted, border),
+                _buildHeader(go, accent, urgent),
+                _buildMetaStrip(go),
                 Padding(
                   padding: const EdgeInsets.all(AppTokens.spaceMd),
                   child: Column(
                     children: [
-                      _buildRoute(text, muted, border),
+                      _buildRoute(go),
                       const SizedBox(height: AppTokens.spaceMd),
-                      _buildActions(muted, border),
+                      _buildActions(go),
                     ],
                   ),
                 ),
@@ -314,7 +310,7 @@ class _OfferCardState extends State<OfferCard>
 
   /// Fare and countdown, side by side. The fare gets the whole remaining
   /// width and can shrink to fit rather than overflow.
-  Widget _buildHeader(Color accent, Color text, Color muted, bool urgent) {
+  Widget _buildHeader(GoTheme go, Color accent, bool urgent) {
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
@@ -349,7 +345,7 @@ class _OfferCardState extends State<OfferCard>
                   style: AppTokens.font(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: _expired ? AppTokens.danger : muted,
+                    color: _expired ? AppTokens.danger : go.muted,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -398,28 +394,28 @@ class _OfferCardState extends State<OfferCard>
 
   /// Distance / duration facts as chips — wrapping, so a long value can never
   /// blow out the row the way the old single-line header did.
-  Widget _buildMetaStrip(Color muted, Color border) {
+  Widget _buildMetaStrip(GoTheme go) {
     final chips = <Widget>[
       if (_pickupKm != null)
         _MetaChip(
           icon: Icons.near_me_rounded,
           label: 'الوصول ${_pickupKm!.toStringAsFixed(1)} كم',
           tone: AppTokens.accent,
-          border: border,
+          border: go.border,
         ),
       if (_tripKm != null)
         _MetaChip(
           icon: Icons.straighten_rounded,
           label: 'الرحلة ${_tripKm!.toStringAsFixed(1)} كم',
-          tone: muted,
-          border: border,
+          tone: go.muted,
+          border: go.border,
         ),
       if (_durationMin != null)
         _MetaChip(
           icon: Icons.schedule_rounded,
           label: '~$_durationMin دقيقة',
-          tone: muted,
-          border: border,
+          tone: go.muted,
+          border: go.border,
         ),
     ];
 
@@ -436,7 +432,7 @@ class _OfferCardState extends State<OfferCard>
     );
   }
 
-  Widget _buildRoute(Color text, Color muted, Color border) {
+  Widget _buildRoute(GoTheme go) {
     final pickup = widget.offer['pickup_address']?.toString().trim();
     final dropoff = widget.offer['dropoff_address']?.toString().trim();
 
@@ -446,8 +442,8 @@ class _OfferCardState extends State<OfferCard>
           dotColor: AppTokens.primary,
           label: 'من',
           value: (pickup == null || pickup.isEmpty) ? 'نقطة الالتقاط' : pickup,
-          text: text,
-          muted: muted,
+          text: go.text,
+          muted: go.muted,
         ),
         // Connector, inset to sit under the dot in both text directions.
         Padding(
@@ -457,7 +453,7 @@ class _OfferCardState extends State<OfferCard>
             child: Container(
               width: 2,
               height: 16,
-              color: border,
+              color: go.border,
             ),
           ),
         ),
@@ -465,8 +461,8 @@ class _OfferCardState extends State<OfferCard>
           dotColor: AppTokens.danger,
           label: 'إلى',
           value: (dropoff == null || dropoff.isEmpty) ? 'الوجهة' : dropoff,
-          text: text,
-          muted: muted,
+          text: go.text,
+          muted: go.muted,
         ),
       ],
     );
@@ -530,10 +526,10 @@ class _OfferCardState extends State<OfferCard>
   /// they are agreeing to without looking back up at the header. Counter and
   /// decline share the row beneath it: counter is the emphasised secondary,
   /// decline is deliberately the quietest thing on the card.
-  Widget _buildActions(Color muted, Color border) {
+  Widget _buildActions(GoTheme go) {
     final disabled = _busy || _expired;
 
-    if (_bidSent != null) return _buildBidSentState(muted, border);
+    if (_bidSent != null) return _buildBidSentState(go);
 
     return Column(
       children: [
@@ -592,7 +588,7 @@ class _OfferCardState extends State<OfferCard>
                     foregroundColor: AppTokens.primary,
                     side: BorderSide(
                       color: disabled
-                          ? border
+                          ? go.border
                           : AppTokens.primary.withOpacity(0.55),
                       width: 1.4,
                     ),
@@ -638,10 +634,10 @@ class _OfferCardState extends State<OfferCard>
                 child: TextButton(
                   onPressed: disabled ? null : _decline,
                   style: TextButton.styleFrom(
-                    foregroundColor: muted,
+                    foregroundColor: go.muted,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                      side: BorderSide(color: border),
+                      side: BorderSide(color: go.border),
                     ),
                   ),
                   child: FittedBox(
@@ -649,14 +645,14 @@ class _OfferCardState extends State<OfferCard>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.close_rounded, size: 18, color: muted),
+                        Icon(Icons.close_rounded, size: 18, color: go.muted),
                         const SizedBox(width: 5),
                         Text(
                           'تخطي',
                           style: AppTokens.font(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w700,
-                            color: muted,
+                            color: go.muted,
                           ),
                         ),
                       ],
@@ -674,7 +670,7 @@ class _OfferCardState extends State<OfferCard>
   /// After a counter-offer the ball is in the rider's court. The card reports
   /// the pending bid and keeps only the two moves that still make sense:
   /// fall back to the original fare, or walk away.
-  Widget _buildBidSentState(Color muted, Color border) {
+  Widget _buildBidSentState(GoTheme go) {
     final amount = _bidSent!;
 
     return Column(
@@ -762,10 +758,10 @@ class _OfferCardState extends State<OfferCard>
                 child: TextButton(
                   onPressed: _busy ? null : _decline,
                   style: TextButton.styleFrom(
-                    foregroundColor: muted,
+                    foregroundColor: go.muted,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                      side: BorderSide(color: border),
+                      side: BorderSide(color: go.border),
                     ),
                   ),
                   child: Text(
@@ -773,7 +769,7 @@ class _OfferCardState extends State<OfferCard>
                     style: AppTokens.font(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w700,
-                      color: muted,
+                      color: go.muted,
                     ),
                   ),
                 ),

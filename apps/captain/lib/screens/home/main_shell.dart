@@ -323,7 +323,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     // document queue is the only meaningful screen for them.
     if (!isApproved) return const DocumentUploadScreen();
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final go = GoTheme.of(context);
     final onMapTab = _tabIndex == _mapIndex;
 
     _syncRoute(state);
@@ -331,15 +331,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        statusBarIconBrightness: go.isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: go.isDark ? Brightness.dark : Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: isDark ? AppTokens.darkBg : AppTokens.lightBg,
+        backgroundColor: go.bg,
         body: Stack(
           children: [
-            if (onMapTab) _buildMap(state, isDark),
-            if (onMapTab && _locating) _buildLocatingVeil(isDark),
+            if (onMapTab) _buildMap(state, go),
+            if (onMapTab && _locating) _buildLocatingVeil(go),
 
             Positioned.fill(
               child: IndexedStack(
@@ -394,7 +394,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildMap(CaptainState state, bool isDark) {
+  Widget _buildMap(CaptainState state, GoTheme go) {
     // Prefer the trip's stored drive route (actual streets). Fall back to the
     // direct captain → pickup → dropoff line only when geometry is absent,
     // so something is always drawn for an active trip.
@@ -408,7 +408,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         initialZoom: 15.5,
         minZoom: 5,
         maxZoom: 18.5,
-        backgroundColor: isDark ? AppTokens.darkBg : AppTokens.lightSurface,
+        backgroundColor: go.bg,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
         ),
@@ -427,12 +427,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       children: [
         TileLayer(
           urlTemplate: AppTokens.mapTilesFor(
-            isDark ? Brightness.dark : Brightness.light,
+            go.isDark ? Brightness.dark : Brightness.light,
           ),
           subdomains: const ['a', 'b', 'c'],
           retinaMode: RetinaMode.isHighDensity(context),
           userAgentPackageName: AppTokens.mapUserAgent,
-          tileBuilder: isDark ? darkModeTileBuilder : null,
+          tileBuilder: go.isDark ? darkModeTileBuilder : null,
         ),
 
         // The drive route along real streets. A casing stroke underneath keeps
@@ -443,7 +443,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Polyline(
                 points: route,
                 strokeWidth: 9,
-                color: Colors.white.withOpacity(isDark ? 0.22 : 0.9),
+                color: Colors.white.withOpacity(go.isDark ? 0.22 : 0.9),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
@@ -515,11 +515,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     return markers;
   }
 
-  Widget _buildLocatingVeil(bool isDark) {
+  Widget _buildLocatingVeil(GoTheme go) {
     return Positioned.fill(
       child: IgnorePointer(
         child: Container(
-          color: (isDark ? Colors.black : Colors.white).withOpacity(0.45),
+          color: (go.isDark ? Colors.black : Colors.white).withOpacity(0.45),
           child: Center(
             child: Container(
               padding: const EdgeInsets.symmetric(
@@ -527,7 +527,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 vertical: AppTokens.spaceMd,
               ),
               decoration: BoxDecoration(
-                color: isDark ? AppTokens.darkPanel : Colors.white,
+                color: go.panel,
                 borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                 boxShadow: AppTokens.shadowFloating,
               ),
@@ -545,7 +545,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     style: AppTokens.font(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppTokens.darkText : AppTokens.lightText,
+                      color: go.text,
                     ),
                   ),
                 ],
