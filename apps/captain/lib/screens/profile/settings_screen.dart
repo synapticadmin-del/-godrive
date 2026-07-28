@@ -21,12 +21,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     final captain = state.captain;
     final approval = captain?['approval_status'] ?? captain?['status'];
@@ -48,7 +43,7 @@ class SettingsScreen extends StatelessWidget {
     final initial = hasName ? captainName[0].toUpperCase() : 'C';
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       body: ListView(
         padding: EdgeInsets.only(
           top: MediaQuery.of(context).padding.top + AppTokens.spaceMd,
@@ -84,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
                         style: AppTokens.font(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: text,
+                          color: go.text,
                         ),
                       ),
                       const SizedBox(height: AppTokens.space2xs),
@@ -98,7 +93,7 @@ class SettingsScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: isApproved
-                                  ? (state.online ? AppTokens.success : muted)
+                                  ? (state.online ? AppTokens.success : go.muted)
                                   : AppTokens.accent,
                             ),
                           ),
@@ -107,7 +102,7 @@ class SettingsScreen extends StatelessWidget {
                             isApproved
                                 ? (state.online ? 'متصل' : 'غير متصل')
                                 : 'بانتظار الموافقة',
-                            style: AppTokens.font(fontSize: 13, color: muted),
+                            style: AppTokens.font(fontSize: 13, color: go.muted),
                           ),
                         ],
                       ),
@@ -134,10 +129,10 @@ class SettingsScreen extends StatelessWidget {
                     iconColor: AppTokens.warning,
                     value: rating,
                     label: 'التقييم',
-                    panel: panel,
-                    text: text,
-                    muted: muted,
-                    border: border,
+                    panel: go.panel,
+                    text: go.text,
+                    muted: go.muted,
+                    border: go.border,
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceXs),
@@ -147,10 +142,10 @@ class SettingsScreen extends StatelessWidget {
                     iconColor: AppTokens.info,
                     value: tripCount,
                     label: 'رحلات',
-                    panel: panel,
-                    text: text,
-                    muted: muted,
-                    border: border,
+                    panel: go.panel,
+                    text: go.text,
+                    muted: go.muted,
+                    border: go.border,
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceXs),
@@ -162,10 +157,10 @@ class SettingsScreen extends StatelessWidget {
                     iconColor: isApproved ? AppTokens.success : AppTokens.accent,
                     value: isApproved ? 'معتمد' : 'مراجعة',
                     label: 'الحالة',
-                    panel: panel,
-                    text: text,
-                    muted: muted,
-                    border: border,
+                    panel: go.panel,
+                    text: go.text,
+                    muted: go.muted,
+                    border: go.border,
                   ),
                 ),
               ],
@@ -176,25 +171,25 @@ class SettingsScreen extends StatelessWidget {
 
           // ── Vehicle information ─────────────────────────────────────────
           if (vehicleMake.isNotEmpty || vehiclePlate.isNotEmpty) ...[
-            _SectionTitle(title: 'معلومات المركبة', muted: muted),
-            _SettingsCard(panel: panel, border: border, children: [
+            _SectionTitle(title: 'معلومات المركبة', muted: go.muted),
+            _SettingsCard(panel: go.panel, border: go.border, children: [
               _InfoRow(
                 icon: Icons.directions_car_rounded,
                 iconColor: AppTokens.primary,
                 title: 'المركبة',
                 value: '$vehicleMake $vehicleModel'.trim(),
-                text: text,
-                muted: muted,
+                text: go.text,
+                muted: go.muted,
               ),
               if (vehiclePlate.isNotEmpty) ...[
-                _RowDivider(border: border),
+                _RowDivider(border: go.border),
                 _InfoRow(
                   icon: Icons.pin_rounded,
                   iconColor: AppTokens.primary,
                   title: 'اللوحة',
                   value: vehiclePlate,
-                  text: text,
-                  muted: muted,
+                  text: go.text,
+                  muted: go.muted,
                 ),
               ],
             ]),
@@ -202,16 +197,16 @@ class SettingsScreen extends StatelessWidget {
           ],
 
           // ── Documents ──────────────────────────────────────────────────
-          _SectionTitle(title: 'المستندات', muted: muted),
-          _SettingsCard(panel: panel, border: border, children: [
+          _SectionTitle(title: 'المستندات', muted: go.muted),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
             _NavRow(
               icon: Icons.upload_file_rounded,
               iconColor: AppTokens.primary,
               title: 'رفع المستندات',
               subtitle: 'رخصة + بطاقة + فيش',
-              text: text,
-              muted: muted,
-              border: border,
+              text: go.text,
+              muted: go.muted,
+              border: go.border,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -224,16 +219,16 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceLg),
 
           // ── Safety ─────────────────────────────────────────────────────
-          _SectionTitle(title: 'الأمان', muted: muted),
-          _SettingsCard(panel: panel, border: border, children: [
+          _SectionTitle(title: 'الأمان', muted: go.muted),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
             _NavRow(
               icon: Icons.sos_rounded,
               iconColor: AppTokens.sos,
               title: 'زر الطوارئ SOS',
               subtitle: 'تنبيه فوري للدعم',
-              text: text,
-              muted: muted,
-              border: border,
+              text: go.text,
+              muted: go.muted,
+              border: go.border,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const SosScreen()),
@@ -244,10 +239,10 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceLg),
 
           // ── Appearance & language ───────────────────────────────────────
-          _SectionTitle(title: 'المظهر واللغة', muted: muted),
+          _SectionTitle(title: 'المظهر واللغة', muted: go.muted),
           _SettingsCard(
-            panel: panel,
-            border: border,
+            panel: go.panel,
+            border: go.border,
             children: [
               SwitchListTile(
                 contentPadding: const EdgeInsetsDirectional.only(
@@ -261,15 +256,15 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 title: Text(
                   'الوضع الداكن',
-                  style: AppTokens.font(color: text, fontSize: 14),
+                  style: AppTokens.font(color: go.text, fontSize: 14),
                 ),
                 value: state.themeMode == ThemeMode.dark ||
-                    (state.themeMode == ThemeMode.system && isDark),
+                    (state.themeMode == ThemeMode.system && go.isDark),
                 activeColor: AppTokens.primary,
                 onChanged: (val) =>
                     state.setThemeMode(val ? ThemeMode.dark : ThemeMode.light),
               ),
-              _RowDivider(border: border),
+              _RowDivider(border: go.border),
               ListTile(
                 contentPadding: const EdgeInsetsDirectional.only(
                   start: AppTokens.spaceMd,
@@ -283,11 +278,11 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 title: Text(
                   'اللغة',
-                  style: AppTokens.font(color: text, fontSize: 14),
+                  style: AppTokens.font(color: go.text, fontSize: 14),
                 ),
                 trailing: Text(
                   state.locale.languageCode == 'ar' ? 'العربية' : 'English',
-                  style: AppTokens.font(color: muted, fontSize: 13),
+                  style: AppTokens.font(color: go.muted, fontSize: 13),
                 ),
                 onTap: () => state.setLocale(
                   Locale(state.locale.languageCode == 'ar' ? 'en' : 'ar'),
@@ -299,24 +294,24 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: AppTokens.spaceLg),
 
           // ── About ──────────────────────────────────────────────────────
-          _SectionTitle(title: 'معلومات', muted: muted),
-          _SettingsCard(panel: panel, border: border, children: [
+          _SectionTitle(title: 'معلومات', muted: go.muted),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
             _InfoRow(
               icon: Icons.info_rounded,
               iconColor: AppTokens.info,
               title: 'عن التطبيق',
               value: 'GoDrive v1.0.0',
-              text: text,
-              muted: muted,
+              text: go.text,
+              muted: go.muted,
             ),
-            _RowDivider(border: border),
+            _RowDivider(border: go.border),
             _InfoRow(
               icon: Icons.privacy_tip_rounded,
               iconColor: AppTokens.primary,
               title: 'سياسة الخصوصية',
               value: '',
-              text: text,
-              muted: muted,
+              text: go.text,
+              muted: go.muted,
             ),
           ]),
 

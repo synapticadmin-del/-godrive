@@ -155,11 +155,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
   @override
   Widget build(BuildContext context) {
     final state = context.read<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : Colors.white;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     final status = widget.trip['status'] as String?;
     final fare = (widget.trip['final_fare'] as num?)?.toDouble() ??
@@ -172,7 +168,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppTokens.radiusXl),
         ),
@@ -196,7 +192,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: AppTokens.spaceMd),
                   decoration: BoxDecoration(
-                    color: border,
+                    color: go.border,
                     borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                   ),
                 ),
@@ -205,8 +201,8 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
               _StageStepper(
                 stages: _stages,
                 currentIndex: _stageIndex(status),
-                border: border,
-                muted: muted,
+                border: go.border,
+                muted: go.muted,
               ),
               const SizedBox(height: AppTokens.spaceMd),
 
@@ -219,7 +215,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                       style: AppTokens.font(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                   ),
@@ -229,21 +225,19 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? AppTokens.darkSurface
-                          : AppTokens.lightSurface,
+                      color: go.surface,
                       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.timer_outlined, size: 15, color: muted),
+                        Icon(Icons.timer_outlined, size: 15, color: go.muted),
                         const SizedBox(width: 5),
                         Text(
                           _formattedTime,
                           style: AppTokens.money(
                             fontSize: 15,
-                            color: text,
+                            color: go.text,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -254,7 +248,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
               ),
 
               const SizedBox(height: AppTokens.spaceMd),
-              _buildRiderRow(fare, text, muted, border, isDark),
+              _buildRiderRow(go, fare),
               const SizedBox(height: AppTokens.spaceMd),
               _buildNavRow(status),
               const SizedBox(height: AppTokens.spaceXs + 2),
@@ -304,13 +298,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     );
   }
 
-  Widget _buildRiderRow(
-    double fare,
-    Color text,
-    Color muted,
-    Color border,
-    bool isDark,
-  ) {
+  Widget _buildRiderRow(GoTheme go, double fare) {
     final name = (widget.trip['rider_name'] as String?)?.trim();
     final phone = (widget.trip['rider_phone'] as String?)?.trim();
     final displayName = (name == null || name.isEmpty) ? 'راكب' : name;
@@ -318,9 +306,9 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceSm),
       decoration: BoxDecoration(
-        color: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
+        color: go.surface,
         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-        border: Border.all(color: border),
+        border: Border.all(color: go.border),
       ),
       child: Row(
         children: [
@@ -347,7 +335,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTokens.font(
-                    color: text,
+                    color: go.text,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
                   ),
@@ -356,7 +344,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   widget.trip['final_fare'] != null
                       ? 'الأجرة النهائية'
                       : 'الأجرة المقدرة',
-                  style: AppTokens.font(color: muted, fontSize: 11.5),
+                  style: AppTokens.font(color: go.muted, fontSize: 11.5),
                 ),
               ],
             ),
@@ -372,9 +360,9 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
           // arriving over the live trip socket while the panel is up.
           _RoundActionButton(
             icon: Icons.chat_bubble_rounded,
-            color: isDark ? AppTokens.darkText : AppTokens.lightText,
-            background: isDark ? AppTokens.darkBg : AppTokens.lightBg,
-            borderColor: border,
+            color: go.text,
+            background: go.bg,
+            borderColor: go.border,
             badgeCount: _unreadMessages,
             tooltip: 'محادثة الراكب',
             onTap: _openChat,

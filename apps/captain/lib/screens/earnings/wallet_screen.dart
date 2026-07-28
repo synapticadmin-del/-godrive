@@ -76,94 +76,93 @@ class _WalletScreenState extends State<WalletScreen> {
       );
       return;
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => Container(
-        padding: const EdgeInsets.fromLTRB(
-          AppTokens.spaceMd,
-          AppTokens.spaceXs,
-          AppTokens.spaceMd,
-          AppTokens.spaceLg,
-        ),
-        decoration: BoxDecoration(
-          color: panel,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppTokens.radiusXl),
+      builder: (sheetCtx) {
+        final go = GoTheme.of(sheetCtx);
+        return Container(
+          padding: const EdgeInsets.fromLTRB(
+            AppTokens.spaceMd,
+            AppTokens.spaceXs,
+            AppTokens.spaceMd,
+            AppTokens.spaceLg,
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Sheet handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
-                  borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+          decoration: BoxDecoration(
+            color: go.panel,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppTokens.radiusXl),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Sheet handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: go.border,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                  ),
                 ),
               ),
-            ),
-            Text(
-              'طلب سحب الأرباح',
-              style: AppTokens.font(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: text,
+              Text(
+                'طلب سحب الأرباح',
+                style: AppTokens.font(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: go.text,
+                ),
               ),
-            ),
-            const SizedBox(height: AppTokens.space2xs),
-            Text(
-              'الرصيد المتاح: ${_balance.toStringAsFixed(2)} ج.م',
-              style: AppTokens.font(
-                fontSize: 13,
-                color: isDark ? AppTokens.darkMuted : AppTokens.lightMuted,
+              const SizedBox(height: AppTokens.space2xs),
+              Text(
+                'الرصيد المتاح: ${_balance.toStringAsFixed(2)} ج.م',
+                style: AppTokens.font(
+                  fontSize: 13,
+                  color: go.muted,
+                ),
               ),
-            ),
-            const SizedBox(height: AppTokens.spaceMd),
-            _PayoutMethodTile(
-              icon: Icons.phone_android_rounded,
-              iconColor: AppTokens.primary,
-              surface: surface,
-              label: 'فودافون كاش',
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _collectAccountAndSubmit(
-                  method: 'vodafone_cash',
-                  label: 'فودافون كاش',
-                  hint: 'رقم محفظة فودافون كاش',
-                  keyboardType: TextInputType.phone,
-                );
-              },
-            ),
-            const SizedBox(height: AppTokens.spaceSm),
-            _PayoutMethodTile(
-              icon: Icons.account_balance_rounded,
-              iconColor: AppTokens.accent,
-              surface: surface,
-              label: 'انستا باي (InstaPay)',
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _collectAccountAndSubmit(
-                  method: 'instapay',
-                  label: 'انستا باي',
-                  hint: 'عنوان الدفع (IPA) أو رقم الحساب',
-                  keyboardType: TextInputType.text,
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: AppTokens.spaceMd),
+              _PayoutMethodTile(
+                icon: Icons.phone_android_rounded,
+                iconColor: AppTokens.primary,
+                surface: go.surface,
+                label: 'فودافون كاش',
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _collectAccountAndSubmit(
+                    method: 'vodafone_cash',
+                    label: 'فودافون كاش',
+                    hint: 'رقم محفظة فودافون كاش',
+                    keyboardType: TextInputType.phone,
+                  );
+                },
+              ),
+              const SizedBox(height: AppTokens.spaceSm),
+              _PayoutMethodTile(
+                icon: Icons.account_balance_rounded,
+                iconColor: AppTokens.accent,
+                surface: go.surface,
+                label: 'انستا باي (InstaPay)',
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _collectAccountAndSubmit(
+                    method: 'instapay',
+                    label: 'انستا باي',
+                    hint: 'عنوان الدفع (IPA) أو رقم الحساب',
+                    keyboardType: TextInputType.text,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -251,21 +250,16 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
           'المحفظة',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text),
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         actions: [
@@ -286,7 +280,7 @@ class _WalletScreenState extends State<WalletScreen> {
               : ListView(
                   padding: const EdgeInsets.all(AppTokens.spaceMd),
                   children: [
-                    _buildBalanceHero(isDark, muted).animate().scale(
+                    _buildBalanceHero().animate().scale(
                           duration: 380.ms,
                           curve: Curves.easeOutBack,
                         ),
@@ -296,7 +290,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       style: AppTokens.font(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                     const SizedBox(height: AppTokens.spaceMd),
@@ -307,7 +301,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       )
                     else
                       ..._transactions.map(
-                        (tx) => _buildTransactionRow(tx, panel, text, muted, border),
+                        (tx) => _buildTransactionRow(tx, go.panel, go.text, go.muted, go.border),
                       ),
                   ],
                 ),
@@ -317,7 +311,7 @@ class _WalletScreenState extends State<WalletScreen> {
   /// The balance hero is the most important number on screen — it gets a
   /// gradient card, an oversized numeral via AppTokens.money, and the single
   /// primary action at exactly primaryActionHeight.
-  Widget _buildBalanceHero(bool isDark, Color muted) {
+  Widget _buildBalanceHero() {
     final nextPayout = _wallet?['nextPayoutWindow']?.toString();
     final weekTrips = (_wallet?['weekTrips'] as num?)?.toInt();
     final weekCommission = (_wallet?['weekCommission'] as num?)?.toDouble();
@@ -532,7 +526,7 @@ class _PayoutMethodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final go = GoTheme.of(context);
     return Material(
       color: surface,
       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
@@ -564,7 +558,7 @@ class _PayoutMethodTile extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 14,
-                color: isDark ? AppTokens.darkFaint : AppTokens.lightFaint,
+                color: go.muted,
               ),
             ],
           ),

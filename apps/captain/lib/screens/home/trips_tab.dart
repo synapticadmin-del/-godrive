@@ -106,12 +106,7 @@ class _TripsTabState extends State<TripsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Opaque backdrop so history text never renders directly over map tiles.
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     return Scaffold(
       // Transparent so the IndexedStack retains the map widget on tab 0.
@@ -119,14 +114,11 @@ class _TripsTabState extends State<TripsTab> {
       body: Container(
         // Opaque fill that covers the map tiles underneath — without this,
         // list text would be illegible against the satellite/street imagery.
-        color: bg,
+        color: go.bg,
         child: Column(
           children: [
             _TripsHeader(
-              isDark: isDark,
               tripCount: _loading ? null : _trips.length,
-              muted: muted,
-              border: border,
             ),
             Expanded(
               child: _loading
@@ -152,9 +144,6 @@ class _TripsTabState extends State<TripsTab> {
                                 itemCount: _trips.length,
                                 itemBuilder: (_, i) => _TripCard(
                                   trip: _trips[i],
-                                  isDark: isDark,
-                                  text: text,
-                                  muted: muted,
                                 ),
                               ),
                             ),
@@ -172,27 +161,18 @@ class _TripsTabState extends State<TripsTab> {
 /// skeleton / empty-state widgets communicate that state themselves.
 class _TripsHeader extends StatelessWidget {
   const _TripsHeader({
-    required this.isDark,
     required this.tripCount,
-    required this.muted,
-    required this.border,
   });
-
-  final bool isDark;
 
   /// null while loading so the summary line stays hidden.
   final int? tripCount;
 
-  final Color muted;
-  final Color border;
-
   @override
   Widget build(BuildContext context) {
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+    final go = GoTheme.of(context);
 
     return Container(
-      color: panel,
+      color: go.panel,
       padding: EdgeInsetsDirectional.only(
         start: AppTokens.spaceMd,
         end: AppTokens.spaceMd,
@@ -200,9 +180,9 @@ class _TripsHeader extends StatelessWidget {
         bottom: AppTokens.spaceMd,
       ),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         border: Border(
-          bottom: BorderSide(color: border, width: 1),
+          bottom: BorderSide(color: go.border, width: 1),
         ),
       ),
       child: Column(
@@ -214,7 +194,7 @@ class _TripsHeader extends StatelessWidget {
             style: AppTokens.font(
               fontSize: 24,
               fontWeight: FontWeight.w800,
-              color: text,
+              color: go.text,
             ),
           ),
           if (tripCount != null) ...[
@@ -226,7 +206,7 @@ class _TripsHeader extends StatelessWidget {
               style: AppTokens.font(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: muted,
+                color: go.muted,
               ),
             ),
           ],
@@ -239,20 +219,13 @@ class _TripsHeader extends StatelessWidget {
 class _TripCard extends StatelessWidget {
   const _TripCard({
     required this.trip,
-    required this.isDark,
-    required this.text,
-    required this.muted,
   });
 
   final Map<String, dynamic> trip;
-  final bool isDark;
-  final Color text;
-  final Color muted;
 
   @override
   Widget build(BuildContext context) {
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     final status = trip['status'] as String? ?? '';
 
@@ -274,9 +247,9 @@ class _TripCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: border, width: 1),
+        border: Border.all(color: go.border, width: 1),
         boxShadow: AppTokens.shadowCard,
       ),
       child: Padding(
@@ -322,9 +295,7 @@ class _TripCard extends StatelessWidget {
             _buildRoute(
               pickup: (pickup == null || pickup.isEmpty) ? 'موقف غير محدد' : pickup,
               dropoff: (dropoff == null || dropoff.isEmpty) ? 'وجهة غير محددة' : dropoff,
-              text: text,
-              muted: muted,
-              border: border,
+              go: go,
             ),
 
             const SizedBox(height: AppTokens.spaceSm),
@@ -335,7 +306,7 @@ class _TripCard extends StatelessWidget {
               style: AppTokens.font(
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
-                color: muted,
+                color: go.muted,
               ),
             ),
           ],
@@ -347,9 +318,7 @@ class _TripCard extends StatelessWidget {
   Widget _buildRoute({
     required String pickup,
     required String dropoff,
-    required Color text,
-    required Color muted,
-    required Color border,
+    required GoTheme go,
   }) {
     return Column(
       children: [
@@ -357,8 +326,7 @@ class _TripCard extends StatelessWidget {
           dotColor: AppTokens.primary,
           label: 'من',
           value: pickup,
-          text: text,
-          muted: muted,
+          go: go,
         ),
         // Vertical connector inset to sit directly under the dot centre.
         Padding(
@@ -368,7 +336,7 @@ class _TripCard extends StatelessWidget {
             child: Container(
               width: 2,
               height: 14,
-              color: border,
+              color: go.border,
             ),
           ),
         ),
@@ -376,8 +344,7 @@ class _TripCard extends StatelessWidget {
           dotColor: AppTokens.danger,
           label: 'إلى',
           value: dropoff,
-          text: text,
-          muted: muted,
+          go: go,
         ),
       ],
     );
@@ -387,8 +354,7 @@ class _TripCard extends StatelessWidget {
     required Color dotColor,
     required String label,
     required String value,
-    required Color text,
-    required Color muted,
+    required GoTheme go,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +379,7 @@ class _TripCard extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: AppTokens.font(fontSize: 11, color: muted),
+                style: AppTokens.font(fontSize: 11, color: go.muted),
               ),
               Text(
                 value,
@@ -422,7 +388,7 @@ class _TripCard extends StatelessWidget {
                 style: AppTokens.font(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: text,
+                  color: go.text,
                   height: 1.35,
                 ),
               ),
