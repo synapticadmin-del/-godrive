@@ -1,24 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:video_player/video_player.dart';
 
 /// GoDrive Captain launch screen.
 ///
-/// The old splash dropped a raw video into a white box and hoped for the
-/// best: if the asset was slow the captain stared at a bare spinner, and if
-/// it failed they got an unstyled logo. This version treats the launch as a
-/// composed brand moment —
-///
-///  * a deep brand-tinted canvas so the screen reads as GoDrive instantly,
-///    and so the handoff into the (light) login screen is a deliberate
-///    brightening rather than a flash of unstyled white;
-///  * the logo lockup and wordmark are always present, with the video
-///    layered in as enrichment once it is genuinely ready;
-///  * a determinate-feeling progress hairline instead of an anxious spinner;
-///  * choreographed entrances, so elements arrive in reading order.
+/// Replaced the video-based splash with a static brand image. The old splash
+/// looped an MP4 that was never framed for this screen — the decode took a
+/// visible moment, and the dark canvas clashed with the video's light-authored
+/// content. This version paints a high-resolution brand image on the very
+/// first frame, layered with choreographed entrance animations.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -27,42 +21,31 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  VideoPlayerController? _controller;
-  bool _videoReady = false;
+  bool _imageReady = false;
+  Timer? _holdTimer;
 
   @override
   void initState() {
     super.initState();
-    // The splash owns a dark canvas, so the system icons must be light for
-    // the duration of this screen.
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
     ));
-    _initVideo();
+    _precacheBrandImage();
   }
 
-  Future<void> _initVideo() async {
+  Future<void> _precacheBrandImage() async {
     try {
-      final controller = VideoPlayerController.asset('assets/videos/splash.mp4');
-      await controller.initialize();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      await controller.setVolume(0); // muted so autoplay is allowed everywhere
-      await controller.setLooping(true);
-      await controller.play();
-      setState(() {
-        _controller = controller;
-        _videoReady = true;
-      });
+      await precacheImage(
+        const AssetImage('assets/images/splash_brand.png'),
+        context,
+      );
+      if (mounted) setState(() => _imageReady = true);
     } catch (_) {
-      // A missing or undecodable asset is not a failure state worth showing
-      // the captain — the logo lockup below is a complete design on its own.
-      if (mounted) setState(() => _videoReady = false);
+      if (mounted) setState(() => _imageReady = false);
     }
+    _holdTimer = Timer(const Duration(milliseconds: 2400), () {});
   }
 
   Future<void> _openSynaptic() async {
@@ -78,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _holdTimer?.cancel();
     super.dispose();
   }
 
@@ -110,9 +93,6 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  /// The hero: the splash video once it is ready, the logo until then. Both
-  /// sit inside the same rounded, softly-lit frame so the swap is a
-  /// cross-fade rather than a layout jump.
   Widget _buildMark() {
     return Center(
       child: Container(
@@ -133,28 +113,20 @@ class _SplashScreenState extends State<SplashScreen> {
         clipBehavior: Clip.antiAlias,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 500),
-          child: _videoReady && _controller != null
-              ? FittedBox(
-                  key: const ValueKey('video'),
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _controller!.value.size.width,
-                    height: _controller!.value.size.height,
-                    child: VideoPlayer(_controller!),
+          child: _imageReady
+              ? ClipRRect(
+                  key: const ValueKey('brand'),
+                  borderRadius: BorderRadius.circular(56),
+                  child: Image.asset(
+                    'assets/images/splash_brand.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _logoFallback(),
                   ),
                 )
               : Padding(
                   key: const ValueKey('logo'),
                   padding: const EdgeInsets.all(38),
-                  child: Image.asset(
-                    'assets/images/godrive_logo.png',
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.navigation_rounded,
-                      size: 84,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _logoFallback(),
                 ),
         ),
       ),
@@ -167,6 +139,18 @@ class _SplashScreenState extends State<SplashScreen> {
           duration: 700.ms,
           curve: Curves.easeOutBack,
         );
+  }
+
+  Widget _logoFallback() {
+    return Image.asset(
+      'assets/images/godrive_logo.png',
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => const Icon(
+        Icons.navigation_rounded,
+        size: 84,
+        color: Colors.white,
+      ),
+    );
   }
 
   Widget _buildWordmark() {
@@ -202,8 +186,6 @@ class _SplashScreenState extends State<SplashScreen> {
     ).animate().fadeIn(delay: 250.ms, duration: 600.ms).slideY(begin: 0.25, end: 0);
   }
 
-  /// An indeterminate hairline rather than a spinner: it signals "loading"
-  /// without dominating the composition.
   Widget _buildProgress() {
     return SizedBox(
       width: 132,
@@ -280,8 +262,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-/// Two brand-green light sources bled into a near-black field. Cheap to
-/// paint, and it gives the flat canvas depth without any image asset.
 class _BrandBackdrop extends StatelessWidget {
   const _BrandBackdrop();
 
