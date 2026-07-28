@@ -105,3 +105,13 @@ Thumbs.db
 coverage/
 **/coverage/
 .nyc_output/
+
+# ------------------------------------------
+# Tooling / Agent Session State
+# ------------------------------------------
+.zcode/
+
+# ------------------------------------------
+# Repo-root binary assets pending manual move to docs/assets/
+# (GODRIVE.png, splash.mp4, screenshots — move them then delete this note)
+# ------------------------------------------

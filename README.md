@@ -23,10 +23,15 @@
 │   ├── shared/       # Types + fare math (TypeScript)
 │   └── flutter_shared/
 ├── migrations/       # D1 SQL
-└── docs/             # التوثيق
+├── scripts/          # سكربتات مساعدة (bat / pdf)
+├── docs/             # التوثيق
+│   └── assets/       # الشعار + لقطات الشاشة والفيديو
+└── .github/          # CI workflows
 ```
 
 ## البدء السريع
+
+> **ملاحظة:** الـ API يحتاج أسرارًا (JWT, Turnstile, Paymob, FCM, WhatsApp, …). انسخ `apps/api/.dev.vars.example` إلى `apps/api/.dev.vars` واملأ القيم محليًا — التفاصيل داخل الملف.
 
 ### المتطلبات
 - Node.js 20+
