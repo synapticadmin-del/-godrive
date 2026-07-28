@@ -52,6 +52,10 @@ class AppTokens {
   static const sos = Color(0xFFDC2626); // 4.83:1 on white
   static const info = Color(0xFF1D6DBE);
 
+  /// Full-bleed emergency backdrop — a near-black red that keeps the SOS
+  /// screen unmistakable even in peripheral vision, day or night.
+  static const sosBackdrop = Color(0xFF1A0000);
+
   // Badge pairs — dark text on a light tint, all >= 6:1.
   static const badgePendingText = Color(0xFF78350F);
   static const badgePendingBg = Color(0xFFFEF3C7);

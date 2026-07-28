@@ -112,11 +112,10 @@ class _SosScreenState extends State<SosScreen>
   @override
   Widget build(BuildContext context) {
     // Keep the scaffold background dark red so even a partial glimpse of this
-    // screen reads as "emergency" — not a normal app screen.
-    const sosBackground = Color(0xFF1A0000);
-
+    // screen reads as "emergency" — not a normal app screen. The value lives
+    // in AppTokens so both apps share one definition of "emergency backdrop".
     return Scaffold(
-      backgroundColor: sosBackground,
+      backgroundColor: AppTokens.sosBackdrop,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -228,7 +227,7 @@ class _SosScreenState extends State<SosScreen>
           ),
           const SizedBox(height: AppTokens.spaceMd),
           Text(
-            'استخدم هذا الزر فقط في حالات الخطر الحقيقي\n(حوادث، سرقة، اعتداء).',
+            'استخدم هذا الزر فقط في حالات الخطر الحقيقي\\n(حوادث، سرقة، اعتداء).',
             style: AppTokens.font(
               fontSize: 15,
               color: Colors.white70,

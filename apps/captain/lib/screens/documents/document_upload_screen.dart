@@ -103,11 +103,10 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
-        final isDark = Theme.of(sheetCtx).brightness == Brightness.dark;
-        final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
+        final go = GoTheme.of(sheetCtx);
         return Container(
           decoration: BoxDecoration(
-            color: panel,
+            color: go.panel,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(AppTokens.radiusXl),
             ),
@@ -122,7 +121,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder,
+                    color: go.border,
                     borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                   ),
                 ),
@@ -234,21 +233,16 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
           'المستندات المطلوبة',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text),
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         surfaceTintColor: Colors.transparent,
         actions: [
           // A read-through status view: every document, its review state, and
@@ -288,14 +282,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           : CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
-                  child: _buildHeader(panel, text, muted, border),
+                  child: _buildHeader(go),
                 ),
                 // Rejection feedback, front and centre: the exact reason the
                 // admin gave for every rejected document, right above the
                 // checklist so the fix is the next thing the captain does.
                 if (_rejectedDocs.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: _buildRejectionAlert(text, muted),
+                    child: _buildRejectionAlert(go.text, go.muted),
                   ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
@@ -312,10 +306,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                           d['type'] as String,
                           d['title'] as String,
                           d['icon'] as IconData,
-                          panel,
-                          text,
-                          muted,
-                          border,
+                          go,
                         );
                       },
                       childCount: _docTypes.length,
@@ -422,14 +413,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     );
   }
 
-  Widget _buildHeader(Color panel, Color text, Color muted, Color border) {
+  Widget _buildHeader(GoTheme go) {
     final total = _docTypes.length;
     final approved = _approvedCount;
     final progress = total == 0 ? 0.0 : approved / total;
     final allDone = approved == total;
 
     return Container(
-      color: panel,
+      color: go.panel,
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
         AppTokens.spaceMd,
@@ -466,7 +457,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                       style: AppTokens.font(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -476,7 +467,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                           : 'ارفع مستنداتك ليتمكن فريقنا من مراجعة حسابك والموافقة عليه.',
                       style: AppTokens.font(
                         fontSize: 13,
-                        color: muted,
+                        color: go.muted,
                         height: 1.5,
                       ),
                     ),
@@ -500,7 +491,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     // Track colour follows the themed border passed into the
                     // header rather than a fixed light grey, so the unfilled
                     // portion of the bar stays visible on the dark canvas.
-                    backgroundColor: border,
+                    backgroundColor: go.border,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       allDone ? AppTokens.success : AppTokens.primary,
                     ),
@@ -521,7 +512,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
           const SizedBox(height: AppTokens.spaceXs),
           Text(
             allDone ? 'جميع المستندات مرفوعة' : 'تمت الموافقة على $approved من أصل $total مستندات',
-            style: AppTokens.font(fontSize: 12, color: muted),
+            style: AppTokens.font(fontSize: 12, color: go.muted),
           ),
           // The three steps ahead — understanding what happens next is what
           // turns a form dump into an onboarding experience.
@@ -552,9 +543,9 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     // A not-yet-done step is drawn in the faint/muted greys. Those were pinned
     // to the light-theme values, so on the dark onboarding canvas the pending
     // steps washed out. Resolve the pending greys against the active theme.
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pendingIcon = isDark ? AppTokens.darkFaint : AppTokens.lightFaint;
-    final pendingText = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final go = GoTheme.of(context);
+    final pendingIcon = go.isDark ? AppTokens.darkFaint : AppTokens.lightFaint;
+    final pendingText = go.muted;
     return Row(
       children: [
         Icon(
@@ -579,10 +570,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     String type,
     String title,
     IconData icon,
-    Color panel,
-    Color text,
-    Color muted,
-    Color border,
+    GoTheme go,
   ) {
     final status = _docStatus(type);
     final isUploading = _uploading.contains(type);
@@ -607,7 +595,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         badgeBg = AppTokens.badgePendingBg;
         statusLabel = 'قيد المراجعة';
         statusIcon = Icons.hourglass_top_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
       case 'rejected':
         badgeText = AppTokens.badgeStoppedText;
         badgeBg = AppTokens.badgeStoppedBg;
@@ -615,16 +603,14 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         statusIcon = Icons.error_rounded;
         cardBorder = AppTokens.danger.withOpacity(0.3);
       default:
-        badgeText = muted;
+        badgeText = go.muted;
         // The "not uploaded yet" badge uses a neutral surface tint; pinning it
         // to lightSurface left a pale square on the dark card, so track the
         // active theme like the approved/pending/rejected badges do.
-        badgeBg = Theme.of(context).brightness == Brightness.dark
-            ? AppTokens.darkSurface
-            : AppTokens.lightSurface;
+        badgeBg = go.surface;
         statusLabel = 'لم يتم الرفع بعد';
         statusIcon = Icons.cloud_upload_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
     }
 
     final needsUpload = status == 'missing' || status == 'rejected';
@@ -632,7 +618,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
         border: Border.all(color: cardBorder),
         boxShadow: AppTokens.shadowCard,
@@ -662,7 +648,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                     style: AppTokens.font(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: text,
+                      color: go.text,
                     ),
                   ),
                   const SizedBox(height: AppTokens.space2xs),

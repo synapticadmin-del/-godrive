@@ -96,24 +96,19 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
 
     final approval =
         (state.captain?['approval_status'] ?? state.captain?['status'])?.toString();
 
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
           'حالة المستندات',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text),
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: go.text),
         ),
-        backgroundColor: panel,
+        backgroundColor: go.panel,
         surfaceTintColor: Colors.transparent,
         actions: [
           IconButton(
@@ -139,20 +134,17 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(AppTokens.spaceMd),
                 children: [
-                  _buildAccountBanner(approval, text, muted),
+                  _buildAccountBanner(approval, go.text, go.muted),
                   if (_rejectedDocs.isNotEmpty) ...[
                     const SizedBox(height: AppTokens.spaceMd),
-                    _buildRejectionAlert(text, muted),
+                    _buildRejectionAlert(go.text, go.muted),
                   ],
                   const SizedBox(height: AppTokens.spaceMd),
                   ..._docTypes.map((d) => _buildStatusRow(
                         d['type'] as String,
                         d['title'] as String,
                         d['icon'] as IconData,
-                        panel,
-                        text,
-                        muted,
-                        border,
+                        go,
                       )),
                 ],
               ),
@@ -322,10 +314,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
     String type,
     String title,
     IconData icon,
-    Color panel,
-    Color text,
-    Color muted,
-    Color border,
+    GoTheme go,
   ) {
     final status = _docStatus(type);
 
@@ -346,7 +335,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
         badgeBg = AppTokens.badgePendingBg;
         statusLabel = 'قيد المراجعة';
         statusIcon = Icons.hourglass_top_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
       case 'rejected':
         badgeText = AppTokens.badgeStoppedText;
         badgeBg = AppTokens.badgeStoppedBg;
@@ -354,11 +343,11 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
         statusIcon = Icons.error_rounded;
         cardBorder = AppTokens.danger.withOpacity(0.3);
       default:
-        badgeText = muted;
-        badgeBg = AppTokens.lightSurface;
+        badgeText = go.muted;
+        badgeBg = go.surface;
         statusLabel = 'لم يتم الرفع';
         statusIcon = Icons.cloud_upload_rounded;
-        cardBorder = border;
+        cardBorder = go.border;
     }
 
     final reason = _rejectionReason(type);
@@ -368,7 +357,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
       margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
       padding: const EdgeInsets.all(AppTokens.spaceMd),
       decoration: BoxDecoration(
-        color: panel,
+        color: go.panel,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
         border: Border.all(color: cardBorder),
         boxShadow: AppTokens.shadowCard,
@@ -397,7 +386,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                       style: AppTokens.font(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: text,
+                        color: go.text,
                       ),
                     ),
                     const SizedBox(height: AppTokens.space2xs),
