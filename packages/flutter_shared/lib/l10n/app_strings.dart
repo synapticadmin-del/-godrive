@@ -44,7 +44,7 @@ import 'package:flutter/widgets.dart';
 /// `home_tab`, `active_trip_panel`, `wallet_screen`, `document_upload_screen`,
 /// `document_status_screen`, and `trip_chat_screen`. Copy their pattern.
 abstract class AppStrings {
-  const AppStrings._();
+  const AppStrings();
 
   /// Resolves the copy bundle for the ambient locale. Falls back to Arabic —
   /// the app's primary market — when the locale is neither Arabic nor English
@@ -2104,8 +2104,7 @@ class AppStringsAr extends AppStrings {
 
   /// Prefix of the share sheet message; the URL is appended.
   @override
-  String get shareTripMessage => 'تتبع رحلتي على GoDrive عبر الرابط التالي:
-';
+  String get shareTripMessage => 'تتبع رحلتي على GoDrive عبر الرابط التالي:\n';
 
   /// Hint under the SOS panic button.
   @override
@@ -2834,8 +2833,7 @@ class AppStringsAr extends AppStrings {
 
   /// Share-sheet body on the invite screen; {code} is the referral code.
   @override
-  String inviteShareMessage(String code) => 'حمّل تطبيق GoDrive واستخدم كود الدعوة $code لتحصل على رصيد مجاني:
-https://go.synapticstudio.tech';
+  String inviteShareMessage(String code) => 'حمّل تطبيق GoDrive واستخدم كود الدعوة $code لتحصل على رصيد مجاني:\nhttps://go.synapticstudio.tech';
 
   // ── Rider — Splash ──────────────────────────────────────────────
 
@@ -3612,8 +3610,7 @@ class AppStringsEn extends AppStrings {
 
   /// Prefix of the share sheet message; the URL is appended.
   @override
-  String get shareTripMessage => 'Track my trip on GoDrive via this link:
-';
+  String get shareTripMessage => 'Track my trip on GoDrive via this link:\n';
 
   /// Hint under the SOS panic button.
   @override
@@ -4342,8 +4339,7 @@ class AppStringsEn extends AppStrings {
 
   /// Share-sheet body on the invite screen; {code} is the referral code.
   @override
-  String inviteShareMessage(String code) => 'Download the GoDrive app and use my invite code $code for free credit:
-https://go.synapticstudio.tech';
+  String inviteShareMessage(String code) => 'Download the GoDrive app and use my invite code $code for free credit:\nhttps://go.synapticstudio.tech';
 
   // ── Rider — Splash ──────────────────────────────────────────────
 
