@@ -62,10 +62,17 @@ class _TripChatScreenState extends State<TripChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    final panel = go.panel;
+    final text = go.text;
+    final muted = go.muted;
+
     return Scaffold(
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text('المحادثة', style: GoogleFonts.ibmPlexSansArabic()),
-        backgroundColor: AppTokens.lightPanel,
+        backgroundColor: panel,
+        surfaceTintColor: Colors.transparent,
       ),
       body: Column(
         children: [
@@ -84,12 +91,15 @@ class _TripChatScreenState extends State<TripChatScreen> {
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isMine ? AppTokens.primary : AppTokens.lightSurface,
+                            color: isMine ? go.action : go.surface,
                             borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                            border: isMine ? null : Border.all(color: go.border),
                           ),
                           child: Text(
                             msg['body']?.toString() ?? '',
-                            style: GoogleFonts.ibmPlexSansArabic(color: Colors.white),
+                            style: GoogleFonts.ibmPlexSansArabic(
+                              color: isMine ? go.onAction : text,
+                            ),
                           ),
                         ),
                       );
@@ -98,18 +108,18 @@ class _TripChatScreenState extends State<TripChatScreen> {
           ),
           Container(
             padding: const EdgeInsets.all(16),
-            color: AppTokens.lightPanel,
+            color: panel,
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _msgCtrl,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: text),
                     decoration: InputDecoration(
                       hintText: 'اكتب رسالة...',
-                      hintStyle: const TextStyle(color: AppTokens.lightMuted),
+                      hintStyle: TextStyle(color: muted),
                       filled: true,
-                      fillColor: AppTokens.lightSurface,
+                      fillColor: go.surface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                         borderSide: BorderSide.none,

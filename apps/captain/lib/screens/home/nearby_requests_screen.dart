@@ -40,6 +40,12 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
   bool _togglingOnline = false;
   String? _errorMessage;
 
+  /// Search radius in km. inDrive lets the captain tune how far out they want
+  /// to hunt; the previous version hardcoded 15, which is too wide in dense
+  /// Cairo traffic and too narrow on the outskirts.
+  double _radiusKm = 15;
+  static const List<double> _radiusOptions = [5, 10, 15, 25, 40];
+
   /// Dismissed locally, so a refresh does not resurrect a card the captain
   /// just skipped.
   final Set<String> _skipped = {};
@@ -74,7 +80,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
     });
 
     try {
-      final res = await state.apiGet('/captain/nearby-requests?radius=15');
+      final res = await state.apiGet('/captain/nearby-requests?radius=${_radiusKm.round()}');
       if (!mounted) return;
 
       final list = (res['requests'] as List? ?? [])
@@ -142,6 +148,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
         'dropoff_lat': r.dropoffLat,
         'dropoff_lng': r.dropoffLng,
         'rider_name': r.riderName,
+        'rider_photo': r.riderAvatar,
       };
 
   @override
@@ -237,12 +244,13 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
           ? ListView(
               padding: const EdgeInsets.all(AppTokens.spaceMd),
               children: [
-                SizedBox(height: MediaQuery.of(context).size.height * 0.10),
+                _buildRadiusSelector(),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.06),
                 const EmptyState(
                   icon: Icons.radar_rounded,
                   title: 'لا توجد رحلات متاحة الآن',
                   subtitle:
-                      'أنت متصل وجاهز — ستظهر الطلبات القريبة هنا فور وصولها. ابقَ في منطقة مزدحمة لزيادة فرصك.',
+                      'أنت متصل وجاهز — ستظهر الطلبات القريبة هنا فور وصولها. جرّب توسيع نطاق البحث أو البقاء في منطقة مزدحمة.',
                 ),
               ],
             )
@@ -253,9 +261,10 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                 AppTokens.spaceMd,
                 AppTokens.spaceLg,
               ),
-              itemCount: _requests.length,
+              itemCount: _requests.length + 1,
               itemBuilder: (_, i) {
-                final req = _requests[i];
+                if (i == 0) return _buildRadiusSelector();
+                final req = _requests[i - 1];
                 return OfferCard(
                   key: ValueKey(req.id),
                   offer: _asOffer(req),
@@ -270,6 +279,68 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                     );
               },
             ),
+    );
+  }
+
+  /// inDrive-style radius chips: the captain tunes how far out they want to
+  /// hunt for work, and the list refetches immediately. Kept above the cards
+  /// so it is reachable without scrolling to a settings page.
+  Widget _buildRadiusSelector() {
+    final go = GoTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTokens.spaceMd),
+      child: Row(
+        children: [
+          Icon(Icons.radar_rounded, size: 18, color: go.muted),
+          const SizedBox(width: AppTokens.spaceSm),
+          Text(
+            'نطاق البحث',
+            style: AppTokens.font(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: go.muted,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          Expanded(
+            child: SizedBox(
+              height: 34,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _radiusOptions.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppTokens.spaceXs),
+                itemBuilder: (_, i) {
+                  final km = _radiusOptions[i];
+                  final selected = km == _radiusKm;
+                  return ChoiceChip(
+                    label: Text('${km.round()} كم'),
+                    selected: selected,
+                    onSelected: (_) {
+                      setState(() => _radiusKm = km);
+                      _fetchRequests();
+                    },
+                    labelStyle: AppTokens.font(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : go.text,
+                    ),
+                    selectedColor: AppTokens.primary,
+                    backgroundColor: go.surface,
+                    side: BorderSide(
+                      color: selected ? AppTokens.primary : go.border,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -40,11 +40,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    final panel = go.panel;
+    final text = go.text;
+    final muted = go.muted;
+
     return Scaffold(
-      backgroundColor: AppTokens.lightBg,
+      backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('سجل الرحلات', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
-        backgroundColor: AppTokens.lightSurface,
+        title: Text('سجل الرحلات', style: GoogleFonts.ibmPlexSansArabic(color: text)),
+        backgroundColor: panel,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
       body: _loading
@@ -53,7 +59,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ? Center(
                   child: Text(
                     'لا توجد رحلات سابقة',
-                    style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted, fontSize: 16),
+                    style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 16),
                   ),
                 )
               : ListView.builder(
@@ -66,9 +72,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     final formattedDate = date != null ? DateFormat('yyyy-MM-dd HH:mm').format(date) : '';
                     
                     return Card(
-                      color: AppTokens.lightPanel,
+                      color: panel,
+                      surfaceTintColor: Colors.transparent,
                       margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                        side: BorderSide(color: go.border),
+                      ),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                         onTap: () {
@@ -85,7 +95,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(formattedDate, style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted)),
+                                  Text(formattedDate, style: GoogleFonts.ibmPlexSansArabic(color: muted)),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
@@ -108,7 +118,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   Column(
                                     children: [
                                       const Icon(Icons.circle, size: 12, color: AppTokens.primary),
-                                      Container(width: 2, height: 20, color: AppTokens.lightBorder),
+                                      Container(width: 2, height: 20, color: go.border),
                                       const Icon(Icons.place, size: 12, color: AppTokens.accent),
                                     ],
                                   ),
@@ -117,15 +127,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(trip['pickup_address'] ?? trip['pickupAddress'] ?? 'موقع غير معروف', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
+                                        Text(trip['pickup_address'] ?? trip['pickupAddress'] ?? 'موقع غير معروف', style: GoogleFonts.ibmPlexSansArabic(color: text)),
                                         const SizedBox(height: 12),
-                                        Text(trip['dropoff_address'] ?? trip['dropoffAddress'] ?? 'وجهة غير معروفة', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
+                                        Text(trip['dropoff_address'] ?? trip['dropoffAddress'] ?? 'وجهة غير معروفة', style: GoogleFonts.ibmPlexSansArabic(color: text)),
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
-                              const Divider(color: AppTokens.lightBorder, height: 32),
+                              Divider(color: go.border, height: 32),
                               Text(
                                 '${trip['final_fare'] ?? trip['estimated_fare'] ?? trip['finalFare'] ?? trip['estimatedFare'] ?? 0} ج.م',
                                 style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.bold, color: AppTokens.primary),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,10 +14,16 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 /// on it in a couple of seconds, often at a traffic light. The redesign makes
 /// the decision inputs unmissable in priority order —
 ///
-///   1. **the fare**, as an oversized numeral, because that is the decision;
-///   2. **how far away the pickup is**, because that is the cost of taking it;
-///   3. the route itself;
-///   4. the actions.
+///   1. **the rider**, with their photo and name, because this is who the
+///      captain is agreeing to pick up;
+///   2. **the fare**, as an oversized numeral, because that is the decision;
+///   3. **how far away the pickup is**, because that is the cost of taking it;
+///   4. the route itself;
+///   5. the actions.
+///
+/// The card is a frosted-glass sheet (BackDropFilter) so the map stays
+/// visible beneath it, and it is deliberately more compact than the previous
+/// solid panel — the captain sees the road and the offer at the same time.
 ///
 /// It also fixes two real defects in the previous version:
 ///
@@ -262,6 +269,16 @@ class _OfferCardState extends State<OfferCard>
     return km == null ? null : math.max(1, (km * 3).round());
   }
 
+  String? get _riderName {
+    final raw = widget.offer['rider_name']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  String? get _riderPhoto {
+    final raw = widget.offer['rider_photo']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
@@ -275,34 +292,53 @@ class _OfferCardState extends State<OfferCard>
 
         return Opacity(
           opacity: _expired ? 0.5 : 1,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: AppTokens.spaceSm),
-            decoration: BoxDecoration(
-              color: go.panel,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppTokens.spaceSm),
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-              border: Border.all(
-                color: urgent ? AppTokens.danger.withOpacity(0.5) : go.border,
-                width: urgent ? 1.5 : 1,
-              ),
-              boxShadow: AppTokens.shadowOffer,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(go, accent, urgent),
-                _buildMetaStrip(go),
-                Padding(
-                  padding: const EdgeInsets.all(AppTokens.spaceMd),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: go.isDark
+                        ? go.panel.withOpacity(0.72)
+                        : go.panel.withOpacity(0.82),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    border: Border.all(
+                      color: urgent
+                          ? AppTokens.danger.withOpacity(0.55)
+                          : go.isDark
+                              ? Colors.white.withOpacity(0.14)
+                              : Colors.white.withOpacity(0.65),
+                      width: urgent ? 1.5 : 1,
+                    ),
+                    boxShadow: AppTokens.shadowOffer,
+                  ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildRoute(go),
-                      const SizedBox(height: AppTokens.spaceMd),
-                      _buildActions(go),
+                      _buildHeader(go, accent, urgent),
+                      _buildMetaStrip(go),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppTokens.spaceMd,
+                          0,
+                          AppTokens.spaceMd,
+                          AppTokens.spaceSm,
+                        ),
+                        child: Column(
+                          children: [
+                            _buildRoute(go),
+                            const SizedBox(height: AppTokens.spaceSm),
+                            _buildActions(go),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         );
@@ -310,30 +346,41 @@ class _OfferCardState extends State<OfferCard>
     );
   }
 
-  /// Fare and countdown, side by side. The fare gets the whole remaining
-  /// width and can shrink to fit rather than overflow.
+  /// Rider identity + fare, side by side. The rider's photo and name come
+  /// first because the captain is deciding to pick up a person, not a number;
+  /// the fare follows at a slightly smaller scale than before so the whole
+  /// header stays compact.
   Widget _buildHeader(GoTheme go, Color accent, bool urgent) {
     final strings = AppStrings.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
-        AppTokens.spaceMd,
-        AppTokens.spaceMd,
         AppTokens.spaceSm,
+        AppTokens.spaceMd,
+        AppTokens.spaceXs,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: AlignmentDirectional.topStart,
           end: AlignmentDirectional.bottomEnd,
           colors: [
-            AppTokens.primary.withOpacity(0.10),
-            AppTokens.primary.withOpacity(0.02),
+            AppTokens.primary.withOpacity(go.isDark ? 0.16 : 0.10),
+            AppTokens.primary.withOpacity(0.03),
           ],
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Rider avatar + name. The photo comes from the offer payload when
+          // the backend includes one; otherwise a branded initial keeps the
+          // slot from collapsing.
+          _RiderAvatar(
+            name: _riderName,
+            photoUrl: _riderPhoto,
+            accent: accent,
+          ),
+          const SizedBox(width: AppTokens.spaceSm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,12 +393,12 @@ class _OfferCardState extends State<OfferCard>
                           ? strings.riderOfferedPrice
                           : strings.estimatedPrice),
                   style: AppTokens.font(
-                    fontSize: 12.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                     color: _expired ? AppTokens.danger : go.muted,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: AlignmentDirectional.centerStart,
@@ -362,22 +409,36 @@ class _OfferCardState extends State<OfferCard>
                       Text(
                         _fare.toStringAsFixed(0),
                         style: AppTokens.money(
-                          fontSize: 38,
-                          color: AppTokens.primary,
+                          fontSize: 30,
+                          color: go.isDark ? go.action : AppTokens.primary,
                         ),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         strings.egp,
                         style: AppTokens.font(
-                          fontSize: 15,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppTokens.primary,
+                          color: go.isDark ? go.action : AppTokens.primary,
                         ),
                       ),
                     ],
                   ),
                 ),
+                if (_riderName != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Text(
+                      _riderName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTokens.font(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: go.text,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -457,7 +518,7 @@ class _OfferCardState extends State<OfferCard>
             alignment: AlignmentDirectional.centerStart,
             child: Container(
               width: 2,
-              height: 16,
+              height: 12,
               color: go.border,
             ),
           ),
@@ -484,14 +545,14 @@ class _OfferCardState extends State<OfferCard>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 5),
+          padding: const EdgeInsets.only(top: 4),
           child: Container(
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: dotColor.withOpacity(0.2),
-              border: Border.all(color: dotColor, width: 2.5),
+              border: Border.all(color: dotColor, width: 2),
             ),
           ),
         ),
@@ -503,17 +564,17 @@ class _OfferCardState extends State<OfferCard>
             children: [
               Text(
                 label,
-                style: AppTokens.font(fontSize: 11, color: muted),
+                style: AppTokens.font(fontSize: 10.5, color: muted),
               ),
               Text(
                 value,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTokens.font(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: text,
-                  height: 1.35,
+                  height: 1.3,
                 ),
               ),
             ],
@@ -540,25 +601,26 @@ class _OfferCardState extends State<OfferCard>
     return Column(
       children: [
         SizedBox(
-          height: AppTokens.primaryActionHeight,
+          height: 46,
           width: double.infinity,
           child: ElevatedButton(
             onPressed: disabled ? null : _accept,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTokens.primary,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: AppTokens.primary.withOpacity(0.4),
+              backgroundColor: go.isDark ? go.action : AppTokens.primary,
+              foregroundColor: go.isDark ? go.onAction : Colors.white,
+              disabledBackgroundColor:
+                  (go.isDark ? go.action : AppTokens.primary).withOpacity(0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTokens.radiusMd),
               ),
             ),
             child: _accepting
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.2,
-                      color: Colors.white,
+                      color: go.isDark ? go.onAction : Colors.white,
                     ),
                   )
                 : FittedBox(
@@ -566,14 +628,14 @@ class _OfferCardState extends State<OfferCard>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 21),
+                        const Icon(Icons.check_circle_rounded, size: 19),
                         const SizedBox(width: AppTokens.spaceXs),
                         Text(
                           strings.acceptWithFare(_fare.toStringAsFixed(0)),
                           style: AppTokens.font(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: go.isDark ? go.onAction : Colors.white,
                           ),
                         ),
                       ],
@@ -587,28 +649,29 @@ class _OfferCardState extends State<OfferCard>
             Expanded(
               flex: 5,
               child: SizedBox(
-                height: AppTokens.tapTarget,
+                height: 42,
                 child: OutlinedButton(
                   onPressed: disabled ? null : _counterOffer,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTokens.primary,
+                    foregroundColor: go.isDark ? go.action : AppTokens.primary,
                     side: BorderSide(
                       color: disabled
                           ? go.border
-                          : AppTokens.primary.withOpacity(0.55),
-                      width: 1.4,
+                          : (go.isDark ? go.action : AppTokens.primary)
+                              .withOpacity(0.55),
+                      width: 1.3,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                     ),
                   ),
                   child: _bidding
-                      ? const SizedBox(
-                          width: 19,
-                          height: 19,
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: AppTokens.primary,
+                            color: go.isDark ? go.action : AppTokens.primary,
                           ),
                         )
                       : FittedBox(
@@ -616,14 +679,14 @@ class _OfferCardState extends State<OfferCard>
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.price_change_rounded, size: 19),
+                              const Icon(Icons.price_change_rounded, size: 18),
                               const SizedBox(width: 6),
                               Text(
                                 strings.counterOffer,
                                 style: AppTokens.font(
-                                  fontSize: 14.5,
+                                  fontSize: 13.5,
                                   fontWeight: FontWeight.w800,
-                                  color: AppTokens.primary,
+                                  color: go.isDark ? go.action : AppTokens.primary,
                                 ),
                               ),
                             ],
@@ -636,7 +699,7 @@ class _OfferCardState extends State<OfferCard>
             Expanded(
               flex: 3,
               child: SizedBox(
-                height: AppTokens.tapTarget,
+                height: 42,
                 child: TextButton(
                   onPressed: disabled ? null : _decline,
                   style: TextButton.styleFrom(
@@ -651,12 +714,12 @@ class _OfferCardState extends State<OfferCard>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.close_rounded, size: 18, color: go.muted),
+                        Icon(Icons.close_rounded, size: 17, color: go.muted),
                         const SizedBox(width: 5),
                         Text(
                           strings.skipLabel,
                           style: AppTokens.font(
-                            fontSize: 14.5,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w700,
                             color: go.muted,
                           ),
@@ -686,10 +749,10 @@ class _OfferCardState extends State<OfferCard>
         Container(
           padding: const EdgeInsets.symmetric(
             horizontal: AppTokens.spaceSm,
-            vertical: AppTokens.spaceSm,
+            vertical: AppTokens.spaceXs,
           ),
           decoration: BoxDecoration(
-            color: AppTokens.success.withOpacity(0.10),
+            color: AppTokens.success.withOpacity(0.12),
             borderRadius: BorderRadius.circular(AppTokens.radiusMd),
             border: Border.all(color: AppTokens.success.withOpacity(0.35)),
           ),
@@ -697,7 +760,7 @@ class _OfferCardState extends State<OfferCard>
             children: [
               const Icon(
                 Icons.hourglass_top_rounded,
-                size: 19,
+                size: 18,
                 color: AppTokens.success,
               ),
               const SizedBox(width: AppTokens.spaceXs),
@@ -705,10 +768,10 @@ class _OfferCardState extends State<OfferCard>
                 child: Text(
                   strings.bidSentBanner(amount.toStringAsFixed(0)),
                   style: AppTokens.font(
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                     color: AppTokens.success,
-                    height: 1.35,
+                    height: 1.3,
                   ),
                 ),
               ),
@@ -721,26 +784,27 @@ class _OfferCardState extends State<OfferCard>
             Expanded(
               flex: 5,
               child: SizedBox(
-                height: AppTokens.tapTarget,
+                height: 42,
                 child: OutlinedButton(
                   onPressed: _busy || _expired ? null : _accept,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTokens.primary,
+                    foregroundColor: go.isDark ? go.action : AppTokens.primary,
                     side: BorderSide(
-                      color: AppTokens.primary.withOpacity(0.55),
-                      width: 1.4,
+                      color: (go.isDark ? go.action : AppTokens.primary)
+                          .withOpacity(0.55),
+                      width: 1.3,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                     ),
                   ),
                   child: _accepting
-                      ? const SizedBox(
-                          width: 19,
-                          height: 19,
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: AppTokens.primary,
+                            color: go.isDark ? go.action : AppTokens.primary,
                           ),
                         )
                       : FittedBox(
@@ -748,9 +812,9 @@ class _OfferCardState extends State<OfferCard>
                           child: Text(
                             strings.acceptInsteadWithFare(_fare.toStringAsFixed(0)),
                             style: AppTokens.font(
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: AppTokens.primary,
+                              color: go.isDark ? go.action : AppTokens.primary,
                             ),
                           ),
                         ),
@@ -761,7 +825,7 @@ class _OfferCardState extends State<OfferCard>
             Expanded(
               flex: 3,
               child: SizedBox(
-                height: AppTokens.tapTarget,
+                height: 42,
                 child: TextButton(
                   onPressed: _busy ? null : _decline,
                   style: TextButton.styleFrom(
@@ -774,7 +838,7 @@ class _OfferCardState extends State<OfferCard>
                   child: Text(
                     strings.skipLabel,
                     style: AppTokens.font(
-                      fontSize: 14.5,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                       color: go.muted,
                     ),
@@ -785,6 +849,69 @@ class _OfferCardState extends State<OfferCard>
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Circular rider avatar. Uses the rider's photo when the offer payload
+/// carries a `rider_photo` URL; otherwise falls back to the first letter of
+/// the name (or a generic person icon when there is no name either) so the
+/// identity slot never renders empty.
+class _RiderAvatar extends StatelessWidget {
+  const _RiderAvatar({required this.name, required this.photoUrl, required this.accent});
+
+  final String? name;
+  final String? photoUrl;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = (name != null && name!.isNotEmpty)
+        ? name!.characters.first.toUpperCase()
+        : null;
+
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: accent.withOpacity(0.4), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withOpacity(0.18),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: photoUrl != null
+            ? Image.network(
+                photoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _fallback(initial),
+                loadingBuilder: (ctx, child, progress) =>
+                    progress == null ? child : _fallback(initial),
+              )
+            : _fallback(initial),
+      ),
+    );
+  }
+
+  Widget _fallback(String? initial) {
+    return Container(
+      color: accent.withOpacity(0.14),
+      alignment: Alignment.center,
+      child: initial != null
+          ? Text(
+              initial,
+              style: AppTokens.font(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: accent,
+              ),
+            )
+          : Icon(Icons.person_rounded, color: accent, size: 24),
     );
   }
 }
@@ -805,7 +932,7 @@ class _MetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: tone.withOpacity(0.08),
         borderRadius: BorderRadius.circular(AppTokens.radiusSm),
@@ -814,12 +941,12 @@ class _MetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: tone),
+          Icon(icon, size: 13, color: tone),
           const SizedBox(width: 5),
           Text(
             label,
             style: AppTokens.font(
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
               color: tone,
             ),
@@ -848,15 +975,15 @@ class _CountdownRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 54,
-      height: 54,
+      width: 48,
+      height: 48,
       child: Stack(
         alignment: Alignment.center,
         children: [
           SizedBox.expand(
             child: CircularProgressIndicator(
               value: progress.clamp(0.0, 1.0),
-              strokeWidth: 4,
+              strokeWidth: 3.5,
               backgroundColor: color.withOpacity(0.15),
               valueColor: AlwaysStoppedAnimation<Color>(color),
               strokeCap: StrokeCap.round,
@@ -865,7 +992,7 @@ class _CountdownRing extends StatelessWidget {
           Text(
             '$seconds',
             style: AppTokens.money(
-              fontSize: urgent ? 21 : 19,
+              fontSize: urgent ? 19 : 17,
               color: color,
               fontWeight: FontWeight.w800,
             ),

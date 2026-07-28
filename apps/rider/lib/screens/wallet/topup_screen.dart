@@ -99,9 +99,14 @@ class _TopupScreenState extends State<TopupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    final panel = go.panel;
+    final text = go.text;
+    final muted = go.muted;
+
     if (_webCtrl != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('الدفع'), backgroundColor: AppTokens.lightPanel),
+        appBar: AppBar(title: const Text('الدفع'), backgroundColor: panel, surfaceTintColor: Colors.transparent),
         body: WebViewWidget(controller: _webCtrl!),
       );
     }
@@ -110,9 +115,11 @@ class _TopupScreenState extends State<TopupScreen> {
     // dedicated confirming state instead of the amount form.
     if (_loading && _amountCtrl.text.isNotEmpty) {
       return Scaffold(
+        backgroundColor: go.bg,
         appBar: AppBar(
           title: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
-          backgroundColor: AppTokens.lightPanel,
+          backgroundColor: panel,
+          surfaceTintColor: Colors.transparent,
         ),
         body: Center(
           child: Column(
@@ -122,7 +129,7 @@ class _TopupScreenState extends State<TopupScreen> {
               const SizedBox(height: 24),
               Text(
                 'جارٍ تأكيد الشحن…',
-                style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText, fontSize: 18),
+                style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 18),
               ),
             ],
           ),
@@ -131,9 +138,11 @@ class _TopupScreenState extends State<TopupScreen> {
     }
 
     return Scaffold(
+      backgroundColor: go.bg,
       appBar: AppBar(
         title: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
-        backgroundColor: AppTokens.lightPanel,
+        backgroundColor: panel,
+        surfaceTintColor: Colors.transparent,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -141,20 +150,20 @@ class _TopupScreenState extends State<TopupScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('أدخل المبلغ المراد شحنه', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText, fontSize: 18), textAlign: TextAlign.center),
+            Text('أدخل المبلغ المراد شحنه', style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 18), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             TextField(
               controller: _amountCtrl,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(color: text, fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
               decoration: InputDecoration(
                 hintText: '0.0',
-                hintStyle: const TextStyle(color: AppTokens.lightMuted),
+                hintStyle: TextStyle(color: muted),
                 suffixText: 'ج.م',
-                suffixStyle: const TextStyle(color: AppTokens.lightMuted),
+                suffixStyle: TextStyle(color: muted),
                 filled: true,
-                fillColor: AppTokens.lightSurface,
+                fillColor: go.surface,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
               ),
             ),
@@ -162,13 +171,14 @@ class _TopupScreenState extends State<TopupScreen> {
             ElevatedButton(
               onPressed: _loading ? null : _processTopup,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTokens.primary,
+                backgroundColor: go.action,
+                foregroundColor: go.onAction,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
               ),
               child: _loading
-                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white))
-                  : Text('متابعة الدفع', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                  ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: go.onAction))
+                  : Text('متابعة الدفع', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, color: go.onAction, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

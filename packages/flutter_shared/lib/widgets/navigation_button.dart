@@ -2,19 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 
-/// A button that opens the trip destination in Google Maps (or Waze) via
-/// deep-link. Renders a prominent pill button with a navigation icon.
+/// A button that starts turn-by-turn navigation to the trip destination.
+///
+/// When [onPressed] is provided the host app handles it (e.g. the captain
+/// app's in-app navigation mode, which keeps the captain inside the product
+/// with the route drawn on the live map). When it is null the button falls
+/// back to opening Google Maps (or Waze) via deep-link, preserving the
+/// original external behaviour for any surface that has no in-app navigator.
 class NavigationButton extends StatelessWidget {
   const NavigationButton({
     super.key,
     required this.lat,
     required this.lng,
     this.label = 'تنقّل',
+    this.onPressed,
   });
 
   final double lat;
   final double lng;
   final String label;
+
+  /// Host override. When set, tapping the button calls this instead of
+  /// deep-linking out to an external maps app.
+  final VoidCallback? onPressed;
 
   Future<void> _openMaps() async {
     // Try Google Maps navigation intent first
@@ -40,7 +50,7 @@ class NavigationButton extends StatelessWidget {
       width: double.infinity,
       height: 48,
       child: ElevatedButton.icon(
-        onPressed: _openMaps,
+        onPressed: onPressed ?? _openMaps,
         icon: const Icon(Icons.navigation, size: 20),
         label: Text(label),
         style: ElevatedButton.styleFrom(
