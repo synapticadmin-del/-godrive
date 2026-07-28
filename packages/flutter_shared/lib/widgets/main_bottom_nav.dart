@@ -3,7 +3,7 @@ import '../theme/app_theme.dart';
 
 /// Promotes the centre nav button from a shortcut to a real destination.
 ///
-/// The Captain app uses this to surface "رحلات متاحة" (Available Trips); the
+/// The Captain app uses this to surface the map in the centre slot; the
 /// Rider app leaves it null and keeps the recentre shortcut.
 @immutable
 class NavCenterDestination {
@@ -27,6 +27,30 @@ class NavCenterDestination {
   final int badgeCount;
 }
 
+/// Lets an app override the bar's first destination — icon, label and an
+/// optional live badge — without touching the other three fixed slots.
+///
+/// The Captain app uses this to put "رحلات متاحة" (the browsable queue of
+/// nearby requests, with its waiting-count badge) in the first slot, while
+/// the elevated centre destination carries the map. Null keeps the original
+/// "الخريطة" first tab untouched, which is exactly what the Rider app needs.
+@immutable
+class NavFirstDestination {
+  const NavFirstDestination({
+    required this.index,
+    required this.label,
+    required this.icon,
+    this.activeIcon,
+    this.badgeCount = 0,
+  });
+
+  final int index;
+  final String label;
+  final IconData icon;
+  final IconData? activeIcon;
+  final int badgeCount;
+}
+
 /// The app's primary navigation.
 ///
 /// Four destinations with an elevated brand button between them. By default
@@ -36,13 +60,13 @@ class NavCenterDestination {
 /// this button; that now lives on an explicit control in the map sheet, where
 /// a new captain can actually find it.)
 ///
-/// The Captain app promotes that centre slot to a real destination by passing
-/// [centerDestination]. This is opt-in on purpose: the widget is shared with
-/// the Rider app, whose centre button is still a recentre shortcut, and
-/// silently converting it into a fifth tab would have broken rider
-/// navigation. With [centerDestination] set the button gains a label and a
-/// selected state and reports taps through [onTap] like any other
-/// destination; left null, the original behaviour is preserved exactly.
+/// Two opt-ins let each app re-shape the bar without breaking the other:
+///  * [centerDestination] turns the centre slot into a real destination with
+///    a label and a selected state (the Captain app puts its map there).
+///  * [firstDestination] replaces the first slot's icon/label and adds an
+///    optional badge (the Captain app puts "رحلات متاحة" there).
+/// Left null, the original bar is preserved exactly — which is what the
+/// Rider app relies on.
 class MainBottomNav extends StatelessWidget {
   const MainBottomNav({
     super.key,
@@ -50,6 +74,7 @@ class MainBottomNav extends StatelessWidget {
     required this.onTap,
     this.onCenterTap,
     this.centerDestination,
+    this.firstDestination,
   });
 
   final int currentIndex;
@@ -62,6 +87,9 @@ class MainBottomNav extends StatelessWidget {
   /// Opt in to a real centre destination. Null keeps the shortcut behaviour.
   final NavCenterDestination? centerDestination;
 
+  /// Opt in to overriding the first destination. Null keeps "الخريطة".
+  final NavFirstDestination? firstDestination;
+
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
@@ -69,6 +97,7 @@ class MainBottomNav extends StatelessWidget {
     final bg = isDark ? AppTokens.darkPanel : Colors.white;
     final borderColor = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
     final center = centerDestination;
+    final first = firstDestination;
 
     return Container(
       decoration: BoxDecoration(
@@ -83,13 +112,22 @@ class MainBottomNav extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: _NavItem(
-                  icon: Icons.map_outlined,
-                  activeIcon: Icons.map_rounded,
-                  label: isAr ? 'الخريطة' : 'Map',
-                  active: currentIndex == 0,
-                  onTap: () => onTap(0),
-                ),
+                child: first == null
+                    ? _NavItem(
+                        icon: Icons.map_outlined,
+                        activeIcon: Icons.map_rounded,
+                        label: isAr ? 'الخريطة' : 'Map',
+                        active: currentIndex == 0,
+                        onTap: () => onTap(0),
+                      )
+                    : _NavItem(
+                        icon: first.icon,
+                        activeIcon: first.activeIcon ?? first.icon,
+                        label: first.label,
+                        badgeCount: first.badgeCount,
+                        active: currentIndex == first.index,
+                        onTap: () => onTap(first.index),
+                      ),
               ),
               Expanded(
                 child: _NavItem(
@@ -309,6 +347,7 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
@@ -317,16 +356,20 @@ class _NavItem extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
+  /// Optional live badge on the icon (e.g. waiting requests). Zero hides it.
+  final int badgeCount;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inactive = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
     final color = active ? AppTokens.primary : inactive;
+    final badgeColor = isDark ? AppTokens.darkPanel : Colors.white;
 
     return Semantics(
       button: true,
       selected: active,
-      label: label,
+      label: badgeCount > 0 ? '$label — $badgeCount' : label,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -345,7 +388,41 @@ class _NavItem extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppTokens.radiusPill),
               ),
             ),
-            Icon(active ? activeIcon : icon, color: color, size: 23),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(active ? activeIcon : icon, color: color, size: 23),
+                if (badgeCount > 0)
+                  PositionedDirectional(
+                    top: -4,
+                    end: -7,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 16),
+                      decoration: BoxDecoration(
+                        color: AppTokens.danger,
+                        borderRadius: BorderRadius.circular(
+                          AppTokens.radiusPill,
+                        ),
+                        border: Border.all(color: badgeColor, width: 1.2),
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        textAlign: TextAlign.center,
+                        style: AppTokens.font(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 3),
             Text(
               label,

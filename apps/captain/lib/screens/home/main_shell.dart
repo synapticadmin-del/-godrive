@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,20 +19,21 @@ import 'trips_tab.dart';
 
 /// The captain's main shell: a full-bleed map with floating chrome.
 ///
-/// Reworked in four substantive ways:
+/// The map is live: it subscribes to the position stream and follows the
+/// captain, including heading, instead of freezing on the first fix of the
+/// shift.
 ///
-///  * **The map is now live.** It previously took a single GPS fix in
-///    `initState` and never looked again, so the captain's own marker sat
-///    frozen at their starting point for the entire shift. It now subscribes
-///    to the position stream and follows, including heading.
-///  * **The route is drawn.** Pickup and dropoff were lone pins with nothing
-///    between them; there is now a polyline from the captain through pickup
-///    to dropoff, and the camera can frame the whole trip.
-///  * **Tiles follow the theme.** The light basemap was hardcoded, which is
-///    blinding at night. Dark mode now gets a dark basemap.
-///  * **Controls moved into reach.** SOS sat top-left — the far corner from a
-///    right-handed captain's thumb on a mounted phone. Controls are now
-///    stacked bottom-end, above the sheet, where the thumb already rests.
+/// The route is drawn from the trip's stored OSRM geometry
+/// (`route_geometry`), i.e. the actual streets the captain will drive — not
+/// a straight line drawn point-to-point between captain, pickup and dropoff
+/// the way it used to be. If geometry is missing (an old trip row, or the
+/// routing fallback), it degrades to that straight line rather than to no
+/// line at all.
+///
+/// The bottom bar puts the map where a captain's attention already is: the
+/// elevated centre slot is now "الخريطة" (the map itself), and "رحلات
+/// متاحة" (the browsable queue of nearby requests) moved into the first
+/// slot, next to the map, one tap away.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -42,12 +44,13 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
 
-  /// The "رحلات متاحة" (Available Trips) destination. Appended after the four
-  /// original tabs so their indices stay stable, even though it renders in the
-  /// centre slot of the bottom bar.
-  static const int _availableTripsIndex = 4;
+  /// Tab order: 0 = رحلات متاحة (browse queue), 1 = رحلاتي, 2 = محفظة,
+  /// 3 = حسابي, 4 = الخريطة (the live map — rendered in the bar's centre
+  /// slot, which is where a ride-hailing map belongs).
+  static const int _mapIndex = 4;
 
-  int _tabIndex = 0;
+  /// The captain lands on the map: it is their workplace, not a menu entry.
+  int _tabIndex = _mapIndex;
   LatLng? _currentLocation;
   double? _heading;
   bool _locating = true;
@@ -57,6 +60,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   /// it, so the map does not fight the captain's own gestures.
   bool _followMe = true;
   bool _mapReady = false;
+
+  /// Parsed drive-route points for the active trip (from route_geometry).
+  /// Empty when the trip carries no geometry — in that case the map falls
+  /// back to the direct captain → pickup → dropoff polyline.
+  List<LatLng> _routePoints = const [];
+  String? _routeTripId;
 
   StreamSubscription<Position>? _positionSub;
 
@@ -149,6 +158,47 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   // -------------------------------------------------------------------
+  // Route geometry
+  // -------------------------------------------------------------------
+
+  /// Parses `route_geometry` — stored on the trip as a JSON string of
+  /// `[[lat, lng], ...]` by the API at booking time (OSRM drive route).
+  /// Parsed defensively: a bad payload degrades to "fall back to the direct
+  /// line" rather than breaking a live trip.
+  List<LatLng> _parseRouteGeometry(dynamic raw) {
+    dynamic decoded = raw;
+    if (raw is String) {
+      if (raw.isEmpty) return const [];
+      try {
+        decoded = jsonDecode(raw);
+      } catch (_) {
+        return const [];
+      }
+    }
+    if (decoded is! List) return const [];
+    final points = <LatLng>[];
+    for (final entry in decoded) {
+      if (entry is! List || entry.length < 2) continue;
+      final lat = (entry[0] as num?)?.toDouble();
+      final lng = (entry[1] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+      points.add(LatLng(lat, lng));
+    }
+    return points;
+  }
+
+  /// Recompute the route whenever the active trip (or its geometry) changes.
+  void _syncRoute(CaptainState state) {
+    final trip = state.activeTrip;
+    final tripId = trip?['id'] as String?;
+    if (tripId == _routeTripId) return;
+    _routeTripId = tripId;
+    _routePoints =
+        trip == null ? const [] : _parseRouteGeometry(trip['route_geometry']);
+  }
+
+  // -------------------------------------------------------------------
   // Camera
   // -------------------------------------------------------------------
 
@@ -162,9 +212,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (_mapReady) _mapController.move(target, 15.5);
   }
 
-  /// Frames the captain plus both trip endpoints so the whole job is visible.
+  /// Frames the captain plus the whole trip so the job is visible end to end.
   void _fitActiveTrip(CaptainState state) {
-    final points = _tripPoints(state, includeCaptain: true);
+    final points = _framePoints(state);
     if (points.length < 2 || !_mapReady) return;
     setState(() => _followMe = false);
     _mapController.fitCamera(
@@ -174,6 +224,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         maxZoom: 16,
       ),
     );
+  }
+
+  /// Points used for camera framing: the full drive route when available,
+  /// otherwise captain + endpoints.
+  List<LatLng> _framePoints(CaptainState state) {
+    if (_routePoints.length >= 2) {
+      return [..._routePoints, if (_currentLocation != null) _currentLocation!];
+    }
+    return _tripPoints(state, includeCaptain: true);
   }
 
   List<LatLng> _tripPoints(CaptainState state, {bool includeCaptain = false}) {
@@ -265,7 +324,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (!isApproved) return const DocumentUploadScreen();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final onMapTab = _tabIndex == 0;
+    final onMapTab = _tabIndex == _mapIndex;
+
+    _syncRoute(state);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -284,21 +345,22 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               child: IndexedStack(
                 index: _tabIndex,
                 children: [
+                  // 0 — "رحلات متاحة": the browsable queue of nearby requests,
+                  // one slot left of the map so the captain can flip between
+                  // watching the road and hunting for work.
+                  const NearbyRequestsScreen(),
+                  const TripsTab(),
+                  const EarningsScreen(),
+                  const SettingsScreen(),
+                  // 4 — the map itself. Appended after the four original
+                  // destinations so their indices stay stable; it is surfaced
+                  // in the bottom bar's centre slot via [centerDestination].
                   HomeTab(
                     mapController: _mapController,
                     online: state.online,
                     busy: _togglingOnline,
                     onToggleOnline: _toggleOnline,
                   ),
-                  const TripsTab(),
-                  const EarningsScreen(),
-                  const SettingsScreen(),
-                  // Index 4 — the "رحلات متاحة" tab, wired to the standing
-                  // queue of nearby ride requests. Appended after the four
-                  // original destinations so their indices stay stable; it is
-                  // surfaced in the bottom bar's centre slot via
-                  // [centerDestination] below.
-                  const NearbyRequestsScreen(),
                 ],
               ),
             ),
@@ -309,19 +371,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         bottomNavigationBar: MainBottomNav(
           currentIndex: _tabIndex,
           onTap: (index) => setState(() => _tabIndex = index),
-          // The centre slot is promoted from a recentre shortcut to a real
-          // destination — "رحلات متاحة", the browsable queue of nearby
-          // requests. The recentre shortcut it replaces is not lost: it
-          // remains a dedicated floating control on the map (see
-          // _buildMapControls), where a captain's thumb already goes for it.
-          centerDestination: NavCenterDestination(
-            index: _availableTripsIndex,
+          // "رحلات متاحة" takes over the bar's first slot — with its live
+          // badge — while the elevated centre destination becomes the map
+          // itself (index 4), which is where a ride-hailing map belongs.
+          firstDestination: NavFirstDestination(
+            index: 0,
             label: 'رحلات متاحة',
             icon: Icons.explore_rounded,
+            activeIcon: Icons.explore,
             // Live count of waiting offers, shown only while online — offline
             // the tab presents a go-online CTA rather than a list, so a count
             // would mislead. CaptainState clears `offers` when going offline.
             badgeCount: state.online ? state.offers.length : 0,
+          ),
+          centerDestination: const NavCenterDestination(
+            index: _mapIndex,
+            label: 'الخريطة',
+            icon: Icons.map_rounded,
           ),
         ),
       ),
@@ -329,7 +395,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Widget _buildMap(CaptainState state, bool isDark) {
-    final route = _tripPoints(state, includeCaptain: true);
+    // Prefer the trip's stored drive route (actual streets). Fall back to the
+    // direct captain → pickup → dropoff line only when geometry is absent,
+    // so something is always drawn for an active trip.
+    final fallback = _tripPoints(state, includeCaptain: true);
+    final route = _routePoints.length >= 2 ? _routePoints : fallback;
 
     return FlutterMap(
       mapController: _mapController,
@@ -365,7 +435,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           tileBuilder: isDark ? darkModeTileBuilder : null,
         ),
 
-        // Route: captain → pickup → dropoff. A casing stroke underneath keeps
+        // The drive route along real streets. A casing stroke underneath keeps
         // the line legible over both pale streets and dark parkland.
         if (route.length >= 2)
           PolylineLayer(
@@ -374,11 +444,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 points: route,
                 strokeWidth: 9,
                 color: Colors.white.withOpacity(isDark ? 0.22 : 0.9),
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
               ),
               Polyline(
                 points: route,
                 strokeWidth: 5,
                 color: AppTokens.routeLine,
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
               ),
             ],
           ),
