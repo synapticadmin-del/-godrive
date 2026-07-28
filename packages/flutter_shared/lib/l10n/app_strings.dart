@@ -27,6 +27,7 @@ import 'package:flutter/widgets.dart';
 /// Text(strings.netEarnings);
 /// Text(strings.tripsLast7Days(12));
 /// Text(strings.statusLabel('completed'));
+/// Text(strings.acceptWithFare(85));
 /// ```
 ///
 /// ## Adding copy
@@ -38,9 +39,9 @@ import 'package:flutter/widgets.dart';
 /// concatenation, so translators see the full sentence in one place.
 ///
 /// When a screen is migrated, delete its inline literals and ternaries and
-/// read from here. `earnings_screen.dart`, `settings_screen.dart` and
-/// `trips_tab.dart` in the Captain app are the reference migrations — copy
-/// their pattern.
+/// read from here. `earnings_screen.dart`, `settings_screen.dart`,
+/// `trips_tab.dart` and `offer_card.dart` in the Captain app are the
+/// reference migrations — copy their pattern.
 abstract class AppStrings {
   const AppStrings._();
 
@@ -73,6 +74,52 @@ abstract class AppStrings {
   /// cancelled). Centralised so every screen that renders a trip status —
   /// history, home, active panel — speaks one vocabulary.
   String statusLabel(String status);
+
+  // ──────────────────────────────────────────────────────────────────
+  // Captain — Offer card (the highest-stakes card in the product)
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Header label when the countdown expired before the captain acted.
+  String get offerExpired;
+
+  /// Header label when the fare shown is the rider's own proposal.
+  String get riderOfferedPrice;
+
+  /// Header label when the fare shown is a system estimate (no rider bid).
+  String get estimatedPrice;
+
+  /// Meta chip: distance from the captain to the pickup point.
+  String pickupDistanceKm(String km);
+
+  /// Meta chip: total trip distance.
+  String tripDistanceKm(String km);
+
+  /// Meta chip: estimated trip duration in minutes.
+  String aboutMinutes(int min);
+
+  /// Fallback when an offer has no pickup address.
+  String get pickupPoint;
+
+  /// Fallback when an offer has no dropoff address.
+  String get destinationPoint;
+
+  /// Primary button — accept the trip at the shown fare.
+  String acceptWithFare(String fare);
+
+  /// Secondary button — open the counter-offer price picker.
+  String get counterOffer;
+
+  /// Quiet button — dismiss the offer without acting.
+  String get skipLabel;
+
+  /// Toast shown after a counter-offer is posted to the server.
+  String bidSentToast(String amount);
+
+  /// In-card banner after a bid is sent — the trip stays open for the rider.
+  String bidSentBanner(String amount);
+
+  /// After a bid is sent, the fallback action that accepts the original fare.
+  String acceptInsteadWithFare(String fare);
 
   // ──────────────────────────────────────────────────────────────────
   // Captain — Earnings screen (reference migration)
@@ -260,6 +307,52 @@ class AppStringsAr extends AppStrings {
     }
   }
 
+  // ── Offer card ────────────────────────────────────────────────────
+
+  @override
+  String get offerExpired => 'انتهت مهلة العرض';
+
+  @override
+  String get riderOfferedPrice => 'سعر العميل المقترح';
+
+  @override
+  String get estimatedPrice => 'السعر التقديري';
+
+  @override
+  String pickupDistanceKm(String km) => 'الوصول $km كم';
+
+  @override
+  String tripDistanceKm(String km) => 'الرحلة $km كم';
+
+  @override
+  String aboutMinutes(int min) => '~$min دقيقة';
+
+  @override
+  String get pickupPoint => 'نقطة الالتقاط';
+
+  @override
+  String get destinationPoint => 'الوجهة';
+
+  @override
+  String acceptWithFare(String fare) => 'قبول بـ $fare ج.م';
+
+  @override
+  String get counterOffer => 'سعر معدّل';
+
+  @override
+  String get skipLabel => 'تخطي';
+
+  @override
+  String bidSentToast(String amount) =>
+      'تم إرسال عرضك بمبلغ $amount ج.م — بانتظار رد العميل';
+
+  @override
+  String bidSentBanner(String amount) =>
+      'أرسلت عرضًا بمبلغ $amount ج.م — بانتظار رد العميل';
+
+  @override
+  String acceptInsteadWithFare(String fare) => 'قبول بـ $fare ج.م بدلاً منه';
+
   // ── Earnings ──────────────────────────────────────────────────────
 
   @override
@@ -440,6 +533,52 @@ class AppStringsEn extends AppStrings {
         return status;
     }
   }
+
+  // ── Offer card ────────────────────────────────────────────────────
+
+  @override
+  String get offerExpired => 'Offer expired';
+
+  @override
+  String get riderOfferedPrice => "Rider's offer";
+
+  @override
+  String get estimatedPrice => 'Estimated price';
+
+  @override
+  String pickupDistanceKm(String km) => 'Pickup $km km';
+
+  @override
+  String tripDistanceKm(String km) => 'Trip $km km';
+
+  @override
+  String aboutMinutes(int min) => '~$min min';
+
+  @override
+  String get pickupPoint => 'Pickup point';
+
+  @override
+  String get destinationPoint => 'Destination';
+
+  @override
+  String acceptWithFare(String fare) => 'Accept $fare EGP';
+
+  @override
+  String get counterOffer => 'Counter';
+
+  @override
+  String get skipLabel => 'Skip';
+
+  @override
+  String bidSentToast(String amount) =>
+      'Bid of $amount EGP sent — waiting for the rider';
+
+  @override
+  String bidSentBanner(String amount) =>
+      'You bid $amount EGP — waiting for the rider';
+
+  @override
+  String acceptInsteadWithFare(String fare) => 'Accept $fare EGP instead';
 
   // ── Earnings ──────────────────────────────────────────────────────
 

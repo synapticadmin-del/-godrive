@@ -32,6 +32,9 @@ import 'package:synaptic_go_captain/services/captain_state.dart';
 /// rider's fare**, **decline**, or **counter with your own price**. The
 /// counter-offer posts a bid and leaves the trip in play — the rider still
 /// has to choose it — so the card reports "bid sent" rather than vanishing.
+///
+/// All copy is read from [AppStrings] (resolved from the ambient locale) so
+/// this file carries no inline Arabic literals — see `app_strings.dart`.
 class OfferCard extends StatefulWidget {
   const OfferCard({
     super.key,
@@ -180,6 +183,7 @@ class _OfferCardState extends State<OfferCard>
 
     final state = context.read<CaptainState>();
     final messenger = ScaffoldMessenger.of(context);
+    final strings = AppStrings.of(context);
 
     final amount = await CounterOfferSheet.show(
       context,
@@ -199,9 +203,7 @@ class _OfferCardState extends State<OfferCard>
       });
       messenger.showSnackBar(
         SnackBar(
-          content: Text(
-            'تم إرسال عرضك بمبلغ ${amount.toStringAsFixed(0)} ج.م — بانتظار رد العميل',
-          ),
+          content: Text(strings.bidSentToast(amount.toStringAsFixed(0))),
           backgroundColor: AppTokens.success,
         ),
       );
@@ -311,6 +313,7 @@ class _OfferCardState extends State<OfferCard>
   /// Fare and countdown, side by side. The fare gets the whole remaining
   /// width and can shrink to fit rather than overflow.
   Widget _buildHeader(GoTheme go, Color accent, bool urgent) {
+    final strings = AppStrings.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
@@ -338,10 +341,10 @@ class _OfferCardState extends State<OfferCard>
               children: [
                 Text(
                   _expired
-                      ? 'انتهت مهلة العرض'
+                      ? strings.offerExpired
                       : (_fareIsRiderOffer
-                          ? 'سعر العميل المقترح'
-                          : 'السعر التقديري'),
+                          ? strings.riderOfferedPrice
+                          : strings.estimatedPrice),
                   style: AppTokens.font(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
@@ -365,7 +368,7 @@ class _OfferCardState extends State<OfferCard>
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'ج.م',
+                        strings.egp,
                         style: AppTokens.font(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -395,25 +398,26 @@ class _OfferCardState extends State<OfferCard>
   /// Distance / duration facts as chips — wrapping, so a long value can never
   /// blow out the row the way the old single-line header did.
   Widget _buildMetaStrip(GoTheme go) {
+    final strings = AppStrings.of(context);
     final chips = <Widget>[
       if (_pickupKm != null)
         _MetaChip(
           icon: Icons.near_me_rounded,
-          label: 'الوصول ${_pickupKm!.toStringAsFixed(1)} كم',
+          label: strings.pickupDistanceKm(_pickupKm!.toStringAsFixed(1)),
           tone: AppTokens.accent,
           border: go.border,
         ),
       if (_tripKm != null)
         _MetaChip(
           icon: Icons.straighten_rounded,
-          label: 'الرحلة ${_tripKm!.toStringAsFixed(1)} كم',
+          label: strings.tripDistanceKm(_tripKm!.toStringAsFixed(1)),
           tone: go.muted,
           border: go.border,
         ),
       if (_durationMin != null)
         _MetaChip(
           icon: Icons.schedule_rounded,
-          label: '~$_durationMin دقيقة',
+          label: strings.aboutMinutes(_durationMin!),
           tone: go.muted,
           border: go.border,
         ),
@@ -433,6 +437,7 @@ class _OfferCardState extends State<OfferCard>
   }
 
   Widget _buildRoute(GoTheme go) {
+    final strings = AppStrings.of(context);
     final pickup = widget.offer['pickup_address']?.toString().trim();
     final dropoff = widget.offer['dropoff_address']?.toString().trim();
 
@@ -440,8 +445,8 @@ class _OfferCardState extends State<OfferCard>
       children: [
         _addressRow(
           dotColor: AppTokens.primary,
-          label: 'من',
-          value: (pickup == null || pickup.isEmpty) ? 'نقطة الالتقاط' : pickup,
+          label: strings.fromLabel,
+          value: (pickup == null || pickup.isEmpty) ? strings.pickupPoint : pickup,
           text: go.text,
           muted: go.muted,
         ),
@@ -459,8 +464,8 @@ class _OfferCardState extends State<OfferCard>
         ),
         _addressRow(
           dotColor: AppTokens.danger,
-          label: 'إلى',
-          value: (dropoff == null || dropoff.isEmpty) ? 'الوجهة' : dropoff,
+          label: strings.toLabel,
+          value: (dropoff == null || dropoff.isEmpty) ? strings.destinationPoint : dropoff,
           text: go.text,
           muted: go.muted,
         ),
@@ -527,6 +532,7 @@ class _OfferCardState extends State<OfferCard>
   /// decline share the row beneath it: counter is the emphasised secondary,
   /// decline is deliberately the quietest thing on the card.
   Widget _buildActions(GoTheme go) {
+    final strings = AppStrings.of(context);
     final disabled = _busy || _expired;
 
     if (_bidSent != null) return _buildBidSentState(go);
@@ -563,7 +569,7 @@ class _OfferCardState extends State<OfferCard>
                         const Icon(Icons.check_circle_rounded, size: 21),
                         const SizedBox(width: AppTokens.spaceXs),
                         Text(
-                          'قبول بـ ${_fare.toStringAsFixed(0)} ج.م',
+                          strings.acceptWithFare(_fare.toStringAsFixed(0)),
                           style: AppTokens.font(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -613,7 +619,7 @@ class _OfferCardState extends State<OfferCard>
                               const Icon(Icons.price_change_rounded, size: 19),
                               const SizedBox(width: 6),
                               Text(
-                                'سعر معدّل',
+                                strings.counterOffer,
                                 style: AppTokens.font(
                                   fontSize: 14.5,
                                   fontWeight: FontWeight.w800,
@@ -648,7 +654,7 @@ class _OfferCardState extends State<OfferCard>
                         Icon(Icons.close_rounded, size: 18, color: go.muted),
                         const SizedBox(width: 5),
                         Text(
-                          'تخطي',
+                          strings.skipLabel,
                           style: AppTokens.font(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w700,
@@ -671,6 +677,7 @@ class _OfferCardState extends State<OfferCard>
   /// the pending bid and keeps only the two moves that still make sense:
   /// fall back to the original fare, or walk away.
   Widget _buildBidSentState(GoTheme go) {
+    final strings = AppStrings.of(context);
     final amount = _bidSent!;
 
     return Column(
@@ -696,7 +703,7 @@ class _OfferCardState extends State<OfferCard>
               const SizedBox(width: AppTokens.spaceXs),
               Expanded(
                 child: Text(
-                  'أرسلت عرضًا بمبلغ ${amount.toStringAsFixed(0)} ج.م — بانتظار رد العميل',
+                  strings.bidSentBanner(amount.toStringAsFixed(0)),
                   style: AppTokens.font(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -739,7 +746,7 @@ class _OfferCardState extends State<OfferCard>
                       : FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            'قبول بـ ${_fare.toStringAsFixed(0)} ج.م بدلاً منه',
+                            strings.acceptInsteadWithFare(_fare.toStringAsFixed(0)),
                             style: AppTokens.font(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -765,7 +772,7 @@ class _OfferCardState extends State<OfferCard>
                     ),
                   ),
                   child: Text(
-                    'تخطي',
+                    strings.skipLabel,
                     style: AppTokens.font(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w700,
