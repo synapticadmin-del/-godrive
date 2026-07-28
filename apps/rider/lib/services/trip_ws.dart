@@ -34,7 +34,11 @@ class TripWebSocketService {
     final ws = http.startsWith('https')
         ? http.replaceFirst('https', 'wss')
         : http.replaceFirst('http', 'ws');
-    return '$ws/ws/trips/$tripId?token=${Uri.encodeComponent(token)}';
+    // Query-token auth (`?token=`) is deprecated: it leaks the JWT into
+    // access logs and proxy history. The token now travels as the first
+    // message after the socket opens (see _open). The server stays backwards
+    // compatible with `?token=` during rollout, so old builds keep working.
+    return '$ws/ws/trips/$tripId';
   }
 
   void connect() {
@@ -47,6 +51,11 @@ class TripWebSocketService {
     onStatus?.call('connecting');
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      // First-message auth: authenticate before anything else is sent or
+      // received. This must be the very first frame on the socket.
+      try {
+        _channel!.sink.add(jsonEncode({'type': 'auth', 'token': token}));
+      } catch (_) {}
       _sub = _channel!.stream.listen(
         (event) {
           _attempt = 0;

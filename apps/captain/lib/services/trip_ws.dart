@@ -8,13 +8,15 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// Mirrors the rider app's TripWebSocketService exactly: same endpoint, same
 /// auth style, same reconnect behaviour. Two details matter here:
 ///
-///  * **Auth rides in the query string, not headers.** `web_socket_channel`
-///    on mobile cannot attach custom headers reliably (the `headers:` arg is
-///    silently ignored on the dart:io backend), and the API accepts
-///    `?token=` precisely because of this. An earlier cut of this file passed
-///    an Authorization header and the socket died with a 401 on every
-///    connect — which would have disabled the captain's live chat/cancel
-///    feed entirely.
+///  * **Auth now travels as the first message, not the query string.**
+///    Previously the JWT rode in `?token=` because `web_socket_channel` on
+///    mobile cannot attach custom headers reliably (the `headers:` arg is
+///    silently ignored on the dart:io backend). Query-token auth is now
+///    deprecated — it leaks the token into access logs and proxy history — so
+///    the socket authenticates by sending `{"type":"auth","token":...}` as
+///    its first frame immediately after opening (see _open). The server stays
+///    backwards compatible with `?token=` during rollout, so old builds keep
+///    working.
 ///  * The captain opens this the moment a trip is assigned so rider-side
 ///    events — cancellations, status flips, and in-trip chat messages —
 ///    arrive in real time instead of on the next offers poll, which was the
@@ -52,7 +54,8 @@ class CaptainTripWebSocketService {
     final ws = http.startsWith('https')
         ? http.replaceFirst('https', 'wss')
         : http.replaceFirst('http', 'ws');
-    return '$ws/ws/trips/$tripId?token=${Uri.encodeComponent(token)}';
+    // No `?token=` here — see the class doc. Auth is the first frame sent.
+    return '$ws/ws/trips/$tripId';
   }
 
   void connect() {
@@ -64,6 +67,11 @@ class CaptainTripWebSocketService {
     _disposeSocketOnly();
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      // First-message auth: authenticate before anything else is sent or
+      // received. This must be the very first frame on the socket.
+      try {
+        _channel!.sink.add(jsonEncode({'type': 'auth', 'token': token}));
+      } catch (_) {}
       _sub = _channel!.stream.listen(
         (event) {
           _reconnectAttempts = 0;
