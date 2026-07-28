@@ -65,6 +65,39 @@ class CaptainState extends ChangeNotifier {
 
   String baseUrl = defaultBaseUrl;
 
+  /// In-app navigation target. Set when the captain taps "تنقّل للراكب" or
+  /// "تنقّل للوجهة"; the main shell switches to the map tab, follows the
+  /// captain at a tight zoom, and re-routes to this point as GPS updates
+  /// arrive. Null when no in-app navigation is active.
+  Map<String, dynamic>? navigationTarget;
+
+  /// Broadcast stream that tells the main shell to flip to the map tab and
+  /// begin follow-me navigation to [navigationTarget].
+  final StreamController<void> _navigationStartCtrl =
+      StreamController<void>.broadcast();
+  Stream<void> get navigationStart => _navigationStartCtrl.stream;
+
+  /// Begin in-app turn-by-turn navigation to [lat],[lng]. [headingToPickup]
+  /// distinguishes "navigate to the rider" from "navigate to the destination"
+  /// for the banner copy. This replaces the old behaviour of deep-linking out
+  /// to Google Maps — the captain now stays inside GoDrive with the route on
+  /// the live map.
+  void startInAppNavigation(double lat, double lng, bool headingToPickup) {
+    navigationTarget = {
+      'lat': lat,
+      'lng': lng,
+      'toPickup': headingToPickup,
+    };
+    if (!_navigationStartCtrl.isClosed) _navigationStartCtrl.add(null);
+    notifyListeners();
+  }
+
+  /// Stop in-app navigation (trip ended, captain cancelled, or arrived).
+  void stopInAppNavigation() {
+    navigationTarget = null;
+    notifyListeners();
+  }
+
   Future<void> bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     token = await _secureStorage.read(key: 'token');
@@ -594,6 +627,7 @@ class CaptainState extends ChangeNotifier {
           // Completed or cancelled on the other side: clear immediately so the
           // captain is never acting on a dead trip, and re-sync the queue.
           activeTrip = null;
+          stopInAppNavigation();
           _disconnectTripWs();
           unawaited(refreshOffers());
         }
@@ -761,6 +795,7 @@ class CaptainState extends ChangeNotifier {
     if (activeTrip == null) return;
     final res = await _post('/trips/${activeTrip!['id']}/complete');
     activeTrip = Map<String, dynamic>.from(res['trip'] as Map);
+    stopInAppNavigation();
     _disconnectTripWs();
     // Trip is over: drop the GPS back to the low-power idle profile.
     _syncLocationAccuracy();
@@ -853,6 +888,7 @@ class CaptainState extends ChangeNotifier {
     gpsError = null;
     _declinedTripIds.clear();
     _bidTripIds.clear();
+    navigationTarget = null;
     final prefs = await SharedPreferences.getInstance();
     // Signing out ends the session, not the person's display preference.
     // Remove only the keys this class owns instead of prefs.clear() (which
@@ -873,6 +909,7 @@ class CaptainState extends ChangeNotifier {
     offersWs?.dispose();
     _disconnectTripWs();
     _tripEventsCtrl.close();
+    _navigationStartCtrl.close();
     super.dispose();
   }
 }
