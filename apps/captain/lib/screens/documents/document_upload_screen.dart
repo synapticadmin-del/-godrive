@@ -109,6 +109,35 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   static bool _collectsExpiry(String type) =>
       type == 'license' || type == 'national_id' || type == 'vehicle_reg';
 
+  /// Date of birth is printed on the national ID card and nowhere else in this
+  /// checklist, so it is collected alongside the ID number rather than as a
+  /// separate onboarding step the captain would have to find.
+  static bool _collectsBirthDate(String type) => type == 'national_id';
+
+  /// Inline validation for the date of birth.
+  ///
+  /// Stays `null` while the field is untouched, so the sheet does not open
+  /// pre-flagged. A missing value is reported only after a submit attempt; an
+  /// under-age date is reported the moment it is picked, because that is not a
+  /// mistake the captain can fix by trying harder and they deserve to know
+  /// before they finish the rest of the form.
+  ///
+  /// The picker's own `lastDate` already excludes under-18 dates, so the age
+  /// branch is a backstop for the day someone widens those bounds.
+  static String? _birthDateError(
+    DateTime? value,
+    AppStrings strings, {
+    required bool submitAttempted,
+  }) {
+    if (value == null) {
+      return submitAttempted ? strings.docBirthDateRequired : null;
+    }
+    if (goAgeInYears(value, DateTime.now()) < kMinCaptainAge) {
+      return strings.docBirthDateTooYoung;
+    }
+    return null;
+  }
+
   /// Bottom sheet that gathers the identity metadata for a document before
   /// the registration call. Returns null when the captain cancels — in that
   /// case the already-picked photo is simply discarded and nothing uploads,
@@ -120,11 +149,19 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     final needsName = _collectsHolderName(docType);
     final needsIdNumber = _collectsNationalIdNumber(docType);
     final needsExpiry = _collectsExpiry(docType);
-    if (!needsName && !needsIdNumber && !needsExpiry) return const {};
+    final needsBirthDate = _collectsBirthDate(docType);
+    if (!needsName && !needsIdNumber && !needsExpiry && !needsBirthDate) {
+      return const {};
+    }
 
     final nameCtrl = TextEditingController();
     final idCtrl = TextEditingController();
     DateTime? expiry;
+    DateTime? birthDate;
+    // Set once the captain has tried to submit, so the birth-date field stays
+    // quiet until then instead of shouting "required" at a form they have not
+    // filled in yet.
+    var submitAttempted = false;
     final formKey = GlobalKey<FormState>();
 
     final result = await showModalBottomSheet<Map<String, String>>(
@@ -236,36 +273,47 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                             const SizedBox(height: AppTokens.spaceSm),
                           ],
 
-                          if (needsExpiry) ...[
-                            InkWell(
-                              borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                              onTap: () async {
-                                final now = DateTime.now();
-                                final picked = await showDatePicker(
-                                  context: ctx,
-                                  initialDate: now.add(const Duration(days: 365)),
-                                  firstDate: now,
-                                  lastDate: now.add(const Duration(days: 365 * 15)),
-                                );
-                                if (picked != null) {
-                                  setSheetState(() => expiry = picked);
-                                }
-                              },
-                              child: InputDecorator(
-                                decoration: fieldDecoration(
-                                  label: strings.docExpiryDateLabel,
-                                  hint: strings.docExpiryDateHint,
-                                  icon: Icons.event_rounded,
-                                ),
-                                child: Text(
-                                  expiry == null
-                                      ? strings.docExpiryDateHint
-                                      : '${expiry!.year}-${expiry!.month.toString().padLeft(2, '0')}-${expiry!.day.toString().padLeft(2, '0')}',
-                                  style: AppTokens.font(
-                                    color: expiry == null ? go.muted : go.text,
-                                  ),
-                                ),
+                          // Date of birth. `GoDateField.birthDate` opens the
+                          // calendar on the year grid and echoes the computed
+                          // age back, so a slipped decade is caught here rather
+                          // than by a reviewer three days later.
+                          if (needsBirthDate) ...[
+                            GoDateField(
+                              label: strings.docBirthDateLabel,
+                              hint: strings.docBirthDateHint,
+                              helpText: strings.docBirthDateLabel,
+                              purpose: GoDatePurpose.birthDate,
+                              icon: Icons.cake_outlined,
+                              value: birthDate,
+                              onChanged: (picked) =>
+                                  setSheetState(() => birthDate = picked),
+                              helperText: birthDate == null
+                                  ? null
+                                  : strings.docBirthDateAge(
+                                      goAgeInYears(birthDate!, DateTime.now()),
+                                    ),
+                              errorText: _birthDateError(
+                                birthDate,
+                                strings,
+                                submitAttempted: submitAttempted,
                               ),
+                            ),
+                            const SizedBox(height: AppTokens.spaceSm),
+                          ],
+
+                          if (needsExpiry) ...[
+                            GoDateField(
+                              label: strings.docExpiryDateLabel,
+                              hint: strings.docExpiryDateHint,
+                              helpText: strings.docExpiryDateLabel,
+                              purpose: GoDatePurpose.documentExpiry,
+                              icon: Icons.event_rounded,
+                              value: expiry,
+                              onChanged: (picked) =>
+                                  setSheetState(() => expiry = picked),
+                              errorText: submitAttempted && expiry == null
+                                  ? strings.docIdentityFieldsRequired
+                                  : null,
                             ),
                             const SizedBox(height: AppTokens.spaceSm),
                           ],
@@ -276,29 +324,56 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                             height: AppTokens.tapTarget,
                             child: ElevatedButton(
                               onPressed: () {
-                                final valid = formKey.currentState?.validate() ?? false;
+                                // Surface every inline error at once. Revealing
+                                // them one snackbar at a time made the captain
+                                // guess which field was wrong.
+                                setSheetState(() => submitAttempted = true);
+
+                                final valid =
+                                    formKey.currentState?.validate() ?? false;
                                 if (!valid) return;
-                                if (needsExpiry && expiry == null) {
+
+                                final birthError = needsBirthDate
+                                    ? _birthDateError(
+                                        birthDate,
+                                        strings,
+                                        submitAttempted: true,
+                                      )
+                                    : null;
+                                final expiryMissing =
+                                    needsExpiry && expiry == null;
+
+                                if (birthError != null || expiryMissing) {
                                   ScaffoldMessenger.of(sheetCtx).showSnackBar(
                                     SnackBar(
-                                      content: Text(strings.docIdentityFieldsRequired),
+                                      content: Text(
+                                        birthError ??
+                                            strings.docIdentityFieldsRequired,
+                                      ),
                                       backgroundColor: AppTokens.danger,
                                     ),
                                   );
                                   return;
                                 }
+
                                 Navigator.pop(sheetCtx, {
                                   if (needsName) 'holderFullName': nameCtrl.text.trim(),
                                   if (needsIdNumber)
                                     'nationalIdNumber': idCtrl.text.trim(),
+                                  if (needsBirthDate && birthDate != null)
+                                    'birthDate': goFormatDateIso(birthDate!),
                                   if (needsExpiry && expiry != null)
-                                    'expiresAt':
-                                        '${expiry!.year}-${expiry!.month.toString().padLeft(2, '0')}-${expiry!.day.toString().padLeft(2, '0')}',
+                                    'expiresAt': goFormatDateIso(expiry!),
                                 });
                               },
+                              // Colours come from the token ramp, not from
+                              // `primary`/white: at night the action is lime
+                              // with near-black text, and white-on-lime was
+                              // close to illegible.
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTokens.primary,
-                                foregroundColor: Colors.white,
+                                backgroundColor: go.action,
+                                foregroundColor: go.onAction,
+                                elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                                 ),
@@ -308,7 +383,7 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                                 style: AppTokens.font(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: go.onAction,
                                 ),
                               ),
                             ),

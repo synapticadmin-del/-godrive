@@ -455,6 +455,23 @@ abstract class AppStrings {
   /// Hint inside the document expiry date field.
   String get docExpiryDateHint;
 
+  /// Label for the date-of-birth field on identity documents.
+  String get docBirthDateLabel;
+
+  /// Hint inside the date-of-birth field.
+  String get docBirthDateHint;
+
+  /// Age echoed back under the date-of-birth field, so a mis-tapped year is
+  /// caught before submission (1998 vs 1988 is invisible in a date, obvious
+  /// in an age).
+  String docBirthDateAge(int years);
+
+  /// Validation error when the captain is under the legal minimum age.
+  String get docBirthDateTooYoung;
+
+  /// Validation error when the date of birth is required but missing.
+  String get docBirthDateRequired;
+
   /// Validation error when required identity fields are left empty.
   String get docIdentityFieldsRequired;
 
@@ -1778,9 +1795,28 @@ class AppStringsAr extends AppStrings {
   String get docExpiryDateHint => 'اختر تاريخ انتهاء المستند';
 
   @override
-  String get docIdentityFieldsRequired => 'يرجى إكمال بيانات المستند المطلوبة';
+  String get docBirthDateLabel => 'تاريخ الميلاد';
 
   @override
+  String get docBirthDateHint => 'اختر تاريخ ميلادك';
+
+  @override
+  String docBirthDateAge(int years) => 'العمر: $years سنة';
+
+  @override
+  String get docBirthDateTooYoung =>
+      'يجب أن يكون عمرك 18 سنة على الأقل للتسجيل كسائق';
+
+  @override
+  String get docBirthDateRequired => 'يرجى اختيار تاريخ الميلاد';
+
+  @override
+  String get docIdentityFieldsRequired => 'يرجى إكمال بيانات المستند المطلوبة';
+
+  // Not an override: `AppStrings` declares `confirm`, never `confirmAction`.
+  // The stray annotation predates this change and was masked only because it
+  // sits far from the abstract list. The member is left in place (harmless and
+  // unreferenced) rather than deleted, since removing it is an API change.
   String get confirmAction => 'تأكيد';
 
   @override
@@ -3308,9 +3344,26 @@ class AppStringsEn extends AppStrings {
   String get docExpiryDateHint => 'Pick the document expiry date';
 
   @override
-  String get docIdentityFieldsRequired => 'Please complete the required document details';
+  String get docBirthDateLabel => 'Date of birth';
 
   @override
+  String get docBirthDateHint => 'Pick your date of birth';
+
+  @override
+  String docBirthDateAge(int years) => 'Age: $years';
+
+  @override
+  String get docBirthDateTooYoung =>
+      'You must be at least 18 years old to register as a captain';
+
+  @override
+  String get docBirthDateRequired => 'Please pick your date of birth';
+
+  @override
+  String get docIdentityFieldsRequired => 'Please complete the required document details';
+
+  // See the Arabic bundle: `confirmAction` is not part of the `AppStrings`
+  // contract, so it cannot carry `@override`.
   String get confirmAction => 'Confirm';
 
   @override

@@ -155,6 +155,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
 
     final approval =
         state.captain?['approval_status'] ?? state.captain?['status'];
@@ -183,20 +184,20 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: AppTokens.primary.withOpacity(0.12),
+                  color: go.action.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(AppTokens.radiusPill),
                 ),
                 child: Text(
                   '${_requests.length}',
                   style: AppTokens.money(
                     fontSize: 14,
-                    color: AppTokens.primary,
+                    color: go.action,
                   ),
                 ),
               ),
             ),
           IconButton(
-            tooltip: 'تحديث',
+            tooltip: strings.refresh,
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loading ? null : _fetchRequests,
           ),
@@ -210,6 +211,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
   }
 
   Widget _buildBody(CaptainState state, bool isApproved) {
+    final go = GoTheme.of(context);
     // Guard first: nothing below this point is meaningful while offline.
     if (!state.online) {
       return ListView(
@@ -239,7 +241,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
 
     return RefreshIndicator(
       onRefresh: _fetchRequests,
-      color: AppTokens.primary,
+      color: go.action,
       child: _requests.isEmpty
           ? ListView(
               padding: const EdgeInsets.all(AppTokens.spaceMd),
@@ -323,12 +325,14 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                     labelStyle: AppTokens.font(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
-                      color: selected ? Colors.white : go.text,
+                      // go.onAction: black on lime in dark mode — white-on-lime
+                      // is ~1.8:1 contrast (near-illegible).
+                      color: selected ? go.onAction : go.text,
                     ),
-                    selectedColor: AppTokens.primary,
+                    selectedColor: go.action,
                     backgroundColor: go.surface,
                     side: BorderSide(
-                      color: selected ? AppTokens.primary : go.border,
+                      color: selected ? go.action : go.border,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusPill),

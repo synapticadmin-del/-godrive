@@ -232,7 +232,7 @@ class _OffersSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
+    // strings is used in _idleBody which re-resolves it; this local was dead.
     final go = GoTheme.of(context);
 
     // Strict online guard: trip offer cards must NEVER render while the
@@ -373,6 +373,9 @@ class _SearchingPulse extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // go.action so the pulse tracks the brightness-aware action colour
+    // (lime on dark, brand-green on light) instead of always being green.
+    final go = GoTheme.of(context);
     return SizedBox(
       width: 54,
       height: 54,
@@ -384,7 +387,7 @@ class _SearchingPulse extends StatelessWidget {
             height: 54,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTokens.primary.withOpacity(0.10),
+              color: go.action.withOpacity(0.10),
             ),
           )
               .animate(onPlay: (c) => c.repeat())
@@ -395,12 +398,12 @@ class _SearchingPulse extends StatelessWidget {
             height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppTokens.primary.withOpacity(0.16),
+              color: go.action.withOpacity(0.16),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.radar_rounded,
               size: 19,
-              color: AppTokens.primary,
+              color: go.action,
             ),
           ),
         ],

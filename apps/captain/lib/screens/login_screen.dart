@@ -718,7 +718,9 @@ class _ModeSwitch extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
-          height: 42,
+          // Raised from 42 to tapTarget (48) — meets the minimum comfortable
+          // tap area for a moving vehicle (rule 6).
+          height: AppTokens.tapTarget,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: active ? AppTokens.lime : Colors.transparent,
@@ -750,7 +752,9 @@ class _LanguageChip extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        height: 38,
+        // Raised from 38 to tapTarget (48) so the chip meets the minimum
+      // comfortable tap area for a driver behind the wheel (rule 6).
+      height: AppTokens.tapTarget,
         padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm),
         decoration: BoxDecoration(
           color: AppTokens.nightPanel,

@@ -21,3 +21,4 @@ export 'widgets/map_controls.dart';
 export 'widgets/vehicle_map_marker.dart';
 export 'widgets/counter_offer_sheet.dart';
 export 'widgets/offline_guard_banner.dart';
+export 'widgets/go_date_field.dart';
