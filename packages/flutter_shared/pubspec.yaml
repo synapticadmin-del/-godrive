@@ -18,6 +18,10 @@ dependencies:
   # the design system is self-contained rather than relying on each consuming
   # app to happen to depend on google_fonts.
   google_fonts: ^6.2.1
+  # navigation_button.dart launches turn-by-turn handoff URLs. Previously this
+  # import resolved only because every consuming app happened to depend on
+  # url_launcher itself, so the package did not analyse standalone.
+  url_launcher: ^6.3.0
 
 flutter:
   uses-material-design: true
