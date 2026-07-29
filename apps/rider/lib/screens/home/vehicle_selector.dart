@@ -1,7 +1,6 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Top-level service categories, shown as a horizontal strip above the search
@@ -174,14 +173,15 @@ class _CategoryChip extends StatelessWidget {
 
     // A suspended service is dimmed rather than hidden, and loses its ink
     // response, so it reads as "not yet available" instead of "broken".
+    // NOTE: the chip no longer runs its own BackdropFilter — the rail above
+    // already frosts the whole strip, so a second blur here stacked two GPU
+    // blur passes and left a milky haze over the map. The chip keeps its glass
+    // look from the translucent fill + rim alone, clipped to its own radius.
     return Opacity(
       opacity: enabled ? 1 : 0.42,
       child: ClipRRect(
       borderRadius: borderRadius,
-      child: BackdropFilter(
-        // The blur is what turns a translucent fill into glass.
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: AnimatedContainer(
+      child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
           width: 86,
@@ -243,7 +243,7 @@ class _CategoryChip extends StatelessWidget {
                       enabled ? label : (comingSoonLabel ?? label),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.ibmPlexSansArabic(
+                      style: AppTokens.font(
                         fontSize: enabled ? 12 : 11,
                         fontWeight: selected && enabled
                             ? FontWeight.w800
@@ -260,7 +260,6 @@ class _CategoryChip extends StatelessWidget {
               ),
             ),
           ),
-        ),
       ),
       ),
     );
@@ -380,7 +379,7 @@ class _VehicleSelectorState extends State<VehicleSelector> {
                   const SizedBox(height: 5),
                   Text(
                     isAr ? v.ar : v.en,
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 13,
                       color: go.text,
                       fontWeight:
@@ -390,7 +389,7 @@ class _VehicleSelectorState extends State<VehicleSelector> {
                   const SizedBox(height: 2),
                   Text(
                     isAr ? '$price ج.م' : '$price EGP',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                       color: isSelected
