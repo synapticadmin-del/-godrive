@@ -333,6 +333,49 @@ abstract class AppStrings {
   /// Empty-state title when the wallet has no transactions yet.
   String get noTransactionsYet;
 
+  /// Empty-state subtitle under [noTransactionsYet] for the rider wallet.
+  String get transactionsWillAppearHere;
+
+  /// Empty-state hint under [noPastTrips] telling the rider where trips show up.
+  String get noPastTripsHint;
+
+  /// Demo notification: completed-trip title.
+  String get notifTripCompletedTitle;
+
+  /// Demo notification: completed-trip body with the fare.
+  String get notifTripCompletedBody;
+
+  /// Demo notification: promo title.
+  String get notifPromoTitle;
+
+  /// Demo notification: promo body with the discount code.
+  String get notifPromoBody;
+
+  /// Demo notification: wallet top-up title.
+  String get notifWalletTopupTitle;
+
+  /// Demo notification: wallet top-up body.
+  String get notifWalletTopupBody;
+
+  /// Demo notification: rate-your-trip title.
+  String get notifRateTripTitle;
+
+  /// Demo notification: rate-your-trip body.
+  String get notifRateTripBody;
+
+  /// Relative timestamp: a few minutes ago.
+  String get notifTimeMinutesAgo;
+
+  /// Relative timestamp: about an hour ago.
+  String get notifTimeHourAgo;
+
+  /// Relative timestamp: a few hours ago.
+  String get notifTimeHoursAgo;
+
+  /// Relative timestamp: yesterday.
+  String get notifTimeYesterday;
+
+
   /// Fallback note for a credit transaction with no note.
   String get creditNoteFallback;
 
@@ -523,6 +566,28 @@ abstract class AppStrings {
 
   /// Account banner: under-review subtitle.
   String get accountUnderReviewSubtitle;
+
+  // ──────────────────────────────────────────────────────────────────
+  // Captain — Documents onboarding grid (image-style upload tiles)
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Screen title for the documents step (e.g. "المستندات الشخصية").
+  String get docOnboardingTitle;
+
+  /// Optional badge on an upload tile (اختياري).
+  String get docOptionalBadge;
+
+  /// Hint on an empty upload tile: tap to add a photo.
+  String get docTileAddPhoto;
+
+  /// Tooltip for the remove (×) button on a filled tile.
+  String get docTileRemove;
+
+  /// Next button at the bottom of the onboarding step.
+  String get nextAction;
+
+  /// Validation snackbar when required documents are still missing.
+  String docRequiredMissing(int count);
 
   // ──────────────────────────────────────────────────────────────────
   // Captain — In-trip chat
@@ -1659,6 +1724,49 @@ class AppStringsAr extends AppStrings {
   String get noTransactionsYet => 'لا توجد معاملات سابقة بالمحفظة حتى الآن';
 
   @override
+  String get transactionsWillAppearHere => 'ستظهر معاملاتك هنا';
+
+  @override
+  String get noPastTripsHint => 'ستظهر رحلاتك المكتملة هنا';
+
+  @override
+  String get notifTripCompletedTitle => 'رحلة مكتملة';
+
+  @override
+  String get notifTripCompletedBody => 'وصلت بسلامة. الأجرة 45 ج.م.';
+
+  @override
+  String get notifPromoTitle => 'عرض جديد';
+
+  @override
+  String get notifPromoBody => 'خصم 20% على رحلتك القادمة بكود GO20';
+
+  @override
+  String get notifWalletTopupTitle => 'تم شحن المحفظة';
+
+  @override
+  String get notifWalletTopupBody => 'تم إضافة 100 ج.م إلى محفظتك.';
+
+  @override
+  String get notifRateTripTitle => 'قيّم رحلتك';
+
+  @override
+  String get notifRateTripBody => 'كيف كانت رحلتك مع الكابتن أحمد؟';
+
+  @override
+  String get notifTimeMinutesAgo => 'منذ 5 دقائق';
+
+  @override
+  String get notifTimeHourAgo => 'منذ ساعة';
+
+  @override
+  String get notifTimeHoursAgo => 'منذ 3 ساعات';
+
+  @override
+  String get notifTimeYesterday => 'أمس';
+
+
+  @override
   String get creditNoteFallback => 'إضافة رصيد';
 
   @override
@@ -1856,6 +1964,24 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get accountUnderReviewSubtitle => 'سنخطرك فور اكتمال مراجعة مستنداتك.';
+
+  @override
+  String get docOnboardingTitle => 'المستندات الشخصية';
+
+  @override
+  String get docOptionalBadge => 'اختياري';
+
+  @override
+  String get docTileAddPhoto => 'اضغط لإضافة صورة';
+
+  @override
+  String get docTileRemove => 'إزالة';
+
+  @override
+  String get nextAction => 'التالي';
+
+  @override
+  String docRequiredMissing(int count) => 'ارفع $count مستندات مطلوبة أولاً';
 
   // ── Chat ──────────────────────────────────────────────────────────
 
@@ -3189,6 +3315,49 @@ class AppStringsEn extends AppStrings {
   String get noTransactionsYet => 'No wallet transactions yet';
 
   @override
+  String get transactionsWillAppearHere => 'Your transactions will appear here';
+
+  @override
+  String get noPastTripsHint => 'Your completed trips will appear here';
+
+  @override
+  String get notifTripCompletedTitle => 'Trip completed';
+
+  @override
+  String get notifTripCompletedBody => 'You arrived safely. Fare: EGP 45.';
+
+  @override
+  String get notifPromoTitle => 'New offer';
+
+  @override
+  String get notifPromoBody => '20% off your next trip with code GO20';
+
+  @override
+  String get notifWalletTopupTitle => 'Wallet topped up';
+
+  @override
+  String get notifWalletTopupBody => 'EGP 100 was added to your wallet.';
+
+  @override
+  String get notifRateTripTitle => 'Rate your trip';
+
+  @override
+  String get notifRateTripBody => 'How was your trip with Captain Ahmed?';
+
+  @override
+  String get notifTimeMinutesAgo => '5 min ago';
+
+  @override
+  String get notifTimeHourAgo => '1 hour ago';
+
+  @override
+  String get notifTimeHoursAgo => '3 hours ago';
+
+  @override
+  String get notifTimeYesterday => 'Yesterday';
+
+
+  @override
   String get creditNoteFallback => 'Balance added';
 
   @override
@@ -3387,6 +3556,24 @@ class AppStringsEn extends AppStrings {
   @override
   String get accountUnderReviewSubtitle =>
       "We'll notify you as soon as the review is complete.";
+
+  @override
+  String get docOnboardingTitle => 'Personal documents';
+
+  @override
+  String get docOptionalBadge => 'Optional';
+
+  @override
+  String get docTileAddPhoto => 'Tap to add a photo';
+
+  @override
+  String get docTileRemove => 'Remove';
+
+  @override
+  String get nextAction => 'Next';
+
+  @override
+  String docRequiredMissing(int count) => 'Upload $count required documents first';
 
   // ── Chat ──────────────────────────────────────────────────────────
 

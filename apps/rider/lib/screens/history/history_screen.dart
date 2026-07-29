@@ -40,27 +40,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
-    final panel = go.panel;
-    final text = go.text;
-    final muted = go.muted;
+    final strings = AppStrings.of(context);
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('سجل الرحلات', style: AppTokens.font(color: text)),
-        backgroundColor: panel,
-        surfaceTintColor: Colors.transparent,
+        title: Text(strings.tripHistoryTitle, style: AppTokens.font(color: go.text)),
+        backgroundColor: go.panel,
+        foregroundColor: go.text,
         elevation: 0,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppTokens.primary))
           : _trips.isEmpty
-              ? Center(
-                  child: Text(
-                    'لا توجد رحلات سابقة',
-                    style: AppTokens.font(color: muted, fontSize: 16),
-                  ),
-                )
+              ? _EmptyTrips(title: strings.noPastTrips, subtitle: strings.noPastTripsHint)
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _trips.length,
@@ -71,13 +64,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     final formattedDate = date != null ? DateFormat('yyyy-MM-dd HH:mm').format(date) : '';
                     
                     return Card(
-                      color: panel,
-                      surfaceTintColor: Colors.transparent,
+                      color: go.panel,
                       margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                        side: BorderSide(color: go.border),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                         onTap: () {
@@ -94,7 +83,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(formattedDate, style: AppTokens.font(color: muted)),
+                                  Text(formattedDate, style: AppTokens.font(color: go.muted)),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
@@ -102,7 +91,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       borderRadius: BorderRadius.circular(AppTokens.radiusSm),
                                     ),
                                     child: Text(
-                                      trip['status'] == 'completed' ? 'مكتملة' : 'ملغاة',
+                                      trip['status'] == 'completed' ? strings.tripCompleted : strings.tripCancelled,
                                       style: AppTokens.font(
                                         color: trip['status'] == 'completed' ? AppTokens.success : AppTokens.danger,
                                         fontSize: 12,
@@ -126,9 +115,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(trip['pickup_address'] ?? trip['pickupAddress'] ?? 'موقع غير معروف', style: AppTokens.font(color: text)),
+                                        Text(trip['pickup_address'] ?? trip['pickupAddress'] ?? strings.unknownPickup, style: AppTokens.font(color: go.text)),
                                         const SizedBox(height: 12),
-                                        Text(trip['dropoff_address'] ?? trip['dropoffAddress'] ?? 'وجهة غير معروفة', style: AppTokens.font(color: text)),
+                                        Text(trip['dropoff_address'] ?? trip['dropoffAddress'] ?? strings.unknownDropoff, style: AppTokens.font(color: go.text)),
                                       ],
                                     ),
                                   ),
@@ -136,7 +125,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               ),
                               Divider(color: go.border, height: 32),
                               Text(
-                                '${trip['final_fare'] ?? trip['estimated_fare'] ?? trip['finalFare'] ?? trip['estimatedFare'] ?? 0} ج.م',
+                                '${trip['final_fare'] ?? trip['estimated_fare'] ?? trip['finalFare'] ?? trip['estimatedFare'] ?? 0} ${strings.egp}',
                                 style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.bold, color: AppTokens.primary),
                               ),
                             ],
@@ -146,6 +135,55 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     );
                   },
                 ),
+    );
+  }
+}
+
+/// Branded empty state: the packaged illustration when present, with the
+/// shared icon-circle fallback underneath it.
+class _EmptyTrips extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  const _EmptyTrips({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/empty_trips.png',
+              width: 160,
+              height: 160,
+              errorBuilder: (_, __, ___) => Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppTokens.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.route_outlined, size: 32, color: AppTokens.primary),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: go.text),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 13, color: go.muted, height: 1.4),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

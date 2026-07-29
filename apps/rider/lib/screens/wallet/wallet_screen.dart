@@ -35,20 +35,17 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final balance = context.watch<AppState>().walletBalance ?? 0.0;
     final go = GoTheme.of(context);
-    final panel = go.panel;
-    final text = go.text;
-    final muted = go.muted;
+    final strings = AppStrings.of(context);
+    final gradientEnd = go.isDark ? const Color(0xFF1E3306) : const Color(0xFFF1FBE2);
+    final balance = context.watch<AppState>().walletBalance ?? 0.0;
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        // Inherits appBarTheme.titleTextStyle, so the title matches every other
-        // AppBar in the app instead of pinning its own typeface.
-        title: const Text('المحفظة'),
-        backgroundColor: panel,
-        surfaceTintColor: Colors.transparent,
+        title: Text(strings.walletTitle, style: AppTokens.font()),
+        backgroundColor: go.panel,
+        foregroundColor: go.text,
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -58,33 +55,27 @@ class _WalletScreenState extends State<WalletScreen> {
                   margin: const EdgeInsets.all(16),
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    // Neutral card: pure white in light, near-black panel in
-                    // dark — no brand gradient, so the balance page stays in
-                    // the monochrome ramp the rider expects from the wallet.
-                    color: panel,
+                    gradient: LinearGradient(
+                      colors: [AppTokens.primary, gradientEnd],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                    border: Border.all(color: go.border),
-                    boxShadow: AppTokens.shadowCard,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTokens.primary.withOpacity(go.isDark ? 0.18 : 0.4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('الرصيد المتاح', style: AppTokens.font(color: muted, fontSize: 16)),
+                      Text(strings.availableBalance, style: AppTokens.font(color: Colors.white70, fontSize: 16)),
                       const SizedBox(height: 8),
-                      // Neutral ink, not the brand colour. At 36sp the balance is
-                      // already the loudest thing on the page through sheer size;
-                      // setting it in lime as well made the dark card read as neon
-                      // — the same figure and the full-width button both in
-                      // #C1F11D on near-black. Money is authoritative, not
-                      // decorative, so the brand stays on the action below it.
-                      Text(
-                        '${balance.toStringAsFixed(2)} ج.م',
-                        style: AppTokens.money(fontSize: 36, color: text),
-                      ),
+                      Text('${balance.toStringAsFixed(2)} ${strings.egp}', style: AppTokens.font(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 24),
-                      // Colours come from elevatedButtonTheme (go.action /
-                      // go.onAction), which is the same pairing this was
-                      // hardcoding — one less place to drift.
                       ElevatedButton(
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const TopupScreen())).then((_) => _fetchWallet());
@@ -95,38 +86,36 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _transactions.length,
-                    itemBuilder: (context, index) {
-                      final tx = _transactions[index];
-                      final isCredit = tx['type'] == 'credit';
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: BoxDecoration(
-                          color: panel,
-                          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                          border: Border.all(color: go.border),
+                  child: _transactions.isEmpty
+                      ? EmptyState(
+                          icon: Icons.receipt_long_outlined,
+                          title: strings.noTransactionsYet,
+                          subtitle: strings.transactionsWillAppearHere,
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _transactions.length,
+                          itemBuilder: (context, index) {
+                            final tx = _transactions[index];
+                            final isCredit = tx['type'] == 'credit';
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: isCredit ? AppTokens.success.withOpacity(0.2) : AppTokens.danger.withOpacity(0.2),
+                                child: Icon(isCredit ? Icons.arrow_downward : Icons.arrow_upward, color: isCredit ? AppTokens.success : AppTokens.danger),
+                              ),
+                              title: Text(tx['description'] ?? strings.transactionFallback, style: AppTokens.font(color: go.text)),
+                              subtitle: Text(tx['createdAt'] ?? '', style: AppTokens.font(color: go.muted, fontSize: 12)),
+                              trailing: Text(
+                                '${isCredit ? '+' : '-'}${tx['amount']} ${strings.egp}',
+                                style: AppTokens.font(
+                                  color: isCredit ? AppTokens.success : go.text,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          leading: CircleAvatar(
-                            backgroundColor: isCredit ? AppTokens.success.withOpacity(0.2) : AppTokens.danger.withOpacity(0.2),
-                            child: Icon(isCredit ? Icons.arrow_downward : Icons.arrow_upward, color: isCredit ? AppTokens.success : AppTokens.danger),
-                          ),
-                          title: Text(tx['description'] ?? 'عملية', style: AppTokens.font(color: text)),
-                          subtitle: Text(tx['createdAt'] ?? '', style: AppTokens.font(color: muted, fontSize: 12)),
-                          trailing: Text(
-                            '${isCredit ? '+' : '-'}${tx['amount']} ج.م',
-                            style: AppTokens.font(
-                              color: isCredit ? AppTokens.success : text,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                 ),
               ],
             ),
