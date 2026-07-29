@@ -9,6 +9,12 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { RejectionReasonModal } from '../components/RejectionReasonModal';
+import { Pagination } from '../components/ui/Pagination';
+
+/** Captains shown per page. Documents are grouped per captain, so this counts
+ *  captains, not documents. */
+const CAPTAINS_PER_PAGE = 10;
+const CAPTAINS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 interface Doc {
   id: string;
@@ -373,6 +379,13 @@ export default function CaptainVerificationPage() {
   const [previewGroup, setPreviewGroup] = useState<Doc[]>([]);
   const [bulkApproving, setBulkApproving] = useState<string | null>(null);
 
+  // Server-side paging state. The API pages by captain, so one page == N
+  // captains with all of their documents (never a captain split in half).
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(CAPTAINS_PER_PAGE);
+  const [totalCaptains, setTotalCaptains] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   // Rejection modal state
   const [rejectingDoc, setRejectingDoc] = useState<{ doc: Doc; captainName: string } | null>(null);
 
@@ -383,10 +396,26 @@ export default function CaptainVerificationPage() {
     try {
       setLoading(true);
       setError(null);
-      const params = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await api<{ documents: Doc[] }>(`/admin/documents${params}`, { token });
+      const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (statusFilter) query.set('status', statusFilter);
+      const res = await api<{
+        documents: Doc[];
+        page?: number;
+        pageSize?: number;
+        total?: number;
+        totalPages?: number;
+      }>(`/admin/documents?${query.toString()}`, { token });
       const fetchedDocs = res.documents || [];
       setDocs(fetchedDocs);
+      setTotalCaptains(res.total ?? 0);
+      setTotalPages(Math.max(res.totalPages ?? 1, 1));
+      // The API clamps an out-of-range page (e.g. the last captain on this page
+      // just got approved out of the "pending" filter). Follow it so the footer
+      // never advertises a page we are not actually showing.
+      const servedPage = res.page;
+      if (typeof servedPage === 'number' && servedPage > 0) {
+        setPage((prev) => (servedPage === prev ? prev : servedPage));
+      }
 
       // Expand all captain groups by default
       const initialExpanded: Record<string, boolean> = {};
@@ -403,7 +432,24 @@ export default function CaptainVerificationPage() {
 
   useEffect(() => {
     load();
-  }, [token, statusFilter]);
+  }, [token, statusFilter, page, pageSize]);
+
+  // Switching tabs must restart at page 1, otherwise the admin lands on page 7
+  // of a filter that only has two pages.
+  const changeStatusFilter = (next: string) => {
+    if (next === statusFilter) return;
+    setStatusFilter(next);
+    setPage(1);
+  };
+
+  const changePageSize = (next: number) => {
+    setPageSize(next);
+    setPage(1);
+  };
+
+  const goToPage = (next: number) => {
+    setPage(Math.min(Math.max(next, 1), Math.max(totalPages, 1)));
+  };
 
   // Group documents by Captain ID
   const captainGroups = useMemo(() => {
@@ -576,7 +622,7 @@ export default function CaptainVerificationPage() {
             ).map(([st, label]) => (
               <button
                 key={st}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => changeStatusFilter(st)}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
                   statusFilter === st
                     ? 'bg-primary-500 text-white shadow-xs'
@@ -897,6 +943,27 @@ export default function CaptainVerificationPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ─── Paging footer ───
+          Rendered outside the loading/empty branches so the controls keep their
+          place while the next page is in flight instead of the footer vanishing
+          and the list jumping. `busy` blocks double-clicks mid-fetch. */}
+      {totalPages > 1 && (
+        <div className="bg-surface-primary border border-border-primary rounded-2xl shadow-xs overflow-hidden">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={goToPage}
+            totalItems={totalCaptains}
+            itemNoun="كابتن"
+            pageSize={pageSize}
+            pageSizeOptions={CAPTAINS_PER_PAGE_OPTIONS}
+            onPageSizeChange={changePageSize}
+            busy={loading}
+            className="border-t-0"
+          />
         </div>
       )}
 

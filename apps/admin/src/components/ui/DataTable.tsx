@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Pagination } from './Pagination';
 
 export interface Column<T> {
   key: string;
@@ -327,50 +328,18 @@ export function DataTable<T extends Record<string, any>>({
           </table>
         </div>
 
+        {/* Paging footer now comes from the shared <Pagination>, so the table and
+            the non-table pages (captain verification) stay in lockstep. */}
         {pagination && totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-border-primary flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-text-secondary">
-              <span>عرض</span>
-              <select
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 bg-surface-secondary border border-border-primary rounded-lg text-text-primary focus:border-focus focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-              >
-                {pageSizeOptions.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-              <span>في الصفحة</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-text-secondary">
-                صفحة {page + 1} من {totalPages} ({sortedData.length} نتيجة)
-              </span>
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page === 0}
-                className="p-2 rounded-lg hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="الصفحة السابقة"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= totalPages - 1}
-                className="p-2 rounded-lg hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="الصفحة التالية"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
+          <Pagination
+            page={page + 1}
+            totalPages={totalPages}
+            onPageChange={(p) => handlePageChange(p - 1)}
+            totalItems={sortedData.length}
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            onPageSizeChange={handlePageSizeChange}
+          />
         )}
       </div>
     </div>
