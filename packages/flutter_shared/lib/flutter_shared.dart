@@ -1,1 +1,23 @@
-Ly8vIFNoYXJlZCBBUEkgY2xpZW50IGhlbHBlcnMgZm9yIFN5bmFwdGljIEdvIEZsdXR0ZXIgYXBwcy4KLy8vIENvcHkgb3IgcGF0aC1kZXBlbmQgdGhpcyBwYWNrYWdlIHdoZW4gRmx1dHRlciBtb25vcmVwbyB0b29saW5nIGlzIHJlYWR5LgpsaWJyYXJ5IGZsdXR0ZXJfc2hhcmVkOwoKZXhwb3J0ICdtb2RlbHMvdXNlci5kYXJ0JzsKZXhwb3J0ICdtb2RlbHMvdHJpcC5kYXJ0JzsKZXhwb3J0ICdzZXJ2aWNlcy9hcGlfY2xpZW50LmRhcnQnOwpleHBvcnQgJ3NlcnZpY2VzL2ZjbV9zZXJ2aWNlLmRhcnQnOwpleHBvcnQgJ3RoZW1lL2FwcF90aGVtZS5kYXJ0JzsKZXhwb3J0ICdsMTBuL2FwcF9zdHJpbmdzLmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvbWFpbl9ib3R0b21fbmF2LmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvZW1wdHlfc3RhdGUuZGFydCc7CmV4cG9ydCAnd2lkZ2V0cy9lcnJvcl9zdGF0ZS5kYXJ0JzsKZXhwb3J0ICd3aWRnZXRzL3NrZWxldG9uX2xvYWRlci5kYXJ0JzsKZXhwb3J0ICd3aWRnZXRzL3N0YXR1c19jaGlwLmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvbG9hZGluZ19vdmVybGF5LmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvbmF2aWdhdGlvbl9idXR0b24uZGFydCc7CmV4cG9ydCAnd2lkZ2V0cy9nb19vbmxpbmVfYnV0dG9uLmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvb2ZmbGluZV9nYXRlLmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvbWFwX2NvbnRyb2xzLmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvdmVoaWNsZV9tYXBfbWFya2VyLmRhcnQnOwpleHBvcnQgJ3dpZGdldHMvY291bnRlcl9vZmZlcl9zaGVldC5kYXJ0JzsKZXhwb3J0ICd3aWRnZXRzL29mZmxpbmVfZ3VhcmRfYmFubmVyLmRhcnQnOwo=
+/// Shared API client helpers for Synaptic Go Flutter apps.
+/// Copy or path-depend this package when Flutter monorepo tooling is ready.
+library flutter_shared;
+
+export 'models/user.dart';
+export 'models/trip.dart';
+export 'services/api_client.dart';
+export 'services/fcm_service.dart';
+export 'theme/app_theme.dart';
+export 'l10n/app_strings.dart';
+export 'widgets/main_bottom_nav.dart';
+export 'widgets/empty_state.dart';
+export 'widgets/error_state.dart';
+export 'widgets/skeleton_loader.dart';
+export 'widgets/status_chip.dart';
+export 'widgets/loading_overlay.dart';
+export 'widgets/navigation_button.dart';
+export 'widgets/go_online_button.dart';
+export 'widgets/offline_gate.dart';
+export 'widgets/map_controls.dart';
+export 'widgets/vehicle_map_marker.dart';
+export 'widgets/counter_offer_sheet.dart';
+export 'widgets/offline_guard_banner.dart';
