@@ -475,6 +475,23 @@ abstract class AppStrings {
   /// Validation error when required identity fields are left empty.
   String get docIdentityFieldsRequired;
 
+  /// Title of the sheet that shows a freshly captured document back to the
+  /// captain before it uploads.
+  String get docPhotoCheckTitle;
+
+  /// Guidance under the photo preview, naming the things that actually get a
+  /// document rejected — glare, soft focus, a cropped corner.
+  String get docPhotoCheckHint;
+
+  /// Action that accepts the previewed photo and moves on to the details form.
+  String get docPhotoUseAction;
+
+  /// Section heading above the identity fields (legal name, ID number).
+  String get docSectionIdentity;
+
+  /// Section heading above the date fields (date of birth, expiry).
+  String get docSectionDates;
+
   /// Generic error prefix for document actions.
   String docErrorPrefix(String error);
 
@@ -1812,6 +1829,22 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get docIdentityFieldsRequired => 'يرجى إكمال بيانات المستند المطلوبة';
+
+  @override
+  String get docPhotoCheckTitle => 'تحقّق من الصورة';
+
+  @override
+  String get docPhotoCheckHint =>
+      'تأكد أن الاسم والأرقام واضحة، وأن الصورة بلا انعكاس ولا أطراف مقطوعة';
+
+  @override
+  String get docPhotoUseAction => 'استخدام هذه الصورة';
+
+  @override
+  String get docSectionIdentity => 'بيانات المستند';
+
+  @override
+  String get docSectionDates => 'التواريخ';
 
   // Not an override: `AppStrings` declares `confirm`, never `confirmAction`.
   // The stray annotation predates this change and was masked only because it
@@ -3361,6 +3394,22 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get docIdentityFieldsRequired => 'Please complete the required document details';
+
+  @override
+  String get docPhotoCheckTitle => 'Check the photo';
+
+  @override
+  String get docPhotoCheckHint =>
+      'Make sure the name and numbers are sharp, with no glare and no cropped edges';
+
+  @override
+  String get docPhotoUseAction => 'Use this photo';
+
+  @override
+  String get docSectionIdentity => 'Document details';
+
+  @override
+  String get docSectionDates => 'Dates';
 
   // See the Arabic bundle: `confirmAction` is not part of the `AppStrings`
   // contract, so it cannot carry `@override`.
