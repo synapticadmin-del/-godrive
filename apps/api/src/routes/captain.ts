@@ -1,1 +1,577 @@
-aW1wb3J0IHsgSG9ubyB9IGZyb20gImhvbm8iOwppbXBvcnQgdHlwZSB7IERiQ2FwdGFpbiwgRGJUcmlwIH0gZnJvbSAiLi4vbGliL3R5cGVzIjsKaW1wb3J0IHsgY2VsbEtleSB9IGZyb20gIi4uL2xpYi9wcmljaW5nIjsKaW1wb3J0IHsKICBjYXB0YWluUHJvZmlsZVNjaGVtYSwKICBjYXB0YWluT25saW5lU2NoZW1hLAogIGNhcHRhaW5Mb2NhdGlvblNjaGVtYSwKfSBmcm9tICIuLi9saWIvc2NoZW1hcyI7CmltcG9ydCB7IGlkLCBub3dJc28gfSBmcm9tICIuLi9saWIvdXRpbHMiOwppbXBvcnQgeyBhdXRoTWlkZGxld2FyZSwgcmVxdWlyZVJvbGUsIHR5cGUgQXBwRW52IH0gZnJvbSAiLi4vbWlkZGxld2FyZS9hdXRoIjsKaW1wb3J0IHsgaXNSZXNwb25zZSwgcGFyc2VCb2R5LCByYXRlTGltaXQgfSBmcm9tICIuLi9taWRkbGV3YXJlL3JhdGVMaW1pdCI7CgpleHBvcnQgY29uc3QgY2FwdGFpblJvdXRlcyA9IG5ldyBIb25vPEFwcEVudj4oKTsKCmNhcHRhaW5Sb3V0ZXMudXNlKCIqIiwgYXV0aE1pZGRsZXdhcmUsIHJlcXVpcmVSb2xlKCJjYXB0YWluIiwgImFkbWluIikpOwoKY2FwdGFpblJvdXRlcy5wb3N0KCIvcHJvZmlsZSIsIGFzeW5jIChjKSA9PiB7CiAgY29uc3QgdXNlciA9IGMuZ2V0KCJ1c2VyIik7CiAgY29uc3QgYm9keSA9IGF3YWl0IHBhcnNlQm9keShjLCBjYXB0YWluUHJvZmlsZVNjaGVtYSk7CiAgaWYgKGlzUmVzcG9uc2UoYm9keSkpIHJldHVybiBib2R5OwoKICBpZiAoYm9keS5uYW1lIHx8IGJvZHkucGhvbmUpIHsKICAgIGF3YWl0IGMuZW52LkRCLnByZXBhcmUoCiAgICAgIGBVUERBVEUgdXNlcnMgU0VUIG5hbWUgPSBDT0FMRVNDRSg/LCBuYW1lKSwgcGhvbmUgPSBDT0FMRVNDRSg/LCBwaG9uZSksIHVwZGF0ZWRfYXQgPSA/IFdIRVJFIGlkID0gP2AsCiAgICApCiAgICAgIC5iaW5kKGJvZHkubmFtZSA/PyBudWxsLCBib2R5LnBob25lID8/IG51bGwsIG5vd0lzbygpLCB1c2VyLmlkKQogICAgICAucnVuKCk7CiAgfQoKICBjb25zdCBleGlzdGluZyA9IGF3YWl0IGMuZW52LkRCLnByZXBhcmUoYFNFTEVDVCB1c2VyX2lkIEZST00gY2FwdGFpbnMgV0hFUkUgdXNlcl9pZCA9ID9gKQogICAgLmJpbmQodXNlci5pZCkKICAgIC5maXJzdCgpOwoKICBpZiAoIWV4aXN0aW5nKSB7CiAgICBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgICBgSU5TRVJUIElOVE8gY2FwdGFpbnMgKHVzZXJfaWQsIHZlaGljbGVfbWFrZSwgdmVoaWNsZV9tb2RlbCwgdmVoaWNsZV9wbGF0ZSwgdmVoaWNsZV9jb2xvciwgbGljZW5zZV9udW1iZXIsIGFwcHJvdmFsX3N0YXR1cykKICAgICAgIFZBTFVFUyAoPywgPywgPywgPywgPywgPywgJ3BlbmRpbmcnKWAsCiAgICApCiAgICAgIC5iaW5kKAogICAgICAgIHVzZXIuaWQsCiAgICAgICAgYm9keS52ZWhpY2xlTWFrZSA/PyBudWxsLAogICAgICAgIGJvZHkudmVoaWNsZU1vZGVsID8/IG51bGwsCiAgICAgICAgYm9keS52ZWhpY2xlUGxhdGUgPz8gbnVsbCwKICAgICAgICBib2R5LnZlaGljbGVDb2xvciA/PyBudWxsLAogICAgICAgIGJvZHkubGljZW5zZU51bWJlciA/PyBudWxsLAogICAgICApCiAgICAgIC5ydW4oKTsKICB9IGVsc2UgewogICAgYXdhaXQgYy5lbnYuREIucHJlcGFyZSgKICAgICAgYFVQREFURSBjYXB0YWlucyBTRVQKICAgICAgICB2ZWhpY2xlX21ha2UgPSBDT0FMRVNDRSg/LCB2ZWhpY2xlX21ha2UpLAogICAgICAgIHZlaGljbGVfbW9kZWwgPSBDT0FMRVNDRSg/LCB2ZWhpY2xlX21vZGVsKSwKICAgICAgICB2ZWhpY2xlX3BsYXRlID0gQ09BTEVTQ0UoPywgdmVoaWNsZV9wbGF0ZSksCiAgICAgICAgdmVoaWNsZV9jb2xvciA9IENPQUxFU0NFKD8sIHZlaGljbGVfY29sb3IpLAogICAgICAgIGxpY2Vuc2VfbnVtYmVyID0gQ09BTEVTQ0UoPywgbGljZW5zZV9udW1iZXIpLAogICAgICAgIHVwZGF0ZWRfYXQgPSA/CiAgICAgICBXSEVSRSB1c2VyX2lkID0gP2AsCiAgICApCiAgICAgIC5iaW5kKAogICAgICAgIGJvZHkudmVoaWNsZU1ha2UgPz8gbnVsbCwKICAgICAgICBib2R5LnZlaGljbGVNb2RlbCA/PyBudWxsLAogICAgICAgIGJvZHkudmVoaWNsZVBsYXRlID8/IG51bGwsCiAgICAgICAgYm9keS52ZWhpY2xlQ29sb3IgPz8gbnVsbCwKICAgICAgICBib2R5LmxpY2Vuc2VOdW1iZXIgPz8gbnVsbCwKICAgICAgICBub3dJc28oKSwKICAgICAgICB1c2VyLmlkLAogICAgICApCiAgICAgIC5ydW4oKTsKICB9CgogIC8vIE9uYm9hcmRpbmcgZmllbGRzIChtaWdyYXRpb24gMDAxMyk6IHBhcnRpYWwgdXBkYXRlcyBvbmx5IOKAlCBDT0FMRVNDRSBrZWVwcwogIC8vIHdoYXRldmVyIGVhcmxpZXIgc3RlcHMgYWxyZWFkeSBzYXZlZC4gVGhlIHllYXIgY29sdW1uIGlzIElOVEVHRVIsIHNvIHRoZQogIC8vIG51bWVyaWMgdmFsdWUgaXMgYm91bmQgZGlyZWN0bHkgd2hpbGUgZXZlcnl0aGluZyBlbHNlIGlzIHRleHQuCiAgYXdhaXQgYy5lbnYuREIucHJlcGFyZSgKICAgIGBVUERBVEUgY2FwdGFpbnMgU0VUCiAgICAgIGZpcnN0X25hbWUgPSBDT0FMRVNDRSg/LCBmaXJzdF9uYW1lKSwKICAgICAgZmF0aGVyX25hbWUgPSBDT0FMRVNDRSg/LCBmYXRoZXJfbmFtZSksCiAgICAgIGdyYW5kZmF0aGVyX25hbWUgPSBDT0FMRVNDRSg/LCBncmFuZGZhdGhlcl9uYW1lKSwKICAgICAgZmFtaWx5X25hbWUgPSBDT0FMRVNDRSg/LCBmYW1pbHlfbmFtZSksCiAgICAgIGJpcnRoX2RhdGUgPSBDT0FMRVNDRSg/LCBiaXJ0aF9kYXRlKSwKICAgICAgbmF0aW9uYWxfaWRfbnVtYmVyID0gQ09BTEVTQ0UoPywgbmF0aW9uYWxfaWRfbnVtYmVyKSwKICAgICAgbGljZW5zZV9leHBpcnkgPSBDT0FMRVNDRSg/LCBsaWNlbnNlX2V4cGlyeSksCiAgICAgIHZlaGljbGVfeWVhciA9IENPQUxFU0NFKD8sIHZlaGljbGVfeWVhciksCiAgICAgIHVwZGF0ZWRfYXQgPSA/CiAgICAgV0hFUkUgdXNlcl9pZCA9ID9gLAogICkKICAgIC5iaW5kKAogICAgICBib2R5LmZpcnN0TmFtZSA/PyBudWxsLAogICAgICBib2R5LmZhdGhlck5hbWUgPz8gbnVsbCwKICAgICAgYm9keS5ncmFuZGZhdGhlck5hbWUgPz8gbnVsbCwKICAgICAgYm9keS5mYW1pbHlOYW1lID8/IG51bGwsCiAgICAgIGJvZHkuYmlydGhEYXRlID8/IG51bGwsCiAgICAgIGJvZHkubmF0aW9uYWxJZE51bWJlciA/PyBudWxsLAogICAgICBib2R5LmxpY2Vuc2VFeHBpcnkgPz8gbnVsbCwKICAgICAgYm9keS52ZWhpY2xlWWVhciA/PyBudWxsLAogICAgICBub3dJc28oKSwKICAgICAgdXNlci5pZCwKICAgICkKICAgIC5ydW4oKTsKCiAgY29uc3QgY2FwdGFpbiA9IGF3YWl0IGMuZW52LkRCLnByZXBhcmUoYFNFTEVDVCAqIEZST00gY2FwdGFpbnMgV0hFUkUgdXNlcl9pZCA9ID9gKQogICAgLmJpbmQodXNlci5pZCkKICAgIC5maXJzdDxEYkNhcHRhaW4+KCk7CgogIHJldHVybiBjLmpzb24oeyBjYXB0YWluIH0pOwp9KTsKCi8vIEdFVCAvY2FwdGFpbi9wcm9maWxlIOKAlCB3aGF0IHRoZSBvbmJvYXJkaW5nIGZsb3cgcHJlLWZpbGxzIGZyb206IHRoZSBjYXB0YWluCi8vIHJvdyBwbHVzIHRoZSBkaXNwbGF5IG5hbWUgb24gdGhlIHVzZXIgcmVjb3JkLiBSZWFkcyBhcmUgaWRlbXBvdGVudCwgc28gdGhlCi8vIGZsb3cgY2FuIHJlLWZldGNoIG9uIHJlc3VtZSB3aXRob3V0IHNpZGUgZWZmZWN0cy4KY2FwdGFpblJvdXRlcy5nZXQoIi9wcm9maWxlIiwgYXN5bmMgKGMpID0+IHsKICBjb25zdCB1c2VyID0gYy5nZXQoInVzZXIiKTsKICBjb25zdCBjYXB0YWluID0gYXdhaXQgYy5lbnYuREIucHJlcGFyZSgKICAgIGBTRUxFQ1QgYy4qLCB1Lm5hbWUgYXMgdXNlcl9uYW1lLCB1LmVtYWlsLCB1LnBob25lIGFzIHVzZXJfcGhvbmUKICAgICBGUk9NIGNhcHRhaW5zIGMgSk9JTiB1c2VycyB1IE9OIHUuaWQgPSBjLnVzZXJfaWQgV0hFUkUgYy51c2VyX2lkID0gP2AsCiAgKQogICAgLmJpbmQodXNlci5pZCkKICAgIC5maXJzdCgpOwogIHJldHVybiBjLmpzb24oeyBjYXB0YWluOiBjYXB0YWluID8/IG51bGwgfSk7Cn0pOwoKY2FwdGFpblJvdXRlcy5wb3N0KCIvb25saW5lIiwgYXN5bmMgKGMpID0+IHsKICBjb25zdCB1c2VyID0gYy5nZXQoInVzZXIiKTsKICBjb25zdCBib2R5ID0gYXdhaXQgcGFyc2VCb2R5KGMsIGNhcHRhaW5PbmxpbmVTY2hlbWEpOwogIGlmIChpc1Jlc3BvbnNlKGJvZHkpKSByZXR1cm4gYm9keTsKCiAgY29uc3Qgb25saW5lID0gYm9keS5vbmxpbmUgIT09IGZhbHNlOwogIGNvbnN0IGxhdCA9IGJvZHkubGF0OwogIGNvbnN0IGxuZyA9IGJvZHkubG5nOwogIGNvbnN0IGNpdHkgPSBib2R5LmNpdHkgfHwgYy5lbnYuREVGQVVMVF9DSVRZIHx8ICJjYWlybyI7CgogIGNvbnN0IGNhcHRhaW4gPSBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKGBTRUxFQ1QgKiBGUk9NIGNhcHRhaW5zIFdIRVJFIHVzZXJfaWQgPSA/YCkKICAgIC5iaW5kKHVzZXIuaWQpCiAgICAuZmlyc3Q8RGJDYXB0YWluPigpOwoKICBpZiAoIWNhcHRhaW4pIHJldHVybiBjLmpzb24oeyBlcnJvcjogIkNvbXBsZXRlIGNhcHRhaW4gcHJvZmlsZSBmaXJzdCIsIGNvZGU6ICJOT19QUk9GSUxFIiB9LCA0MDApOwogIGlmIChjYXB0YWluLmFwcHJvdmFsX3N0YXR1cyAhPT0gImFwcHJvdmVkIiAmJiB1c2VyLnJvbGUgIT09ICJhZG1pbiIpIHsKICAgIHJldHVybiBjLmpzb24oCiAgICAgIHsKICAgICAgICBlcnJvcjogIkNhcHRhaW4gbm90IGFwcHJvdmVkIHlldCIsCiAgICAgICAgY29kZTogIk5PVF9BUFBST1ZFRCIsCiAgICAgICAgYXBwcm92YWxTdGF0dXM6IGNhcHRhaW4uYXBwcm92YWxfc3RhdHVzLAogICAgICB9LAogICAgICA0MDMsCiAgICApOwogIH0KCiAgaWYgKG9ubGluZSAmJiAodHlwZW9mIGxhdCAhPT0gIm51bWJlciIgfHwgdHlwZW9mIGxuZyAhPT0gIm51bWJlciIpKSB7CiAgICByZXR1cm4gYy5qc29uKHsgZXJyb3I6ICJsYXQvbG5nIHJlcXVpcmVkIHdoZW4gZ29pbmcgb25saW5lIiwgY29kZTogIkxBVExOR19SRVFVSVJFRCIgfSwgNDAwKTsKICB9CgogIC8vIFBlcnNpc3QgdGhlIGNhcHRhaW4ncyB3b3JraW5nIGNpdHkgdG9vIOKAlCB0aGUgb2ZmZXJzIGVuZHBvaW50cyBmaWx0ZXIgb24KICAvLyBpdCwgc28gYSBjYXB0YWluIGlzIG5ldmVyIHNob3duIHRyaXBzIGZyb20gYSBjaXR5IHRoZXkgYXJlIG5vdCBpbi4gTlVMTAogIC8vIG91dCBvbiB0aGUgd2F5IG9mZmxpbmUgc28gYSBzdGFsZSBjaXR5IGNhbm5vdCBmb2xsb3cgdGhlbSBsYXRlci4KICBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgYFVQREFURSBjYXB0YWlucyBTRVQgaXNfb25saW5lID0gPywgbGFzdF9sYXQgPSBDT0FMRVNDRSg/LCBsYXN0X2xhdCksIGxhc3RfbG5nID0gQ09BTEVTQ0UoPywgbGFzdF9sbmcpLCBsYXN0X3NlZW5fYXQgPSA/LCBjaXR5ID0gPywgdXBkYXRlZF9hdCA9ID8KICAgICBXSEVSRSB1c2VyX2lkID0gP2AsCiAgKQogICAgLmJpbmQob25saW5lID8gMSA6IDAsIGxhdCA/PyBudWxsLCBsbmcgPz8gbnVsbCwgbm93SXNvKCksIG9ubGluZSA/IGNpdHkgOiBudWxsLCBub3dJc28oKSwgdXNlci5pZCkKICAgIC5ydW4oKTsKCiAgaWYgKHR5cGVvZiBsYXQgPT09ICJudW1iZXIiICYmIHR5cGVvZiBsbmcgPT09ICJudW1iZXIiKSB7CiAgICBjb25zdCBrZXkgPSBjZWxsS2V5KGNpdHksIGxhdCwgbG5nKTsKICAgIGNvbnN0IHN0dWIgPSBjLmVudi5HRU9fQ0VMTC5nZXQoYy5lbnYuR0VPX0NFTEwuaWRGcm9tTmFtZShrZXkpKTsKICAgIGlmIChvbmxpbmUpIHsKICAgICAgYXdhaXQgc3R1Yi5mZXRjaCgiaHR0cHM6Ly9jZWxsL2hlYXJ0YmVhdCIsIHsKICAgICAgICBtZXRob2Q6ICJQT1NUIiwKICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7IHVzZXJJZDogdXNlci5pZCwgbGF0LCBsbmcsIG5hbWU6IHVzZXIubmFtZSB9KSwKICAgICAgfSk7CiAgICB9IGVsc2UgewogICAgICBhd2FpdCBzdHViLmZldGNoKCJodHRwczovL2NlbGwvb2ZmbGluZSIsIHsKICAgICAgICBtZXRob2Q6ICJQT1NUIiwKICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7IHVzZXJJZDogdXNlci5pZCB9KSwKICAgICAgfSk7CiAgICB9CiAgfQoKICByZXR1cm4gYy5qc29uKHsgb2s6IHRydWUsIG9ubGluZSwgY2l0eSB9KTsKfSk7CgpjYXB0YWluUm91dGVzLnBvc3QoCiAgIi9sb2NhdGlvbiIsCiAgcmF0ZUxpbWl0KHsKICAgIHByZWZpeDogImNhcHRhaW4tbG9jIiwKICAgIGxpbWl0OiAzMCwKICAgIHdpbmRvd1NlYzogNjAsCiAgICBrZXlGbjogKGMpID0+IGMuZ2V0KCJ1c2VyIik/LmlkID8/ICJhbm9uIiwKICB9KSwKICBhc3luYyAoYykgPT4gewogICAgY29uc3QgdXNlciA9IGMuZ2V0KCJ1c2VyIik7CiAgICBjb25zdCBib2R5ID0gYXdhaXQgcGFyc2VCb2R5KGMsIGNhcHRhaW5Mb2NhdGlvblNjaGVtYSk7CiAgICBpZiAoaXNSZXNwb25zZShib2R5KSkgcmV0dXJuIGJvZHk7CgogICAgY29uc3QgY2l0eSA9IGJvZHkuY2l0eSB8fCBjLmVudi5ERUZBVUxUX0NJVFkgfHwgImNhaXJvIjsKCiAgICBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgICBgVVBEQVRFIGNhcHRhaW5zIFNFVCBsYXN0X2xhdCA9ID8sIGxhc3RfbG5nID0gPywgbGFzdF9zZWVuX2F0ID0gPywgaXNfb25saW5lID0gMSwgY2l0eSA9ID8sIHVwZGF0ZWRfYXQgPSA/IFdIRVJFIHVzZXJfaWQgPSA/YCwKICAgICkKICAgICAgLmJpbmQoYm9keS5sYXQsIGJvZHkubG5nLCBub3dJc28oKSwgY2l0eSwgbm93SXNvKCksIHVzZXIuaWQpCiAgICAgIC5ydW4oKTsKCiAgICBjb25zdCBrZXkgPSBjZWxsS2V5KGNpdHksIGJvZHkubGF0LCBib2R5LmxuZyk7CiAgICBjb25zdCBjZWxsU3R1YiA9IGMuZW52LkdFT19DRUxMLmdldChjLmVudi5HRU9fQ0VMTC5pZEZyb21OYW1lKGtleSkpOwogICAgYXdhaXQgY2VsbFN0dWIuZmV0Y2goImh0dHBzOi8vY2VsbC9oZWFydGJlYXQiLCB7CiAgICAgIG1ldGhvZDogIlBPU1QiLAogICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7CiAgICAgICAgdXNlcklkOiB1c2VyLmlkLAogICAgICAgIGxhdDogYm9keS5sYXQsCiAgICAgICAgbG5nOiBib2R5LmxuZywKICAgICAgICBuYW1lOiB1c2VyLm5hbWUsCiAgICAgIH0pLAogICAgfSk7CgogICAgaWYgKGJvZHkudHJpcElkKSB7CiAgICAgIGNvbnN0IHRyaXAgPSBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgICAgIGBTRUxFQ1QgKiBGUk9NIHRyaXBzIFdIRVJFIGlkID0gPyBBTkQgY2FwdGFpbl9pZCA9ID9gLAogICAgICApCiAgICAgICAgLmJpbmQoYm9keS50cmlwSWQsIHVzZXIuaWQpCiAgICAgICAgLmZpcnN0PERiVHJpcD4oKTsKCiAgICAgIGlmICh0cmlwICYmIFsiYXNzaWduZWQiLCAiYXJyaXZlZCIsICJpbl9wcm9ncmVzcyJdLmluY2x1ZGVzKHRyaXAuc3RhdHVzKSkgewogICAgICAgIGF3YWl0IGMuZW52LkRCLnByZXBhcmUoCiAgICAgICAgICBgVVBEQVRFIHRyaXBzIFNFVCBjYXB0YWluX2xhdCA9ID8sIGNhcHRhaW5fbG5nID0gPywgdXBkYXRlZF9hdCA9ID8gV0hFUkUgaWQgPSA/YCwKICAgICAgICApCiAgICAgICAgICAuYmluZChib2R5LmxhdCwgYm9keS5sbmcsIG5vd0lzbygpLCB0cmlwLmlkKQogICAgICAgICAgLnJ1bigpOwoKICAgICAgICAvLyBQYXRoIHNhbXBsaW5nOiBrZWVwIGF0IG1vc3QgfjEgcG9pbnQgLyAzMHMKICAgICAgICBjb25zdCBsYXN0ID0gYXdhaXQgYy5lbnYuREIucHJlcGFyZSgKICAgICAgICAgIGBTRUxFQ1QgcmVjb3JkZWRfYXQgRlJPTSB0cmlwX3BhdGhfcG9pbnRzIFdIRVJFIHRyaXBfaWQgPSA/IE9SREVSIEJZIHJlY29yZGVkX2F0IERFU0MgTElNSVQgMWAsCiAgICAgICAgKQogICAgICAgICAgLmJpbmQodHJpcC5pZCkKICAgICAgICAgIC5maXJzdDx7IHJlY29yZGVkX2F0OiBzdHJpbmcgfT4oKTsKCiAgICAgICAgY29uc3QgbGFzdE1zID0gbGFzdCA/IG5ldyBEYXRlKGxhc3QucmVjb3JkZWRfYXQpLmdldFRpbWUoKSA6IDA7CiAgICAgICAgaWYgKCFsYXN0IHx8IERhdGUubm93KCkgLSBsYXN0TXMgPj0gMzBfMDAwKSB7CiAgICAgICAgICBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgICAgICAgICBgSU5TRVJUIElOVE8gdHJpcF9wYXRoX3BvaW50cyAoaWQsIHRyaXBfaWQsIGxhdCwgbG5nLCBoZWFkaW5nLCByZWNvcmRlZF9hdCkKICAgICAgICAgICAgIFZBTFVFUyAoPywgPywgPywgPywgPywgPylgLAogICAgICAgICAgKQogICAgICAgICAgICAuYmluZChpZCgicHAiKSwgdHJpcC5pZCwgYm9keS5sYXQsIGJvZHkubG5nLCBib2R5LmhlYWRpbmcgPz8gbnVsbCwgbm93SXNvKCkpCiAgICAgICAgICAgIC5ydW4oKTsKICAgICAgICB9CgogICAgICAgIGNvbnN0IHJvb20gPSBjLmVudi5UUklQX1JPT00uZ2V0KGMuZW52LlRSSVBfUk9PTS5pZEZyb21OYW1lKHRyaXAuaWQpKTsKICAgICAgICBhd2FpdCByb29tLmZldGNoKCJodHRwczovL3Jvb20vYnJvYWRjYXN0IiwgewogICAgICAgICAgbWV0aG9kOiAiUE9TVCIsCiAgICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7CiAgICAgICAgICAgIHR5cGU6ICJsb2NhdGlvbi5jYXB0YWluIiwKICAgICAgICAgICAgdHJpcElkOiB0cmlwLmlkLAogICAgICAgICAgICBsYXQ6IGJvZHkubGF0LAogICAgICAgICAgICBsbmc6IGJvZHkubG5nLAogICAgICAgICAgICBoZWFkaW5nOiBib2R5LmhlYWRpbmcgPz8gbnVsbCwKICAgICAgICAgICAgYXQ6IG5vd0lzbygpLAogICAgICAgICAgfSksCiAgICAgICAgfSk7CiAgICAgIH0KICAgIH0KCiAgICByZXR1cm4gYy5qc29uKHsgb2s6IHRydWUgfSk7CiAgfSwKKTsKCmNhcHRhaW5Sb3V0ZXMuZ2V0KCIvZWFybmluZ3MiLCBhc3luYyAoYykgPT4gewogIGNvbnN0IHVzZXIgPSBjLmdldCgidXNlciIpOwogIGNvbnN0IGZyb20gPSBjLnJlcS5xdWVyeSgiZnJvbSIpIHx8IG5ldyBEYXRlKERhdGUubm93KCkgLSA3ICogODY0ZTUpLnRvSVNPU3RyaW5nKCk7CiAgY29uc3QgdG8gPSBjLnJlcS5xdWVyeSgidG8iKSB8fCBub3dJc28oKTsKCiAgY29uc3Qgcm93cyA9IGF3YWl0IGMuZW52LkRCLnByZXBhcmUoCiAgICBgU0VMRUNUIENPVU5UKCopIGFzIHRyaXBzLCBDT0FMRVNDRShTVU0oZmluYWxfZmFyZSksIDApIGFzIGdyb3NzLAogICAgICAgICAgICBDT0FMRVNDRShTVU0oY29tbWlzc2lvbiksIDApIGFzIGNvbW1pc3Npb24KICAgICBGUk9NIHRyaXBzCiAgICAgV0hFUkUgY2FwdGFpbl9pZCA9ID8gQU5EIHN0YXR1cyA9ICdjb21wbGV0ZWQnCiAgICAgICBBTkQgY29tcGxldGVkX2F0ID49ID8gQU5EIGNvbXBsZXRlZF9hdCA8PSA/YCwKICApCiAgICAuYmluZCh1c2VyLmlkLCBmcm9tLCB0bykKICAgIC5maXJzdDx7IHRyaXBzOiBudW1iZXI7IGdyb3NzOiBudW1iZXI7IGNvbW1pc3Npb246IG51bWJlciB9PigpOwoKICBjb25zdCBncm9zcyA9IHJvd3M/Lmdyb3NzID8/IDA7CiAgY29uc3QgY29tbWlzc2lvbiA9IHJvd3M/LmNvbW1pc3Npb24gPz8gMDsKCiAgcmV0dXJuIGMuanNvbih7CiAgICBmcm9tLAogICAgdG8sCiAgICB0cmlwczogcm93cz8udHJpcHMgPz8gMCwKICAgIGdyb3NzLAogICAgY29tbWlzc2lvbiwKICAgIG5ldDogTWF0aC5yb3VuZCgoZ3Jvc3MgLSBjb21taXNzaW9uKSAqIDEwMCkgLyAxMDAsCiAgICBjdXJyZW5jeTogIkVHUCIsCiAgfSk7Cn0pOwoKY2FwdGFpblJvdXRlcy5nZXQoIi9uZWFyYnktcmVxdWVzdHMiLCBhc3luYyAoYykgPT4gewogIGNvbnN0IHVzZXIgPSBjLmdldCgidXNlciIpOwogIGNvbnN0IGxhdFBhcmFtID0gYy5yZXEucXVlcnkoImxhdCIpOwogIGNvbnN0IGxuZ1BhcmFtID0gYy5yZXEucXVlcnkoImxuZyIpOwogIGNvbnN0IHJhZGl1c0ttID0gTnVtYmVyKGMucmVxLnF1ZXJ5KCJyYWRpdXMiKSB8fCAxNSk7CgogIGNvbnN0IGNhcHRhaW4gPSBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKGBTRUxFQ1QgKiBGUk9NIGNhcHRhaW5zIFdIRVJFIHVzZXJfaWQgPSA/YCkKICAgIC5iaW5kKHVzZXIuaWQpCiAgICAuZmlyc3Q8RGJDYXB0YWluPigpOwoKICAvLyBPbmxpbmUgZ3VhcmQ6IG9mZmxpbmUgY2FwdGFpbnMgc2hvdWxkIG5vdCByZWNlaXZlIHRyaXAgbGlzdGluZ3MuCiAgaWYgKGNhcHRhaW4gJiYgIWNhcHRhaW4uaXNfb25saW5lICYmIHVzZXIucm9sZSAhPT0gImFkbWluIikgewogICAgcmV0dXJuIGMuanNvbih7IHJlcXVlc3RzOiBbXSwgY2FwdGFpbkxvY2F0aW9uOiB7IGxhdDogY2FwdGFpbi5sYXN0X2xhdCA/PyAzMC4wNDQ0LCBsbmc6IGNhcHRhaW4ubGFzdF9sbmcgPz8gMzEuMjM1NyB9IH0pOwogIH0KCiAgY29uc3QgY0xhdCA9IGxhdFBhcmFtID8gTnVtYmVyKGxhdFBhcmFtKSA6IGNhcHRhaW4/Lmxhc3RfbGF0ID8/IDMwLjA0NDQ7CiAgY29uc3QgY0xuZyA9IGxuZ1BhcmFtID8gTnVtYmVyKGxuZ1BhcmFtKSA6IGNhcHRhaW4/Lmxhc3RfbG5nID8/IDMxLjIzNTc7CgogIC8vIENpdHkgc2NvcGluZzogb25seSB0cmlwcyBpbiB0aGUgY2FwdGFpbidzIHdvcmtpbmcgY2l0eS4gV2l0aG91dCB0aGlzIHRoZQogIC8vIHF1ZXVlIHNob3dlZCBldmVyeSBvcGVuIHJlcXVlc3QgbmF0aW9ud2lkZSwgc28gYSBjYXB0YWluIGluIEFsZXhhbmRyaWEKICAvLyB3b3VsZCBiZSBvZmZlcmVkIENhaXJvIHRyaXBzIHRoZXkgY291bGQgbmV2ZXIgc2VydmUuIFRoZSBjaXR5IHJlc29sdmVzCiAgLy8gZnJvbSB0aGUgY2FwdGFpbidzIHJvdyAoc2V0IG9uIC9vbmxpbmUgYW5kIC9sb2NhdGlvbiksIGZhbGxpbmcgYmFjayB0bwogIC8vIHRoZSBkZXBsb3ltZW50IGRlZmF1bHQgZm9yIGxlZ2FjeSByb3dzIHdpdGggbm8gY2l0eSB5ZXQuCiAgY29uc3QgY2l0eSA9CiAgICAoY2FwdGFpbiBhcyAoRGJDYXB0YWluICYgeyBjaXR5Pzogc3RyaW5nIHwgbnVsbCB9KSB8IG51bGwpPy5jaXR5IHx8CiAgICBjLmVudi5ERUZBVUxUX0NJVFkgfHwKICAgICJjYWlybyI7CgogIC8vIFF1ZXJ5IHNlYXJjaGluZy9vZmZlcmVkIHRyaXBzIHdpdGggcmlkZXIgZGV0YWlscy4gZHVyYXRpb25fbWluIGlzCiAgLy8gc2VsZWN0ZWQgZXhwbGljaXRseTogdGhlIG9mZmVyIGNhcmQgcHJldmlvdXNseSBmZWxsIGJhY2sgdG8gYSByb3VnaAogIC8vIDIwa20vaCBndWVzcyB3aGlsZSB0aGUgcmVhbCBPU1JNIGVzdGltYXRlIHNhdCBpbiB0aGUgcm93IHVucmVhZC4KICBjb25zdCByb3dzID0gYXdhaXQgYy5lbnYuREIucHJlcGFyZSgKICAgIGBTRUxFQ1QgdC5pZCwgdC5yaWRlcl9pZCwgdS5uYW1lIGFzIHJpZGVyX25hbWUsIHUuZW1haWwgYXMgcmlkZXJfZW1haWwsIHUucGhvbmUgYXMgcmlkZXJfcGhvbmUsCiAgICAgICAgICAgIHQucGlja3VwX2xhdCwgdC5waWNrdXBfbG5nLCB0LnBpY2t1cF9hZGRyZXNzLAogICAgICAgICAgICB0LmRyb3BvZmZfbGF0LCB0LmRyb3BvZmZfbG5nLCB0LmRyb3BvZmZfYWRkcmVzcywKICAgICAgICAgICAgdC5kaXN0YW5jZV9rbSwgdC5kdXJhdGlvbl9taW4sIHQub2ZmZXJlZF9wcmljZSwgdC5lc3RpbWF0ZWRfZmFyZSwgdC5jcmVhdGVkX2F0LCB0LmNpdHkKICAgICBGUk9NIHRyaXBzIHQKICAgICBKT0lOIHVzZXJzIHUgT04gdC5yaWRlcl9pZCA9IHUuaWQKICAgICBXSEVSRSB0LnN0YXR1cyBJTiAoJ3NlYXJjaGluZycsICdvZmZlcmVkJykgQU5EIHQuY2l0eSA9ID8KICAgICBPUkRFUiBCWSB0LmNyZWF0ZWRfYXQgREVTQyBMSU1JVCAzMGAKICApCiAgICAuYmluZChjaXR5KQogICAgLmFsbDx7CiAgICBpZDogc3RyaW5nOwogICAgcmlkZXJfaWQ6IHN0cmluZzsKICAgIHJpZGVyX25hbWU6IHN0cmluZyB8IG51bGw7CiAgICByaWRlcl9lbWFpbDogc3RyaW5nOwogICAgcmlkZXJfcGhvbmU6IHN0cmluZyB8IG51bGw7CiAgICBwaWNrdXBfbGF0OiBudW1iZXI7CiAgICBwaWNrdXBfbG5nOiBudW1iZXI7CiAgICBwaWNrdXBfYWRkcmVzczogc3RyaW5nIHwgbnVsbDsKICAgIGRyb3BvZmZfbGF0OiBudW1iZXI7CiAgICBkcm9wb2ZmX2xuZzogbnVtYmVyOwogICAgZHJvcG9mZl9hZGRyZXNzOiBzdHJpbmcgfCBudWxsOwogICAgZGlzdGFuY2Vfa206IG51bWJlciB8IG51bGw7CiAgICBkdXJhdGlvbl9taW46IG51bWJlciB8IG51bGw7CiAgICBvZmZlcmVkX3ByaWNlOiBudW1iZXIgfCBudWxsOwogICAgZXN0aW1hdGVkX2ZhcmU6IG51bWJlciB8IG51bGw7CiAgICBjcmVhdGVkX2F0OiBzdHJpbmc7CiAgICBjaXR5OiBzdHJpbmc7CiAgfT4oKTsKCiAgLy8gSGF2ZXJzaW5lIGRpc3RhbmNlIGhlbHBlcgogIGNvbnN0IGhhdmVyc2luZUttID0gKGxhdDE6IG51bWJlciwgbG9uMTogbnVtYmVyLCBsYXQyOiBudW1iZXIsIGxvbjI6IG51bWJlcikgPT4gewogICAgY29uc3QgUiA9IDYzNzE7CiAgICBjb25zdCBkTGF0ID0gKGxhdDIgLSBsYXQxKSAqIChNYXRoLlBJIC8gMTgwKTsKICAgIGNvbnN0IGRMb24gPSAobG9uMiAtIGxvbjEpICogKE1hdGguUEkgLyAxODApOwogICAgY29uc3QgYSA9CiAgICAgIE1hdGguc2luKGRMYXQgLyAyKSAqIE1hdGguc2luKGRMYXQgLyAyKSArCiAgICAgIE1hdGguY29zKGxhdDEgKiAoTWF0aC5QSSAvIDE4MCkpICoKICAgICAgICBNYXRoLmNvcyhsYXQyICogKE1hdGguUEkgLyAxODApKSAqCiAgICAgICAgTWF0aC5zaW4oZExvbiAvIDIpICoKICAgICAgICBNYXRoLnNpbihkTG9uIC8gMik7CiAgICBjb25zdCBjID0gMiAqIE1hdGguYXRhbjIoTWF0aC5zcXJ0KGEpLCBNYXRoLnNxcnQoMSAtIGEpKTsKICAgIHJldHVybiBNYXRoLnJvdW5kKFIgKiBjICogMTApIC8gMTA7CiAgfTsKCiAgY29uc3QgcmVxdWVzdHMgPSAocm93cy5yZXN1bHRzIHx8IFtdKQogICAgLm1hcCgocikgPT4gewogICAgICBjb25zdCBjYXB0YWluVG9QaWNrdXBLbSA9IGhhdmVyc2luZUttKGNMYXQsIGNMbmcsIHIucGlja3VwX2xhdCwgci5waWNrdXBfbG5nKTsKICAgICAgcmV0dXJuIHsKICAgICAgICBpZDogci5pZCwKICAgICAgICByaWRlcl9pZDogci5yaWRlcl9pZCwKICAgICAgICByaWRlcl9uYW1lOiByLnJpZGVyX25hbWUgfHwgIti52YXZitmEIEdvRHJpdmUiLAogICAgICAgIHJpZGVyX3Bob25lOiByLnJpZGVyX3Bob25lIHx8ICIiLAogICAgICAgIHJpZGVyX2F2YXRhcjogYGh0dHBzOi8vYXBpLmRpY2ViZWFyLmNvbS83LngvYm90dHRzL3N2Zz9zZWVkPSR7ci5yaWRlcl9pZH1gLAogICAgICAgIHBpY2t1cF9sYXQ6IHIucGlja3VwX2xhdCwKICAgICAgICBwaWNrdXBfbG5nOiByLnBpY2t1cF9sbmcsCiAgICAgICAgcGlja3VwX2FkZHJlc3M6IHIucGlja3VwX2FkZHJlc3MgfHwgItmF2YjZgti5INin2YTYp9mG2LfZhNin2YIiLAogICAgICAgIGRyb3BvZmZfbGF0OiByLmRyb3BvZmZfbGF0LAogICAgICAgIGRyb3BvZmZfbG5nOiByLmRyb3BvZmZfbG5nLAogICAgICAgIGRyb3BvZmZfYWRkcmVzczogci5kcm9wb2ZmX2FkZHJlc3MgfHwgItmF2YjZgti5INin2YTZiNi12YjZhCIsCiAgICAgICAgZGlzdGFuY2Vfa206IHIuZGlzdGFuY2Vfa20gfHwgNS4wLAogICAgICAgIGR1cmF0aW9uX21pbjogci5kdXJhdGlvbl9taW4gPz8gbnVsbCwKICAgICAgICBvZmZlcmVkX3ByaWNlOiByLm9mZmVyZWRfcHJpY2UgfHwgci5lc3RpbWF0ZWRfZmFyZSB8fCAyNS4wLAogICAgICAgIGNhcHRhaW5fdG9fcGlja3VwX2ttOiBjYXB0YWluVG9QaWNrdXBLbSwKICAgICAgICBjcmVhdGVkX2F0OiByLmNyZWF0ZWRfYXQsCiAgICAgICAgY2l0eTogci5jaXR5LAogICAgICB9OwogICAgfSkKICAgIC5maWx0ZXIoKHIpID0+IHIuY2FwdGFpbl90b19waWNrdXBfa20gPD0gcmFkaXVzS20pOwoKICByZXR1cm4gYy5qc29uKHsgcmVxdWVzdHMsIGNhcHRhaW5Mb2NhdGlvbjogeyBsYXQ6IGNMYXQsIGxuZzogY0xuZyB9IH0pOwp9KTsKCmNhcHRhaW5Sb3V0ZXMuZ2V0KCIvb2ZmZXJzIiwgYXN5bmMgKGMpID0+IHsKICBjb25zdCB1c2VyID0gYy5nZXQoInVzZXIiKTsKCiAgY29uc3QgY2FwdGFpbiA9IGF3YWl0IGMuZW52LkRCLnByZXBhcmUoYFNFTEVDVCAqIEZST00gY2FwdGFpbnMgV0hFUkUgdXNlcl9pZCA9ID9gKQogICAgLmJpbmQodXNlci5pZCkKICAgIC5maXJzdDxEYkNhcHRhaW4+KCk7CgogIC8vIE9ubGluZSBndWFyZDogb2ZmbGluZSBjYXB0YWlucyBzaG91bGQgbm90IHJlY2VpdmUgdHJpcCBvZmZlcnMuCiAgaWYgKGNhcHRhaW4gJiYgIWNhcHRhaW4uaXNfb25saW5lICYmIHVzZXIucm9sZSAhPT0gImFkbWluIikgewogICAgcmV0dXJuIGMuanNvbih7IHRyaXBzOiBbXSwgY2FwdGFpbkxvY2F0aW9uOiBjYXB0YWluIH0pOwogIH0KCiAgLy8gQ2l0eSBzY29waW5nIG1pcnJvcnMgL25lYXJieS1yZXF1ZXN0czogb2ZmZXJzIGFyZSBvbmx5IGZvciB0cmlwcyBpbiB0aGUKICAvLyBjYXB0YWluJ3Mgd29ya2luZyBjaXR5LgogIGNvbnN0IGNpdHkgPQogICAgKGNhcHRhaW4gYXMgKERiQ2FwdGFpbiAmIHsgY2l0eT86IHN0cmluZyB8IG51bGwgfSkgfCBudWxsKT8uY2l0eSB8fAogICAgYy5lbnYuREVGQVVMVF9DSVRZIHx8CiAgICAiY2Fpcm8iOwoKICBjb25zdCB0cmlwcyA9IGF3YWl0IGMuZW52LkRCLnByZXBhcmUoCiAgICBgU0VMRUNUICogRlJPTSB0cmlwcyBXSEVSRSBzdGF0dXMgSU4gKCdzZWFyY2hpbmcnLCAnb2ZmZXJlZCcpIEFORCBjaXR5ID0gPwogICAgIE9SREVSIEJZIGNyZWF0ZWRfYXQgREVTQyBMSU1JVCAyMGAsCiAgKQogICAgLmJpbmQoY2l0eSkKICAgIC5hbGw8RGJUcmlwPigpOwoKICByZXR1cm4gYy5qc29uKHsgdHJpcHM6IHRyaXBzLnJlc3VsdHMgPz8gW10sIGNhcHRhaW5Mb2NhdGlvbjogY2FwdGFpbiB9KTsKfSk7CgovLyBHRVQgL2NhcHRhaW4vZG9jdW1lbnQtdHlwZXMg4oCUIHRoZSBjYXRhbG9nIHRoYXQgZHJpdmVzIHRoZSBvbmJvYXJkaW5nIHVwbG9hZAovLyBncmlkLiBPbmx5IGFjdGl2ZSB0eXBlcyBhcmUgcmV0dXJuZWQsIG9yZGVyZWQgdGhlIHdheSB0aGUgYWRtaW4gYXJyYW5nZWQKLy8gdGhlbTsgZWFjaCByb3cgdGVsbHMgdGhlIGFwcCB3aGV0aGVyIHRoZSBkb2N1bWVudCBpcyByZXF1aXJlZCBvciBvcHRpb25hbAovLyAo2KfYrtiq2YrYp9ix2YopIHNvIGl0IGNhbiBiYWRnZSB0aGUgdGlsZSB3aXRob3V0IGFueSBjbGllbnQtc2lkZSBoYXJkLWNvZGluZy4KY2FwdGFpblJvdXRlcy5nZXQoIi9kb2N1bWVudC10eXBlcyIsIGFzeW5jIChjKSA9PiB7CiAgY29uc3Qgcm93cyA9IGF3YWl0IGMuZW52LkRCLnByZXBhcmUoCiAgICBgU0VMRUNUIGlkLCB0aXRsZV9hciwgdGl0bGVfZW4sIGljb24sIHJlcXVpcmVkLCBzb3J0X29yZGVyCiAgICAgRlJPTSBkb2N1bWVudF90eXBlcyBXSEVSRSBhY3RpdmUgPSAxIE9SREVSIEJZIHNvcnRfb3JkZXIgQVNDLCBpZCBBU0NgLAogICkuYWxsKCk7CiAgcmV0dXJuIGMuanNvbih7IHR5cGVzOiByb3dzLnJlc3VsdHMgPz8gW10gfSk7Cn0pOwoKY2FwdGFpblJvdXRlcy5nZXQoIi9kb2N1bWVudHMiLCBhc3luYyAoYykgPT4gewogIGNvbnN0IHVzZXIgPSBjLmdldCgidXNlciIpOwogIGNvbnN0IGRvY3MgPSBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgYFNFTEVDVCBkLiosCiAgICAgICAgICAgIENPQUxFU0NFKHQudGl0bGVfYXIsIGQudHlwZSkgYXMgdGl0bGVfYXIsCiAgICAgICAgICAgIENPQUxFU0NFKHQudGl0bGVfZW4sICcnKSBhcyB0aXRsZV9lbiwKICAgICAgICAgICAgQ09BTEVTQ0UodC5yZXF1aXJlZCwgMSkgYXMgcmVxdWlyZWQKICAgICBGUk9NIGRyaXZlcl9kb2N1bWVudHMgZAogICAgIExFRlQgSk9JTiBkb2N1bWVudF90eXBlcyB0IE9OIHQuaWQgPSBkLnR5cGUKICAgICBXSEVSRSBkLmNhcHRhaW5faWQgPSA/IE9SREVSIEJZIGQuY3JlYXRlZF9hdCBERVNDYAogICkKICAgIC5iaW5kKHVzZXIuaWQpCiAgICAuYWxsKCk7CgogIHJldHVybiBjLmpzb24oeyBkb2N1bWVudHM6IGRvY3MucmVzdWx0cyA/PyBbXSB9KTsKfSk7CgpjYXB0YWluUm91dGVzLnBvc3QoIi9kb2N1bWVudHMiLCBhc3luYyAoYykgPT4gewogIGNvbnN0IHVzZXIgPSBjLmdldCgidXNlciIpOwogIGNvbnN0IGJvZHkgPSBhd2FpdCBjLnJlcS5qc29uKCkuY2F0Y2goKCkgPT4gKHt9KSk7CiAgY29uc3QgdHlwZSA9IGJvZHkudHlwZTsKICBjb25zdCByMktleSA9IGJvZHkucjJLZXkgfHwgYm9keS51cmwgfHwgYGRvY3MvJHt1c2VyLmlkfS8ke3R5cGV9XyR7RGF0ZS5ub3coKX1gOwoKICBpZiAoIXR5cGUpIHsKICAgIHJldHVybiBjLmpzb24oeyBlcnJvcjogIkRvY3VtZW50IHR5cGUgaXMgcmVxdWlyZWQiLCBjb2RlOiAiTUlTU0lOR19UWVBFIiB9LCA0MDApOwogIH0KCiAgLy8gVmFsaWRhdGUgYWdhaW5zdCB0aGUgY2F0YWxvZyB3aGVuIGl0IGV4aXN0cy4gVHlwZXMgcHJlZGF0aW5nIHRoZSBjYXRhbG9nCiAgLy8gKG9yIGRlYWN0aXZhdGVkIGxhdGVyKSBhcmUgc3RpbGwgYWNjZXB0ZWQgc28gb2xkZXIgYXBwIGJ1aWxkcyBuZXZlciBicmVhazoKICAvLyBhIHJvdyB0aGF0IGlzIG1pc3NpbmcgZnJvbSBkb2N1bWVudF90eXBlcyBzaW1wbHkgZmFsbHMgdGhyb3VnaC4gQnV0IGEKICAvLyBrbm93bi1pbmFjdGl2ZSB0eXBlIGlzIGFuIGFkbWluIGRlY2lzaW9uIOKAlCByZWZ1c2UgbmV3IHVwbG9hZHMgZm9yIGl0LgogIGNvbnN0IHR5cGVSb3cgPSBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgYFNFTEVDVCBpZCwgYWN0aXZlIEZST00gZG9jdW1lbnRfdHlwZXMgV0hFUkUgaWQgPSA/YCwKICApCiAgICAuYmluZCh0eXBlKQogICAgLmZpcnN0PHsgaWQ6IHN0cmluZzsgYWN0aXZlOiBudW1iZXIgfT4oKTsKICBpZiAodHlwZVJvdyAmJiAhdHlwZVJvdy5hY3RpdmUpIHsKICAgIHJldHVybiBjLmpzb24oeyBlcnJvcjogIkRvY3VtZW50IHR5cGUgaXMgbm90IGN1cnJlbnRseSBhY2NlcHRlZCIsIGNvZGU6ICJUWVBFX0lOQUNUSVZFIiB9LCA0MDApOwogIH0KCiAgLy8gUmUtdXBsb2FkaW5nIHRoZSBzYW1lIHR5cGUgbXVzdCBub3Qgc3RhY2sgZHVwbGljYXRlIHJvd3M6IHJldGlyZSBhbnkKICAvLyBwcmV2aW91cyBzdWJtaXNzaW9uIG9mIHRoaXMgdHlwZSAocGVuZGluZyBvciByZWplY3RlZCkgYW5kIHJlcGxhY2UgaXQgd2l0aAogIC8vIHRoZSBmcmVzaCB1cGxvYWQsIHNvIHRoZSBhZG1pbiBxdWV1ZSBzaG93cyBvbmUgcm93IHBlciBkb2N1bWVudCB0eXBlIHBlcgogIC8vIGNhcHRhaW4g4oCUIHRoZSBsYXRlc3QuIEFwcHJvdmVkIGRvY3VtZW50cyBhcmUgbGVmdCB1bnRvdWNoZWQ7IHRoZSBVSSBvbmx5CiAgLy8gb2ZmZXJzIHJlLXVwbG9hZCBmb3IgbWlzc2luZy9yZWplY3RlZCB0eXBlcy4KICBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgYERFTEVURSBGUk9NIGRyaXZlcl9kb2N1bWVudHMgV0hFUkUgY2FwdGFpbl9pZCA9ID8gQU5EIHR5cGUgPSA/IEFORCBzdGF0dXMgIT0gJ2FwcHJvdmVkJ2AsCiAgKQogICAgLmJpbmQodXNlci5pZCwgdHlwZSkKICAgIC5ydW4oKTsKCiAgY29uc3QgZG9jSWQgPSBpZCgiZG9jIik7CiAgYXdhaXQgYy5lbnYuREIucHJlcGFyZSgKICAgIGBJTlNFUlQgSU5UTyBkcml2ZXJfZG9jdW1lbnRzIChpZCwgY2FwdGFpbl9pZCwgdHlwZSwgcjJfa2V5LCBzdGF0dXMsIGNyZWF0ZWRfYXQpCiAgICAgVkFMVUVTICg/LCA/LCA/LCA/LCAncGVuZGluZycsID8pYCwKICApCiAgICAuYmluZChkb2NJZCwgdXNlci5pZCwgdHlwZSwgcjJLZXksIG5vd0lzbygpKQogICAgLnJ1bigpOwoKICBjb25zdCBkb2MgPSBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKGBTRUxFQ1QgKiBGUk9NIGRyaXZlcl9kb2N1bWVudHMgV0hFUkUgaWQgPSA/YCkKICAgIC5iaW5kKGRvY0lkKQogICAgLmZpcnN0KCk7CgogIHJldHVybiBjLmpzb24oeyBkb2N1bWVudDogZG9jIH0pOwp9KTsKCi8vIERFTEVURSAvY2FwdGFpbi9kb2N1bWVudHMvOnR5cGUg4oCUIHJlbW92ZXMgdGhlIGNhcHRhaW4ncyBwZW5kaW5nIHVwbG9hZCBmb3IKLy8gYSBkb2N1bWVudCB0eXBlIHNvIGFuIG9uYm9hcmRpbmcgdGlsZSBjYW4gdHJ1bHkgcmVzZXQgd2hlbiB0aGUgY2FwdGFpbiB0YXBzCi8vICLDlyIuIE9ubHkgcGVuZGluZyByb3dzIGFyZSB0b3VjaGVkOiBhcHByb3ZlZCBoaXN0b3J5IHN0YXlzIChhZG1pbnMgb3duIGl0KSwKLy8gYW5kIHJlamVjdGVkIHJvd3Mga2VlcCB0aGUgYWRtaW4ncyBmZWVkYmFjayB2aXNpYmxlIHVudGlsIHRoZSBuZXh0IHVwbG9hZC4KY2FwdGFpblJvdXRlcy5kZWxldGUoIi9kb2N1bWVudHMvOnR5cGUiLCBhc3luYyAoYykgPT4gewogIGNvbnN0IHVzZXIgPSBjLmdldCgidXNlciIpOwogIGNvbnN0IHR5cGUgPSBjLnJlcS5wYXJhbSgidHlwZSIpOwoKICBhd2FpdCBjLmVudi5EQi5wcmVwYXJlKAogICAgYERFTEVURSBGUk9NIGRyaXZlcl9kb2N1bWVudHMgV0hFUkUgY2FwdGFpbl9pZCA9ID8gQU5EIHR5cGUgPSA/IEFORCBzdGF0dXMgPSAncGVuZGluZydgLAogICkKICAgIC5iaW5kKHVzZXIuaWQsIHR5cGUpCiAgICAucnVuKCk7CgogIHJldHVybiBjLmpzb24oeyBvazogdHJ1ZSB9KTsKfSk7CgovLyBQT1NUIC9jYXB0YWluL3VwbG9hZCDigJQgdXBsb2FkIGEgZmlsZSBkaXJlY3RseSB0byBSMiAobXVsdGlwYXJ0L2Zvcm0tZGF0YSkuCi8vIFJldHVybnMgdGhlIFIyIGtleSB3aGljaCBpcyB0aGVuIHBhc3NlZCB0byBQT1NUIC9jYXB0YWluL2RvY3VtZW50cy4KY2FwdGFpblJvdXRlcy5wb3N0KCIvdXBsb2FkIiwgYXN5bmMgKGMpID0+IHsKICBjb25zdCB1c2VyID0gYy5nZXQoInVzZXIiKTsKICBjb25zdCBmb3JtRGF0YSA9IGF3YWl0IGMucmVxLmZvcm1EYXRhKCk7CiAgY29uc3QgZmlsZSA9IGZvcm1EYXRhLmdldCgiZmlsZSIpIGFzIEZpbGUgfCBudWxsOwogIGlmICghZmlsZSkgcmV0dXJuIGMuanNvbih7IGVycm9yOiAiZmlsZSByZXF1aXJlZCIsIGNvZGU6ICJNSVNTSU5HX0ZJTEUiIH0sIDQwMCk7CiAgaWYgKGZpbGUuc2l6ZSA+IDEwICogMTAyNCAqIDEwMjQpIHJldHVybiBjLmpzb24oeyBlcnJvcjogIkZpbGUgdG9vIGxhcmdlIChtYXggMTBNQikiLCBjb2RlOiAiRklMRV9UT09fTEFSR0UiIH0sIDQwMCk7CgogIGNvbnN0IGV4dCA9IGZpbGUubmFtZS5zcGxpdCgiLiIpLnBvcCgpPy50b0xvd2VyQ2FzZSgpID8/ICJqcGciOwogIGNvbnN0IGtleSA9IGBkb2NzLyR7dXNlci5pZH0vJHtEYXRlLm5vdygpfV8ke2lkKCJmIil9LiR7ZXh0fWA7CiAgYXdhaXQgYy5lbnYuRklMRVMucHV0KGtleSwgZmlsZS5zdHJlYW0oKSwgewogICAgaHR0cE1ldGFkYXRhOiB7IGNvbnRlbnRUeXBlOiBmaWxlLnR5cGUgfHwgImltYWdlL2pwZWciIH0sCiAgfSk7CgogIHJldHVybiBjLmpzb24oeyBvazogdHJ1ZSwgcjJLZXk6IGtleSwgdXJsOiBgL2NhcHRhaW4vZmlsZS8ke2tleX1gIH0pOwp9KTsKCi8vIEdFVCAvY2FwdGFpbi9maWxlLzprZXkg4oCUIHNlcnZlIGEgZmlsZSBmcm9tIFIyIChmb3IgdGhlIGNhcHRhaW4ncyBvd24gZG9jcykKY2FwdGFpblJvdXRlcy5nZXQoIi9maWxlLyoiLCBhc3luYyAoYykgPT4gewogIGNvbnN0IHVzZXIgPSBjLmdldCgidXNlciIpOwogIGNvbnN0IGtleSA9IGMucmVxLnBhdGgucmVwbGFjZSgiL2NhcHRhaW4vZmlsZS8iLCAiIik7CiAgaWYgKCFrZXkpIHJldHVybiBjLmpzb24oeyBlcnJvcjogImtleSByZXF1aXJlZCIsIGNvZGU6ICJNSVNTSU5HX0tFWSIgfSwgNDAwKTsKCiAgLy8gRW5mb3JjZSBJRE9SIHByb3RlY3Rpb246IHVzZXIgY2FuIG9ubHkgdmlldyB0aGVpciBvd24gZG9jdW1lbnQgZm9sZGVyIHVubGVzcyB0aGV5IGFyZSBhbiBhZG1pbgogIGNvbnN0IHVzZXJGb2xkZXJQcmVmaXggPSBgZG9jcy8ke3VzZXIuaWR9L2A7CiAgaWYgKHVzZXIucm9sZSAhPT0gImFkbWluIiAmJiAha2V5LnN0YXJ0c1dpdGgodXNlckZvbGRlclByZWZpeCkpIHsKICAgIHJldHVybiBjLmpzb24oeyBlcnJvcjogIkFjY2VzcyBkZW5pZWQgdG8gcmVxdWVzdGVkIGRvY3VtZW50IiwgY29kZTogIkZPUkJJRERFTiIgfSwgNDAzKTsKICB9CgogIGNvbnN0IG9iaiA9IGF3YWl0IGMuZW52LkZJTEVTLmdldChrZXkpOwogIGlmICghb2JqKSByZXR1cm4gYy5qc29uKHsgZXJyb3I6ICJOb3QgZm91bmQiLCBjb2RlOiAiTk9UX0ZPVU5EIiB9LCA0MDQpOwogIGNvbnN0IGhlYWRlcnMgPSBuZXcgSGVhZGVycygpOwogIGhlYWRlcnMuc2V0KCJDb250ZW50LVR5cGUiLCBvYmouaHR0cE1ldGFkYXRhPy5jb250ZW50VHlwZSA/PyAiaW1hZ2UvanBlZyIpOwogIGhlYWRlcnMuc2V0KCJDYWNoZS1Db250cm9sIiwgInByaXZhdGUsIG5vLXN0b3JlIik7CiAgcmV0dXJuIG5ldyBSZXNwb25zZShvYmouYm9keSwgeyBoZWFkZXJzIH0pOwp9KTsK
+import { Hono } from "hono";
+import type { DbCaptain, DbTrip } from "../lib/types";
+import { cellKey } from "../lib/pricing";
+import {
+  captainProfileSchema,
+  captainOnlineSchema,
+  captainLocationSchema,
+  documentRegisterSchema,
+} from "../lib/schemas";
+import { id, nowIso } from "../lib/utils";
+import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
+import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
+
+export const captainRoutes = new Hono<AppEnv>();
+
+captainRoutes.use("*", authMiddleware, requireRole("captain", "admin"));
+
+captainRoutes.post("/profile", async (c) => {
+  const user = c.get("user");
+  const body = await parseBody(c, captainProfileSchema);
+  if (isResponse(body)) return body;
+
+  if (body.name || body.phone) {
+    await c.env.DB.prepare(
+      `UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), updated_at = ? WHERE id = ?`,
+    )
+      .bind(body.name ?? null, body.phone ?? null, nowIso(), user.id)
+      .run();
+  }
+
+  const existing = await c.env.DB.prepare(`SELECT user_id FROM captains WHERE user_id = ?`)
+    .bind(user.id)
+    .first();
+
+  if (!existing) {
+    await c.env.DB.prepare(
+      `INSERT INTO captains (user_id, vehicle_make, vehicle_model, vehicle_plate, vehicle_color, license_number, approval_status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+    )
+      .bind(
+        user.id,
+        body.vehicleMake ?? null,
+        body.vehicleModel ?? null,
+        body.vehiclePlate ?? null,
+        body.vehicleColor ?? null,
+        body.licenseNumber ?? null,
+      )
+      .run();
+  } else {
+    await c.env.DB.prepare(
+      `UPDATE captains SET
+        vehicle_make = COALESCE(?, vehicle_make),
+        vehicle_model = COALESCE(?, vehicle_model),
+        vehicle_plate = COALESCE(?, vehicle_plate),
+        vehicle_color = COALESCE(?, vehicle_color),
+        license_number = COALESCE(?, license_number),
+        updated_at = ?
+       WHERE user_id = ?`,
+    )
+      .bind(
+        body.vehicleMake ?? null,
+        body.vehicleModel ?? null,
+        body.vehiclePlate ?? null,
+        body.vehicleColor ?? null,
+        body.licenseNumber ?? null,
+        nowIso(),
+        user.id,
+      )
+      .run();
+  }
+
+  // Onboarding fields (migration 0014): partial updates only — COALESCE keeps
+  // whatever earlier steps already saved. The year column is INTEGER, so the
+  // numeric value is bound directly while everything else is text.
+  await c.env.DB.prepare(
+    `UPDATE captains SET
+      first_name = COALESCE(?, first_name),
+      father_name = COALESCE(?, father_name),
+      grandfather_name = COALESCE(?, grandfather_name),
+      family_name = COALESCE(?, family_name),
+      birth_date = COALESCE(?, birth_date),
+      national_id_number = COALESCE(?, national_id_number),
+      license_expiry = COALESCE(?, license_expiry),
+      vehicle_year = COALESCE(?, vehicle_year),
+      updated_at = ?
+     WHERE user_id = ?`,
+  )
+    .bind(
+      body.firstName ?? null,
+      body.fatherName ?? null,
+      body.grandfatherName ?? null,
+      body.familyName ?? null,
+      body.birthDate ?? null,
+      body.nationalIdNumber ?? null,
+      body.licenseExpiry ?? null,
+      body.vehicleYear ?? null,
+      nowIso(),
+      user.id,
+    )
+    .run();
+
+  const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+    .bind(user.id)
+    .first<DbCaptain>();
+
+  return c.json({ captain });
+});
+
+// GET /captain/profile — what the onboarding flow pre-fills from: the captain
+// row plus the display name on the user record. Reads are idempotent, so the
+// flow can re-fetch on resume without side effects.
+captainRoutes.get("/profile", async (c) => {
+  const user = c.get("user");
+  const captain = await c.env.DB.prepare(
+    `SELECT c.*, u.name as user_name, u.email, u.phone as user_phone
+     FROM captains c JOIN users u ON u.id = c.user_id WHERE c.user_id = ?`,
+  )
+    .bind(user.id)
+    .first();
+  return c.json({ captain: captain ?? null });
+});
+
+captainRoutes.post("/online", async (c) => {
+  const user = c.get("user");
+  const body = await parseBody(c, captainOnlineSchema);
+  if (isResponse(body)) return body;
+
+  const online = body.online !== false;
+  const lat = body.lat;
+  const lng = body.lng;
+  const city = body.city || c.env.DEFAULT_CITY || "cairo";
+
+  const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+    .bind(user.id)
+    .first<DbCaptain>();
+
+  if (!captain) return c.json({ error: "Complete captain profile first", code: "NO_PROFILE" }, 400);
+  if (captain.approval_status !== "approved" && user.role !== "admin") {
+    return c.json(
+      {
+        error: "Captain not approved yet",
+        code: "NOT_APPROVED",
+        approvalStatus: captain.approval_status,
+      },
+      403,
+    );
+  }
+
+  if (online && (typeof lat !== "number" || typeof lng !== "number")) {
+    return c.json({ error: "lat/lng required when going online", code: "LATLNG_REQUIRED" }, 400);
+  }
+
+  // Persist the captain's working city too — the offers endpoints filter on
+  // it, so a captain is never shown trips from a city they are not in. NULL
+  // out on the way offline so a stale city cannot follow them later.
+  await c.env.DB.prepare(
+    `UPDATE captains SET is_online = ?, last_lat = COALESCE(?, last_lat), last_lng = COALESCE(?, last_lng), last_seen_at = ?, city = ?, updated_at = ?
+     WHERE user_id = ?`,
+  )
+    .bind(online ? 1 : 0, lat ?? null, lng ?? null, nowIso(), online ? city : null, nowIso(), user.id)
+    .run();
+
+  if (typeof lat === "number" && typeof lng === "number") {
+    const key = cellKey(city, lat, lng);
+    const stub = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
+    if (online) {
+      await stub.fetch("https://cell/heartbeat", {
+        method: "POST",
+        body: JSON.stringify({ userId: user.id, lat, lng, name: user.name }),
+      });
+    } else {
+      await stub.fetch("https://cell/offline", {
+        method: "POST",
+        body: JSON.stringify({ userId: user.id }),
+      });
+    }
+  }
+
+  return c.json({ ok: true, online, city });
+});
+
+captainRoutes.post(
+  "/location",
+  rateLimit({
+    prefix: "captain-loc",
+    limit: 30,
+    windowSec: 60,
+    keyFn: (c) => c.get("user")?.id ?? "anon",
+  }),
+  async (c) => {
+    const user = c.get("user");
+    const body = await parseBody(c, captainLocationSchema);
+    if (isResponse(body)) return body;
+
+    const city = body.city || c.env.DEFAULT_CITY || "cairo";
+
+    await c.env.DB.prepare(
+      `UPDATE captains SET last_lat = ?, last_lng = ?, last_seen_at = ?, is_online = 1, city = ?, updated_at = ? WHERE user_id = ?`,
+    )
+      .bind(body.lat, body.lng, nowIso(), city, nowIso(), user.id)
+      .run();
+
+    const key = cellKey(city, body.lat, body.lng);
+    const cellStub = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
+    await cellStub.fetch("https://cell/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({
+        userId: user.id,
+        lat: body.lat,
+        lng: body.lng,
+        name: user.name,
+      }),
+    });
+
+    if (body.tripId) {
+      const trip = await c.env.DB.prepare(
+        `SELECT * FROM trips WHERE id = ? AND captain_id = ?`,
+      )
+        .bind(body.tripId, user.id)
+        .first<DbTrip>();
+
+      if (trip && ["assigned", "arrived", "in_progress"].includes(trip.status)) {
+        await c.env.DB.prepare(
+          `UPDATE trips SET captain_lat = ?, captain_lng = ?, updated_at = ? WHERE id = ?`,
+        )
+          .bind(body.lat, body.lng, nowIso(), trip.id)
+          .run();
+
+        // Path sampling: keep at most ~1 point / 30s
+        const last = await c.env.DB.prepare(
+          `SELECT recorded_at FROM trip_path_points WHERE trip_id = ? ORDER BY recorded_at DESC LIMIT 1`,
+        )
+          .bind(trip.id)
+          .first<{ recorded_at: string }>();
+
+        const lastMs = last ? new Date(last.recorded_at).getTime() : 0;
+        if (!last || Date.now() - lastMs >= 30_000) {
+          await c.env.DB.prepare(
+            `INSERT INTO trip_path_points (id, trip_id, lat, lng, heading, recorded_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+            .bind(id("pp"), trip.id, body.lat, body.lng, body.heading ?? null, nowIso())
+            .run();
+        }
+
+        const room = c.env.TRIP_ROOM.get(c.env.TRIP_ROOM.idFromName(trip.id));
+        await room.fetch("https://room/broadcast", {
+          method: "POST",
+          body: JSON.stringify({
+            type: "location.captain",
+            tripId: trip.id,
+            lat: body.lat,
+            lng: body.lng,
+            heading: body.heading ?? null,
+            at: nowIso(),
+          }),
+        });
+      }
+    }
+
+    return c.json({ ok: true });
+  },
+);
+
+captainRoutes.get("/earnings", async (c) => {
+  const user = c.get("user");
+  const from = c.req.query("from") || new Date(Date.now() - 7 * 864e5).toISOString();
+  const to = c.req.query("to") || nowIso();
+
+  const rows = await c.env.DB.prepare(
+    `SELECT COUNT(*) as trips, COALESCE(SUM(final_fare), 0) as gross,
+            COALESCE(SUM(commission), 0) as commission
+     FROM trips
+     WHERE captain_id = ? AND status = 'completed'
+       AND completed_at >= ? AND completed_at <= ?`,
+  )
+    .bind(user.id, from, to)
+    .first<{ trips: number; gross: number; commission: number }>();
+
+  const gross = rows?.gross ?? 0;
+  const commission = rows?.commission ?? 0;
+
+  return c.json({
+    from,
+    to,
+    trips: rows?.trips ?? 0,
+    gross,
+    commission,
+    net: Math.round((gross - commission) * 100) / 100,
+    currency: "EGP",
+  });
+});
+
+captainRoutes.get("/nearby-requests", async (c) => {
+  const user = c.get("user");
+  const latParam = c.req.query("lat");
+  const lngParam = c.req.query("lng");
+  const radiusKm = Number(c.req.query("radius") || 15);
+
+  const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+    .bind(user.id)
+    .first<DbCaptain>();
+
+  // Online guard: offline captains should not receive trip listings.
+  if (captain && !captain.is_online && user.role !== "admin") {
+    return c.json({ requests: [], captainLocation: { lat: captain.last_lat ?? 30.0444, lng: captain.last_lng ?? 31.2357 } });
+  }
+
+  const cLat = latParam ? Number(latParam) : captain?.last_lat ?? 30.0444;
+  const cLng = lngParam ? Number(lngParam) : captain?.last_lng ?? 31.2357;
+
+  // City scoping: only trips in the captain's working city. Without this the
+  // queue showed every open request nationwide, so a captain in Alexandria
+  // would be offered Cairo trips they could never serve. The city resolves
+  // from the captain's row (set on /online and /location), falling back to
+  // the deployment default for legacy rows with no city yet.
+  const city =
+    (captain as (DbCaptain & { city?: string | null }) | null)?.city ||
+    c.env.DEFAULT_CITY ||
+    "cairo";
+
+  // Query searching/offered trips with rider details. duration_min is
+  // selected explicitly: the offer card previously fell back to a rough
+  // 20km/h guess while the real OSRM estimate sat in the row unread.
+  const rows = await c.env.DB.prepare(
+    `SELECT t.id, t.rider_id, u.name as rider_name, u.email as rider_email, u.phone as rider_phone,
+            t.pickup_lat, t.pickup_lng, t.pickup_address,
+            t.dropoff_lat, t.dropoff_lng, t.dropoff_address,
+            t.distance_km, t.duration_min, t.offered_price, t.estimated_fare, t.created_at, t.city
+     FROM trips t
+     JOIN users u ON t.rider_id = u.id
+     WHERE t.status IN ('searching', 'offered') AND t.city = ?
+     ORDER BY t.created_at DESC LIMIT 30`
+  )
+    .bind(city)
+    .all<{
+    id: string;
+    rider_id: string;
+    rider_name: string | null;
+    rider_email: string;
+    rider_phone: string | null;
+    pickup_lat: number;
+    pickup_lng: number;
+    pickup_address: string | null;
+    dropoff_lat: number;
+    dropoff_lng: number;
+    dropoff_address: string | null;
+    distance_km: number | null;
+    duration_min: number | null;
+    offered_price: number | null;
+    estimated_fare: number | null;
+    created_at: string;
+    city: string;
+  }>();
+
+  // Haversine distance helper
+  const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10;
+  };
+
+  const requests = (rows.results || [])
+    .map((r) => {
+      const captainToPickupKm = haversineKm(cLat, cLng, r.pickup_lat, r.pickup_lng);
+      return {
+        id: r.id,
+        rider_id: r.rider_id,
+        rider_name: r.rider_name || "عميل GoDrive",
+        rider_phone: r.rider_phone || "",
+        rider_avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${r.rider_id}`,
+        pickup_lat: r.pickup_lat,
+        pickup_lng: r.pickup_lng,
+        pickup_address: r.pickup_address || "موقع الانطلاق",
+        dropoff_lat: r.dropoff_lat,
+        dropoff_lng: r.dropoff_lng,
+        dropoff_address: r.dropoff_address || "موقع الوصول",
+        distance_km: r.distance_km || 5.0,
+        duration_min: r.duration_min ?? null,
+        offered_price: r.offered_price || r.estimated_fare || 25.0,
+        captain_to_pickup_km: captainToPickupKm,
+        created_at: r.created_at,
+        city: r.city,
+      };
+    })
+    .filter((r) => r.captain_to_pickup_km <= radiusKm);
+
+  return c.json({ requests, captainLocation: { lat: cLat, lng: cLng } });
+});
+
+captainRoutes.get("/offers", async (c) => {
+  const user = c.get("user");
+
+  const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
+    .bind(user.id)
+    .first<DbCaptain>();
+
+  // Online guard: offline captains should not receive trip offers.
+  if (captain && !captain.is_online && user.role !== "admin") {
+    return c.json({ trips: [], captainLocation: captain });
+  }
+
+  // City scoping mirrors /nearby-requests: offers are only for trips in the
+  // captain's working city.
+  const city =
+    (captain as (DbCaptain & { city?: string | null }) | null)?.city ||
+    c.env.DEFAULT_CITY ||
+    "cairo";
+
+  const trips = await c.env.DB.prepare(
+    `SELECT * FROM trips WHERE status IN ('searching', 'offered') AND city = ?
+     ORDER BY created_at DESC LIMIT 20`,
+  )
+    .bind(city)
+    .all<DbTrip>();
+
+  return c.json({ trips: trips.results ?? [], captainLocation: captain });
+});
+
+// GET /captain/document-types — the catalog that drives the onboarding upload
+// grid. Only active types are returned, ordered the way the admin arranged
+// them; each row tells the app whether the document is required or optional
+// (اختياري) so it can badge the tile without any client-side hard-coding.
+captainRoutes.get("/document-types", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT id, title_ar, title_en, icon, required, sort_order
+     FROM document_types WHERE active = 1 ORDER BY sort_order ASC, id ASC`,
+  ).all();
+  return c.json({ types: rows.results ?? [] });
+});
+
+captainRoutes.get("/documents", async (c) => {
+  const user = c.get("user");
+  const docs = await c.env.DB.prepare(
+    `SELECT d.*,
+            COALESCE(t.title_ar, d.type) as title_ar,
+            COALESCE(t.title_en, '') as title_en,
+            COALESCE(t.required, 1) as required
+     FROM driver_documents d
+     LEFT JOIN document_types t ON t.id = d.type
+     WHERE d.captain_id = ? ORDER BY d.created_at DESC`
+  )
+    .bind(user.id)
+    .all();
+
+  return c.json({ documents: docs.results ?? [] });
+});
+
+captainRoutes.post("/documents", async (c) => {
+  const user = c.get("user");
+  const body = await parseBody(c, documentRegisterSchema);
+  if (isResponse(body)) return body;
+
+  // The type id comes from the admin-managed document_types catalog, so it is
+  // validated as a slug by the schema and checked against the catalog below —
+  // not against a hard-coded list that would reject any newly added type.
+  const type = body.type;
+
+  const r2Key = body.r2Key;
+
+  // Reject registration when the file key points outside the captain's own
+  // folder — the upload endpoint always writes under docs/<userId>/, so a
+  // foreign prefix means the key was fabricated rather than uploaded.
+  if (!r2Key.startsWith(`docs/${user.id}/`)) {
+    return c.json({ error: "Invalid document key", code: "INVALID_KEY" }, 400);
+  }
+
+  // Validate against the catalog when it exists. Types predating the catalog
+  // (or deactivated later) are still accepted so older app builds never break:
+  // a row that is missing from document_types simply falls through. But a
+  // known-inactive type is an admin decision — refuse new uploads for it.
+  const typeRow = await c.env.DB.prepare(
+    `SELECT id, active FROM document_types WHERE id = ?`,
+  )
+    .bind(type)
+    .first<{ id: string; active: number }>();
+  if (typeRow && !typeRow.active) {
+    return c.json({ error: "Document type is not currently accepted", code: "TYPE_INACTIVE" }, 400);
+  }
+
+  // Re-uploading the same type must not stack duplicate rows: retire any
+  // previous submission of this type (pending or rejected) and replace it with
+  // the fresh upload, so the admin queue shows one row per document type per
+  // captain — the latest. Approved documents are left untouched; the UI only
+  // offers re-upload for missing/rejected types.
+  await c.env.DB.prepare(
+    `DELETE FROM driver_documents WHERE captain_id = ? AND type = ? AND status != 'approved'`,
+  )
+    .bind(user.id, type)
+    .run();
+
+  const docId = id("doc");
+  await c.env.DB.prepare(
+    `INSERT INTO driver_documents (id, captain_id, type, r2_key, status, holder_full_name, national_id_number, expires_at, created_at)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+  )
+    .bind(
+      docId,
+      user.id,
+      body.type,
+      r2Key,
+      body.holderFullName ?? null,
+      body.nationalIdNumber ?? null,
+      body.expiresAt ?? null,
+      nowIso(),
+    )
+    .run();
+
+  const doc = await c.env.DB.prepare(`SELECT * FROM driver_documents WHERE id = ?`)
+    .bind(docId)
+    .first();
+
+  return c.json({ document: doc });
+});
+
+// DELETE /captain/documents/:type — removes the captain's pending upload for
+// a document type so an onboarding tile can truly reset when the captain taps
+// "×". Only pending rows are touched: approved history stays (admins own it),
+// and rejected rows keep the admin's feedback visible until the next upload.
+captainRoutes.delete("/documents/:type", async (c) => {
+  const user = c.get("user");
+  const type = c.req.param("type");
+
+  await c.env.DB.prepare(
+    `DELETE FROM driver_documents WHERE captain_id = ? AND type = ? AND status = 'pending'`,
+  )
+    .bind(user.id, type)
+    .run();
+
+  return c.json({ ok: true });
+});
+
+// POST /captain/upload — upload a file directly to R2 (multipart/form-data).
+// Returns the R2 key which is then passed to POST /captain/documents.
+captainRoutes.post("/upload", async (c) => {
+  const user = c.get("user");
+  const formData = await c.req.formData();
+  const file = formData.get("file") as File | null;
+  if (!file) return c.json({ error: "file required", code: "MISSING_FILE" }, 400);
+  if (file.size > 10 * 1024 * 1024) return c.json({ error: "File too large (max 10MB)", code: "FILE_TOO_LARGE" }, 400);
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const key = `docs/${user.id}/${Date.now()}_${id("f")}.${ext}`;
+  await c.env.FILES.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type || "image/jpeg" },
+  });
+
+  return c.json({ ok: true, r2Key: key, url: `/captain/file/${key}` });
+});
+
+// GET /captain/file/:key — serve a file from R2 (for the captain's own docs)
+captainRoutes.get("/file/*", async (c) => {
+  const user = c.get("user");
+  const key = c.req.path.replace("/captain/file/", "");
+  if (!key) return c.json({ error: "key required", code: "MISSING_KEY" }, 400);
+
+  // Enforce IDOR protection: user can only view their own document folder unless they are an admin
+  const userFolderPrefix = `docs/${user.id}/`;
+  if (user.role !== "admin" && !key.startsWith(userFolderPrefix)) {
+    return c.json({ error: "Access denied to requested document", code: "FORBIDDEN" }, 403);
+  }
+
+  const obj = await c.env.FILES.get(key);
+  if (!obj) return c.json({ error: "Not found", code: "NOT_FOUND" }, 404);
+  const headers = new Headers();
+  headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
+  headers.set("Cache-Control", "private, no-store");
+  return new Response(obj.body, { headers });
+});
