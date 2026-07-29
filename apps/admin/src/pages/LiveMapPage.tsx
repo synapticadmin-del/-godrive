@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { MapPin, Loader2, RefreshCw, Car, Users } from 'lucide-react';
+import { MapPin, Loader2, RefreshCw, Car, Users, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { useTheme } from '../design/ThemeContext';
+import { usePolling } from '../lib/usePolling';
 import { escapeHtml } from '../lib/escape';
 
 interface LiveTrip {
@@ -21,41 +22,13 @@ interface OnlineCaptain {
 
 declare global { interface Window { L?: any } }
 
-// Top-down car icon (Uber-style) shared by every captain marker on the live
-// map. Inline SVG keeps the dashboard asset-free and recolours per state.
-// This is the same silhouette the Flutter apps draw in VehicleMapMarker, so
-// admin, rider and captain all see the same vehicle on the map.
-function buildCarIcon(L: any, color: string, size: number) {
-  const svg = `
-    <svg width="${size}" height="${size}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="32" cy="56" rx="16" ry="4.5" fill="rgba(0,0,0,0.22)"/>
-      <rect x="13" y="7" width="38" height="50" rx="11" fill="${color}" stroke="rgba(0,0,0,0.28)" stroke-width="1.4"/>
-      <rect x="18.5" y="19" width="27" height="17" rx="6" fill="rgba(255,255,255,0.85)"/>
-      <rect x="18.5" y="19" width="27" height="7.5" rx="4" fill="rgba(255,255,255,0.55)"/>
-      <ellipse cx="21.5" cy="11.5" rx="4.6" ry="1.9" fill="#FFF7D6"/>
-      <ellipse cx="42.5" cy="11.5" rx="4.6" ry="1.9" fill="#FFF7D6"/>
-      <ellipse cx="21.5" cy="54.5" rx="3.8" ry="1.5" fill="#E4572E"/>
-      <ellipse cx="42.5" cy="54.5" rx="3.8" ry="1.5" fill="#E4572E"/>
-      <rect x="10.6" y="16" width="3.2" height="7.6" rx="1.6" fill="#23262B"/>
-      <rect x="50.2" y="16" width="3.2" height="7.6" rx="1.6" fill="#23262B"/>
-      <rect x="10.6" y="41" width="3.2" height="7.6" rx="1.6" fill="#23262B"/>
-      <rect x="50.2" y="41" width="3.2" height="7.6" rx="1.6" fill="#23262B"/>
-    </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: 'godrive-car-marker',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-  });
-}
-
 export default function LiveMapPage() {
   const { token } = useAuth();
   const { resolved } = useTheme();
   const [trips, setTrips] = useState<LiveTrip[]>([]);
   const [captains, setCaptains] = useState<OnlineCaptain[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [view, setView] = useState<'all' | 'trips' | 'captains'>('all');
   const mapRef = useRef<HTMLDivElement>(null);
   const mapObj = useRef<any>(null);
@@ -71,7 +44,13 @@ export default function LiveMapPage() {
       setTrips(tripsRes.trips || []);
       setCaptains(capsRes.captains || []);
       updateMap(tripsRes.trips || [], capsRes.captains || []);
-    } catch (e) { /* ignore */ }
+      setFetchError(null);
+    } catch (e) {
+      // Previously swallowed (`/* ignore */`), so a broken API left the admin
+      // watching a frozen map with no idea it had stopped updating. Surface a
+      // lightweight, dismissible indicator; the last good data stays on screen.
+      setFetchError(e instanceof Error ? e.message : 'فشل تحديث البيانات الحية');
+    }
     finally { setLoading(false); }
   };
 
@@ -110,8 +89,7 @@ export default function LiveMapPage() {
     layerRef.current.clearLayers();
     const bounds: any[] = [];
 
-    // Show online captains as top-down car markers (Uber-style) — the same
-    // silhouette the Flutter apps draw, so the three surfaces agree.
+    // Show online captains as green car markers
     if (view === 'all' || view === 'captains') {
       for (const cap of captainsData) {
         if (cap.last_lat == null || cap.last_lng == null) continue;
@@ -123,8 +101,8 @@ export default function LiveMapPage() {
         const safePlate = escapeHtml(cap.vehicle_plate ?? '—');
         const safeRating = escapeHtml(cap.rating_avg ?? '—');
         const safeLastSeen = escapeHtml(cap.last_seen_at ? new Date(cap.last_seen_at).toLocaleTimeString('ar-EG') : '—');
-        const marker = L.marker([cap.last_lat, cap.last_lng], {
-          icon: buildCarIcon(L, '#4E842D', 34),
+        const marker = L.circleMarker([cap.last_lat, cap.last_lng], {
+          radius: 9, color: '#80b445', fillColor: '#80b445', fillOpacity: 0.9, weight: 2,
         }).bindPopup(
           `<b>🚗 ${safeName}</b><br/>${safeMake} ${safeModel}<br/>` +
           `لوحة: ${safePlate}<br/>تقييم: ⭐${safeRating}<br/>` +
@@ -150,8 +128,8 @@ export default function LiveMapPage() {
         }).bindPopup(`<b>وصول</b><br/>${safeTripId}`);
         layerRef.current.addLayer(drop); bounds.push([t.dropoff_lat, t.dropoff_lng]);
         if (t.captain_lat != null && t.captain_lng != null) {
-          const cap = L.marker([t.captain_lat, t.captain_lng], {
-            icon: buildCarIcon(L, '#4E842D', 38),
+          const cap = L.circleMarker([t.captain_lat, t.captain_lng], {
+            radius: 8, color: '#334155', fillColor: '#80b445', fillOpacity: 1, weight: 3,
           }).bindPopup(`<b>كابتن الرحلة</b><br/>${safeTripId}`);
           layerRef.current.addLayer(cap); bounds.push([t.captain_lat, t.captain_lng]);
         }
@@ -168,12 +146,14 @@ export default function LiveMapPage() {
     loadLeaflet().then(() => {
       initMap();
       fetchAll();
-      const i = setInterval(fetchAll, 8000);
-      return () => clearInterval(i);
     });
     return () => { if (mapObj.current) { mapObj.current.remove(); mapObj.current = null; } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Live polling — pauses while the tab is hidden, resumes (with an immediate
+  // refetch) when it becomes visible again.
+  usePolling(fetchAll, 8000);
 
   // Re-render map markers when view changes
   useEffect(() => {
@@ -213,6 +193,16 @@ export default function LiveMapPage() {
           </div>
         }
       />
+
+      {/* Lightweight, dismissible fetch-failure indicator. The last good data
+          stays on the map; this just flags that live updates have stalled. */}
+      {fetchError && (
+        <div className="p-3 bg-error-main/10 border border-error-main/30 rounded-xl text-error-main text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span className="flex-1">تعذّر تحديث البيانات الحية: {fetchError}</span>
+          <button onClick={() => setFetchError(null)} className="text-xs hover:underline shrink-0">إغلاق</button>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-4">

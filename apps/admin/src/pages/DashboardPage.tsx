@@ -5,6 +5,7 @@ import { formatCurrency } from '../lib/utils';
 import { StatusBadge } from '../components/ui/Badge';
 import { Users, Car, Route as RouteIcon, DollarSign, Activity } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { usePolling } from '../lib/usePolling';
 
 interface Stats {
   users: { role: string; count: number }[];
@@ -43,11 +44,9 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 8000);
-    return () => clearInterval(interval);
-  }, [token]);
+  // Live dashboard polling — pauses while the tab is hidden, resumes (with an
+  // immediate refetch) when it becomes visible again.
+  usePolling(fetchData, 8000);
 
   const riders = stats?.users.find(u => u.role === 'rider')?.count ?? 0;
   const captains = stats?.users.find(u => u.role === 'captain')?.count ?? 0;

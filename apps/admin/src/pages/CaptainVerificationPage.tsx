@@ -4,17 +4,11 @@ import { useAuth } from '../lib/auth';
 import {
   ShieldCheck, Loader2, FileText, Check, X, Eye, ChevronDown, ChevronUp,
   User, Phone, Mail, FileCheck, Clock, AlertCircle, ZoomIn, ZoomOut,
-  RotateCcw, ChevronLeft, ChevronRight, CheckCheck, CalendarDays,
-  BadgeCheck, Fingerprint, CalendarClock
+  RotateCcw, ChevronLeft, ChevronRight, CheckCheck, CalendarDays
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { RejectionReasonModal } from '../components/RejectionReasonModal';
-import { Pagination } from '../components/ui/Pagination';
-
-/** Captains shown per page. Documents are grouped per captain, so this counts
- *  captains, not documents. */
-const CAPTAINS_PER_PAGE = 10;
-const CAPTAINS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
+import { useToast } from '../components/ui/Toast';
 
 interface Doc {
   id: string;
@@ -29,10 +23,6 @@ interface Doc {
   captain_name?: string;
   captain_email?: string;
   captain_phone?: string;
-  // Identity metadata captured at upload time (migration 0012).
-  holder_full_name?: string | null;
-  national_id_number?: string | null;
-  expires_at?: string | null;
 }
 
 interface CaptainGroup {
@@ -52,44 +42,6 @@ const docTypeLabels: Record<string, string> = {
   criminal_record: 'فيش جنائي',
   vehicle_reg: 'رخصة السيارة',
 };
-
-/* ------------------------------------------------------------------ */
-/*  Expiry helpers                                                    */
-/* ------------------------------------------------------------------ */
-// Days remaining until a document expires; null when no date is stored.
-function daysUntilExpiry(expiresAt: string | null | undefined): number | null {
-  if (!expiresAt) return null;
-  const ms = new Date(expiresAt).getTime();
-  if (Number.isNaN(ms)) return null;
-  return Math.ceil((ms - Date.now()) / 86400000);
-}
-
-// Traffic-light styling for the expiry chip: red when expired or under 30
-// days, amber under 90, neutral otherwise.
-function expiryChip(days: number): { classes: string; label: string } {
-  if (days < 0) {
-    return {
-      classes: 'bg-error-main/10 text-error-main border-error-main/30',
-      label: `منتهي منذ ${Math.abs(days)} يوم`,
-    };
-  }
-  if (days <= 30) {
-    return {
-      classes: 'bg-error-main/10 text-error-main border-error-main/30',
-      label: `ينتهي خلال ${days} يوم`,
-    };
-  }
-  if (days <= 90) {
-    return {
-      classes: 'bg-warning-light text-warning-main border-warning-main/30',
-      label: `ينتهي خلال ${days} يوم`,
-    };
-  }
-  return {
-    classes: 'bg-surface-secondary text-text-secondary border-border-primary',
-    label: `صالح ${days} يوم`,
-  };
-}
 
 /**
  * Fetch a protected document as an authenticated blob URL and manage its
@@ -223,8 +175,6 @@ function ZoomablePreviewModal({
 
   const onMouseUp = () => setDragging(false);
 
-  const expiryDays = daysUntilExpiry(doc.expires_at);
-
   return (
     <div
       className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col animate-fade-in"
@@ -295,49 +245,6 @@ function ZoomablePreviewModal({
         </div>
       </div>
 
-      {/* Identity strip: the metadata the reviewer compares against the image */}
-      {(doc.holder_full_name || doc.national_id_number || doc.expires_at) && (
-        <div
-          className="px-5 py-2.5 bg-black/40 border-b border-white/10 flex items-center gap-5 flex-wrap text-xs"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {doc.holder_full_name && (
-            <span className="flex items-center gap-1.5 text-white/85">
-              <BadgeCheck className="w-3.5 h-3.5 text-primary-400" />
-              <span className="text-white/50">الاسم الرباعي:</span>
-              <span className="font-bold">{doc.holder_full_name}</span>
-            </span>
-          )}
-          {doc.national_id_number && (
-            <span className="flex items-center gap-1.5 text-white/85">
-              <Fingerprint className="w-3.5 h-3.5 text-primary-400" />
-              <span className="text-white/50">رقم الهوية:</span>
-              <span className="font-bold font-mono tracking-wide">{doc.national_id_number}</span>
-            </span>
-          )}
-          {doc.expires_at && (
-            <span className="flex items-center gap-1.5 text-white/85">
-              <CalendarClock className="w-3.5 h-3.5 text-primary-400" />
-              <span className="text-white/50">تاريخ الصلاحية:</span>
-              <span className="font-bold font-mono">
-                {new Date(doc.expires_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </span>
-              {expiryDays !== null && (
-                <span className={`px-1.5 py-0.5 rounded-md font-bold ${
-                  expiryDays < 0 || expiryDays <= 30
-                    ? 'bg-red-500/20 text-red-300'
-                    : expiryDays <= 90
-                    ? 'bg-amber-500/20 text-amber-300'
-                    : 'bg-white/10 text-white/70'
-                }`}>
-                  {expiryDays < 0 ? `منتهي منذ ${Math.abs(expiryDays)} يوم` : `متبقٍ ${expiryDays} يوم`}
-                </span>
-              )}
-            </span>
-          )}
-        </div>
-      )}
-
       {/* Image Area */}
       <div
         className="flex-1 flex items-center justify-center overflow-hidden"
@@ -371,6 +278,7 @@ function ZoomablePreviewModal({
 /* ------------------------------------------------------------------ */
 export default function CaptainVerificationPage() {
   const { token } = useAuth();
+  const { addToast } = useToast();
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -379,12 +287,10 @@ export default function CaptainVerificationPage() {
   const [previewGroup, setPreviewGroup] = useState<Doc[]>([]);
   const [bulkApproving, setBulkApproving] = useState<string | null>(null);
 
-  // Server-side paging state. The API pages by captain, so one page == N
-  // captains with all of their documents (never a captain split in half).
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(CAPTAINS_PER_PAGE);
-  const [totalCaptains, setTotalCaptains] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
+  // Two-step confirm for the bulk "قبول الجميع" action. Holds the captain id
+  // awaiting confirmation; auto-reverts after a few seconds if not confirmed.
+  const [confirmBulkId, setConfirmBulkId] = useState<string | null>(null);
+  const confirmBulkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Rejection modal state
   const [rejectingDoc, setRejectingDoc] = useState<{ doc: Doc; captainName: string } | null>(null);
@@ -396,26 +302,10 @@ export default function CaptainVerificationPage() {
     try {
       setLoading(true);
       setError(null);
-      const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-      if (statusFilter) query.set('status', statusFilter);
-      const res = await api<{
-        documents: Doc[];
-        page?: number;
-        pageSize?: number;
-        total?: number;
-        totalPages?: number;
-      }>(`/admin/documents?${query.toString()}`, { token });
+      const params = statusFilter ? `?status=${statusFilter}` : '';
+      const res = await api<{ documents: Doc[] }>(`/admin/documents${params}`, { token });
       const fetchedDocs = res.documents || [];
       setDocs(fetchedDocs);
-      setTotalCaptains(res.total ?? 0);
-      setTotalPages(Math.max(res.totalPages ?? 1, 1));
-      // The API clamps an out-of-range page (e.g. the last captain on this page
-      // just got approved out of the "pending" filter). Follow it so the footer
-      // never advertises a page we are not actually showing.
-      const servedPage = res.page;
-      if (typeof servedPage === 'number' && servedPage > 0) {
-        setPage((prev) => (servedPage === prev ? prev : servedPage));
-      }
 
       // Expand all captain groups by default
       const initialExpanded: Record<string, boolean> = {};
@@ -432,24 +322,7 @@ export default function CaptainVerificationPage() {
 
   useEffect(() => {
     load();
-  }, [token, statusFilter, page, pageSize]);
-
-  // Switching tabs must restart at page 1, otherwise the admin lands on page 7
-  // of a filter that only has two pages.
-  const changeStatusFilter = (next: string) => {
-    if (next === statusFilter) return;
-    setStatusFilter(next);
-    setPage(1);
-  };
-
-  const changePageSize = (next: number) => {
-    setPageSize(next);
-    setPage(1);
-  };
-
-  const goToPage = (next: number) => {
-    setPage(Math.min(Math.max(next, 1), Math.max(totalPages, 1)));
-  };
+  }, [token, statusFilter]);
 
   // Group documents by Captain ID
   const captainGroups = useMemo(() => {
@@ -494,9 +367,10 @@ export default function CaptainVerificationPage() {
         token,
         body: JSON.stringify({ status: 'approved' }),
       });
+      addToast({ type: 'success', message: 'تم قبول المستند' });
       load();
-    } catch {
-      alert('فشل قبُول المستند');
+    } catch (e) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'فشل قبُول المستند' });
     }
   };
 
@@ -513,13 +387,33 @@ export default function CaptainVerificationPage() {
           body: JSON.stringify({ status: 'approved' }),
         });
       }
+      addToast({ type: 'success', message: `تم قبول ${pendingDocs.length.toLocaleString('ar-EG')} مستندات لـ ${group.captainName}` });
       load();
-    } catch {
-      alert('فشل في قبول بعض المستندات');
+    } catch (e) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'فشل في قبول بعض المستندات' });
     } finally {
       setBulkApproving(null);
     }
   };
+
+  // Bulk-approve is destructive (accepts every pending doc at once), so it
+  // goes through a two-step confirm: the first click arms the button (label
+  // flips to "تأكيد القبول؟" and auto-reverts after 3s), the second runs it.
+  const requestBulkApprove = (group: CaptainGroup) => {
+    if (confirmBulkId === group.captainId) {
+      if (confirmBulkTimer.current) clearTimeout(confirmBulkTimer.current);
+      setConfirmBulkId(null);
+      bulkApproveAll(group);
+      return;
+    }
+    if (confirmBulkTimer.current) clearTimeout(confirmBulkTimer.current);
+    setConfirmBulkId(group.captainId);
+    confirmBulkTimer.current = setTimeout(() => setConfirmBulkId(null), 3000);
+  };
+
+  useEffect(() => () => {
+    if (confirmBulkTimer.current) clearTimeout(confirmBulkTimer.current);
+  }, []);
 
   const handleRejectSubmit = async (reason: string) => {
     if (!rejectingDoc) return;
@@ -622,7 +516,7 @@ export default function CaptainVerificationPage() {
             ).map(([st, label]) => (
               <button
                 key={st}
-                onClick={() => changeStatusFilter(st)}
+                onClick={() => setStatusFilter(st)}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
                   statusFilter === st
                     ? 'bg-primary-500 text-white shadow-xs'
@@ -689,6 +583,7 @@ export default function CaptainVerificationPage() {
             const isExpanded = expandedCaptains[group.captainId] ?? true;
             const allPending = group.pendingCount > 0 && group.pendingCount === group.documents.length;
             const isBulkApproving = bulkApproving === group.captainId;
+            const isBulkConfirming = confirmBulkId === group.captainId;
 
             return (
               <div
@@ -766,18 +661,20 @@ export default function CaptainVerificationPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          bulkApproveAll(group);
+                          requestBulkApprove(group);
                         }}
                         disabled={isBulkApproving}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-success-main hover:bg-success-dark text-white rounded-xl shadow-xs transition-colors disabled:opacity-60"
-                        title="قبول جميع المستندات دفعة واحدة"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-60 text-white ${
+                          isBulkConfirming ? 'bg-warning-main hover:bg-warning-dark' : 'bg-success-main hover:bg-success-dark'
+                        }`}
+                        title={isBulkConfirming ? 'اضغط مرة أخرى للتأكيد' : 'قبول جميع المستندات دفعة واحدة'}
                       >
                         {isBulkApproving ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <CheckCheck className="w-3.5 h-3.5" />
                         )}
-                        قبول الجميع
+                        {isBulkConfirming ? 'تأكيد القبول؟' : 'قبول الجميع'}
                       </button>
                     )}
 
@@ -794,176 +691,102 @@ export default function CaptainVerificationPage() {
                 {isExpanded && (
                   <div className="p-5 border-t border-border-primary bg-surface-secondary/20 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {group.documents.map((d) => {
-                        const expiryDays = daysUntilExpiry(d.expires_at);
-                        const expiry = expiryDays !== null ? expiryChip(expiryDays) : null;
-                        const hasIdentity = d.holder_full_name || d.national_id_number || d.expires_at;
+                      {group.documents.map((d) => (
+                        <div
+                          key={d.id}
+                          className="bg-surface-primary border border-border-primary rounded-xl overflow-hidden flex flex-col transition-all hover:border-primary-500/40 hover:shadow-md shadow-xs"
+                        >
+                          {/* Document Image / Thumbnail */}
+                          <div className="relative h-56 bg-surface-tertiary flex items-center justify-center overflow-hidden group">
+                            {d.r2_key && d.r2_key.startsWith('docs/') ? (
+                              <DocumentImage
+                                doc={d}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                            ) : (
+                              <FileText className="w-12 h-12 text-text-tertiary" />
+                            )}
 
-                        return (
-                          <div
-                            key={d.id}
-                            className="bg-surface-primary border border-border-primary rounded-xl overflow-hidden flex flex-col transition-all hover:border-primary-500/40 hover:shadow-md shadow-xs"
-                          >
-                            {/* Document Image / Thumbnail */}
-                            <div className="relative h-56 bg-surface-tertiary flex items-center justify-center overflow-hidden group">
-                              {d.r2_key && d.r2_key.startsWith('docs/') ? (
-                                <DocumentImage
-                                  doc={d}
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                />
-                              ) : (
-                                <FileText className="w-12 h-12 text-text-tertiary" />
-                              )}
-
-                              {/* Hover Overlay */}
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <button
-                                  onClick={() => openPreview(d, group.documents)}
-                                  className="px-4 py-2.5 bg-surface-primary/90 text-text-primary text-xs font-bold rounded-xl shadow-lg flex items-center gap-2 backdrop-blur-md hover:bg-surface-primary transition-colors"
-                                >
-                                  <Eye className="w-4 h-4 text-primary-500" />
-                                  معاينة كاملة مع تكبير
-                                </button>
-                              </div>
-
-                              {/* Status Badge */}
-                              <div className="absolute top-2.5 right-2.5">
-                                {statusBadge(d)}
-                              </div>
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <button
+                                onClick={() => openPreview(d, group.documents)}
+                                className="px-4 py-2.5 bg-surface-primary/90 text-text-primary text-xs font-bold rounded-xl shadow-lg flex items-center gap-2 backdrop-blur-md hover:bg-surface-primary transition-colors"
+                              >
+                                <Eye className="w-4 h-4 text-primary-500" />
+                                معاينة كاملة مع تكبير
+                              </button>
                             </div>
 
-                            {/* Document Info */}
-                            <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                              <div>
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded-md border border-primary-500/20">
-                                    {docTypeLabels[d.type] || d.type}
-                                  </span>
-                                  <span className="text-[10px] text-text-tertiary font-mono">
-                                    {new Date(d.created_at).toLocaleDateString('ar-EG')}
-                                  </span>
-                                </div>
-
-                                {/* ─── Identity metadata, exactly what the reviewer
-                                        compares against the photo ─── */}
-                                {hasIdentity && (
-                                  <dl className="mt-2.5 space-y-1.5 text-xs">
-                                    {d.holder_full_name && (
-                                      <div className="flex items-start gap-2">
-                                        <dt className="flex items-center gap-1 text-text-tertiary shrink-0 min-w-[5.5rem]">
-                                          <BadgeCheck className="w-3.5 h-3.5 text-primary-500" />
-                                          الاسم الرباعي
-                                        </dt>
-                                        <dd className="font-bold text-text-primary leading-5">
-                                          {d.holder_full_name}
-                                        </dd>
-                                      </div>
-                                    )}
-                                    {d.national_id_number && (
-                                      <div className="flex items-start gap-2">
-                                        <dt className="flex items-center gap-1 text-text-tertiary shrink-0 min-w-[5.5rem]">
-                                          <Fingerprint className="w-3.5 h-3.5 text-primary-500" />
-                                          رقم الهوية
-                                        </dt>
-                                        <dd className="font-bold text-text-primary font-mono tracking-wide leading-5">
-                                          {d.national_id_number}
-                                        </dd>
-                                      </div>
-                                    )}
-                                    {d.expires_at && (
-                                      <div className="flex items-start gap-2">
-                                        <dt className="flex items-center gap-1 text-text-tertiary shrink-0 min-w-[5.5rem]">
-                                          <CalendarClock className="w-3.5 h-3.5 text-primary-500" />
-                                          الصلاحية
-                                        </dt>
-                                        <dd className="flex items-center gap-2 flex-wrap leading-5">
-                                          <span className="font-bold text-text-primary font-mono">
-                                            {new Date(d.expires_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}
-                                          </span>
-                                          {expiry && (
-                                            <span className={`px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${expiry.classes}`}>
-                                              {expiry.label}
-                                            </span>
-                                          )}
-                                        </dd>
-                                      </div>
-                                    )}
-                                  </dl>
-                                )}
-
-                                {/* Rejection reason display */}
-                                {d.status === 'rejected' && d.rejection_reason && (
-                                  <div className="mt-2 p-2.5 bg-error-main/5 border border-error-main/20 rounded-lg">
-                                    <p className="text-[11px] font-bold text-error-main flex items-center gap-1 mb-0.5">
-                                      <AlertCircle className="w-3 h-3" /> سبب الرفض:
-                                    </p>
-                                    <p className="text-xs text-text-secondary">{d.rejection_reason}</p>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-2 pt-2 border-t border-border-primary">
-                                <button
-                                  onClick={() => openPreview(d, group.documents)}
-                                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-surface-secondary hover:bg-surface-hover text-text-secondary text-xs font-bold rounded-xl border border-border-primary transition-colors"
-                                >
-                                  <Eye className="w-3.5 h-3.5" /> عرض
-                                </button>
-
-                                {d.status === 'pending' && (
-                                  <>
-                                    <button
-                                      onClick={() => approveDocument(d.id)}
-                                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-success-main hover:bg-success-dark text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-                                    >
-                                      <Check className="w-3.5 h-3.5" /> قبول
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        setRejectingDoc({
-                                          doc: d,
-                                          captainName: group.captainName,
-                                        })
-                                      }
-                                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-error-main/10 hover:bg-error-main/20 text-error-main text-xs font-bold rounded-xl border border-error-main/30 transition-colors"
-                                    >
-                                      <X className="w-3.5 h-3.5" /> رفض
-                                    </button>
-                                  </>
-                                )}
-                              </div>
+                            {/* Status Badge */}
+                            <div className="absolute top-2.5 right-2.5">
+                              {statusBadge(d)}
                             </div>
                           </div>
-                        );
-                      })}
+
+                          {/* Document Info */}
+                          <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded-md border border-primary-500/20">
+                                  {docTypeLabels[d.type] || d.type}
+                                </span>
+                                <span className="text-[10px] text-text-tertiary font-mono">
+                                  {new Date(d.created_at).toLocaleDateString('ar-EG')}
+                                </span>
+                              </div>
+
+                              {/* Rejection reason display */}
+                              {d.status === 'rejected' && d.rejection_reason && (
+                                <div className="mt-2 p-2.5 bg-error-main/5 border border-error-main/20 rounded-lg">
+                                  <p className="text-[11px] font-bold text-error-main flex items-center gap-1 mb-0.5">
+                                    <AlertCircle className="w-3 h-3" /> سبب الرفض:
+                                  </p>
+                                  <p className="text-xs text-text-secondary">{d.rejection_reason}</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-border-primary">
+                              <button
+                                onClick={() => openPreview(d, group.documents)}
+                                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-surface-secondary hover:bg-surface-hover text-text-secondary text-xs font-bold rounded-xl border border-border-primary transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> عرض
+                              </button>
+
+                              {d.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => approveDocument(d.id)}
+                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-success-main hover:bg-success-dark text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                                  >
+                                    <Check className="w-3.5 h-3.5" /> قبول
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      setRejectingDoc({
+                                        doc: d,
+                                        captainName: group.captainName,
+                                      })
+                                    }
+                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-error-main/10 hover:bg-error-main/20 text-error-main text-xs font-bold rounded-xl border border-error-main/30 transition-colors"
+                                  >
+                                    <X className="w-3.5 h-3.5" /> رفض
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* ─── Paging footer ───
-          Rendered outside the loading/empty branches so the controls keep their
-          place while the next page is in flight instead of the footer vanishing
-          and the list jumping. `busy` blocks double-clicks mid-fetch. */}
-      {totalPages > 1 && (
-        <div className="bg-surface-primary border border-border-primary rounded-2xl shadow-xs overflow-hidden">
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            onPageChange={goToPage}
-            totalItems={totalCaptains}
-            itemNoun="كابتن"
-            pageSize={pageSize}
-            pageSizeOptions={CAPTAINS_PER_PAGE_OPTIONS}
-            onPageSizeChange={changePageSize}
-            busy={loading}
-            className="border-t-0"
-          />
         </div>
       )}
 
