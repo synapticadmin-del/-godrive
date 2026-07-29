@@ -37,9 +37,8 @@ class TravelModeBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final go = GoTheme.of(context);
-    final isDark = go.isDark;
-    final bg = isDark ? AppTokens.darkPanel : Colors.white;
-    final borderColor = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final bg = go.panel;
+    final borderColor = go.border;
 
     return Container(
       decoration: BoxDecoration(
@@ -145,7 +144,7 @@ class _TravelNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = go.isDark ? go.action : AppTokens.primary;
+    final accent = go.action;
     final color = active ? accent : go.muted;
 
     return Semantics(

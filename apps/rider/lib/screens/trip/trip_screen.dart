@@ -241,7 +241,6 @@ class _TripScreenState extends State<TripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final go = GoTheme.of(context);
 
     return Scaffold(
@@ -314,7 +313,7 @@ class _TripScreenState extends State<TripScreen> {
                 ),
                 Positioned(
                   left: 0, right: 0, bottom: 0,
-                  child: _buildBottomPanel(isDark),
+                  child: _buildBottomPanel(),
                 ),
               ],
             ),
@@ -391,7 +390,7 @@ class _TripScreenState extends State<TripScreen> {
         width: 46,
         height: 46,
         child: VehicleMapMarker(
-          color: go.isDark ? go.action : AppTokens.primary,
+          color: go.action,
           size: 46,
         ),
       ));
@@ -400,17 +399,17 @@ class _TripScreenState extends State<TripScreen> {
   }
 
   Widget _circleButton(IconData icon, VoidCallback onTap, {Color? color}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final go = GoTheme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44, height: 44,
         decoration: BoxDecoration(
-          color: color ?? (isDark ? AppTokens.darkPanel : AppTokens.lightPanel),
+          color: color ?? go.panel,
           shape: BoxShape.circle,
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8)],
         ),
-        child: Icon(icon, color: color != null ? Colors.white : (isDark ? AppTokens.darkText : AppTokens.lightText), size: 22),
+        child: Icon(icon, color: color != null ? Colors.white : go.text, size: 22),
       ),
     );
   }
@@ -431,10 +430,11 @@ class _TripScreenState extends State<TripScreen> {
     );
   }
 
-  Widget _buildBottomPanel(bool isDark) {
-    final bg = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+  Widget _buildBottomPanel() {
+    final go = GoTheme.of(context);
+    final bg = go.panel;
+    final text = go.text;
+    final muted = go.muted;
     return Container(
       decoration: BoxDecoration(color: bg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -443,7 +443,7 @@ class _TripScreenState extends State<TripScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: isDark ? AppTokens.darkBorder : AppTokens.lightBorder, borderRadius: BorderRadius.circular(999)))),
+            decoration: BoxDecoration(color: go.border, borderRadius: BorderRadius.circular(999)))),
           ..._buildPanelContent(text, muted),
         ]),
       )),
@@ -485,7 +485,7 @@ class _TripScreenState extends State<TripScreen> {
     return [
       Row(children: [
         Icon(Icons.local_offer_rounded,
-            color: go.isDark ? go.action : AppTokens.primary, size: 20),
+            color: go.action, size: 20),
         const SizedBox(width: 8),
         Expanded(child: Text('وصلت عروض من الكباتن',
           style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
@@ -497,8 +497,8 @@ class _TripScreenState extends State<TripScreen> {
       SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _syncBidsSheet,
         icon: const Icon(Icons.visibility_outlined, size: 18), label: const Text('عرض العروض'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: go.isDark ? go.action : AppTokens.primary,
-          foregroundColor: go.isDark ? go.onAction : Colors.white))),
+          backgroundColor: go.action,
+          foregroundColor: go.onAction))),
       const SizedBox(height: 8),
       SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
         icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),

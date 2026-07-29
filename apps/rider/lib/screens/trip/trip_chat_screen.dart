@@ -22,6 +22,15 @@ class _TripChatScreenState extends State<TripChatScreen> {
     _fetchMessages();
   }
 
+  @override
+  void dispose() {
+    // The field controller outlives this State unless it is torn down here;
+    // chat is opened and closed repeatedly during a trip, so every visit
+    // leaked one controller (and its focus/selection listeners).
+    _msgCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchMessages() async {
     final appState = context.read<AppState>();
     try {
