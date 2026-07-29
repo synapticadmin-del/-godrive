@@ -53,11 +53,11 @@ class _RatingSheetState extends State<RatingSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final bg = go.panel;
+    final text = go.text;
+    final muted = go.muted;
+    final border = go.border;
 
     return Container(
       decoration: BoxDecoration(
@@ -123,7 +123,7 @@ class _RatingSheetState extends State<RatingSheet> {
                 hintText: 'تعليق إضافي (اختياري)',
                 hintStyle: AppTokens.font(color: muted, fontSize: 14),
                 filled: true,
-                fillColor: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
+                fillColor: go.surface,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
               ),
               style: AppTokens.font(color: text, fontSize: 14),

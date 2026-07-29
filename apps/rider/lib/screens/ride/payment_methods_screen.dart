@@ -36,11 +36,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final panel = go.panel;
+    final text = go.text;
+    final muted = go.muted;
+    final border = go.border;
 
     return Scaffold(
       appBar: AppBar(title: Text('طرق الدفع', style: AppTokens.font(fontWeight: FontWeight.w700))),
