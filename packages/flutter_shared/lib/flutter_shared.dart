@@ -9,6 +9,7 @@ export 'services/fcm_service.dart';
 export 'theme/app_theme.dart';
 export 'l10n/app_strings.dart';
 export 'widgets/main_bottom_nav.dart';
+export 'widgets/godrive_wordmark.dart';
 export 'widgets/empty_state.dart';
 export 'widgets/error_state.dart';
 export 'widgets/skeleton_loader.dart';

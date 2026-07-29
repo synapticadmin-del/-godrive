@@ -12,6 +12,7 @@ import '../../services/app_state.dart';
 import '../../services/location_service.dart';
 import '../history/history_screen.dart';
 import '../wallet/wallet_screen.dart';
+import '../places/saved_destinations_sheet.dart';
 import '../profile/profile_screen.dart';
 import 'fare_estimate_sheet.dart';
 import 'location_search_sheet.dart';
@@ -457,6 +458,72 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ─────────────────────── saved destinations ───────────────────────
+
+  /// Opens the "وجهاتي" sheet from the bar's first slot.
+  ///
+  /// A saved place is only worth saving if leaving for it is fast, so this is a
+  /// sheet over the live map rather than a tab swap: the rider picks a place
+  /// and the booking flow opens on top of the route they can already see.
+  void _openSavedDestinations() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SavedDestinationsSheet(
+        currentLocation: _currentLocation,
+        onSelect: _startTripToSavedPlace,
+      ),
+    );
+  }
+
+  /// Books straight from where the rider is standing to a saved place.
+  ///
+  /// This is the whole point of the slot: pickup is the rider's live position,
+  /// dropoff is the saved place, and the fare sheet opens on the real driving
+  /// route — no searching, no map panning, no typing.
+  Future<void> _startTripToSavedPlace(SavedDestination place) async {
+    final origin = _currentLocation;
+    if (origin == null) {
+      // No fix yet. Say so and retry rather than opening a trip with no origin.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('جارٍ تحديد موقعك، حاول بعد لحظة')),
+      );
+      _determinePosition();
+      return;
+    }
+
+    setState(() {
+      // A saved destination is always a city ride: drop out of intercity mode
+      // so the four-destination bar and the ride booking flow are the ones on
+      // screen when the sheet opens.
+      _category = 'ride';
+      _travelTab = TravelTab.trip;
+      _tabIndex = 0;
+      _pickMode = PickMode.none;
+
+      _pickupLocation = origin;
+      _pickupText = 'موقعي الحالي';
+      _dropoffLocation = place.point;
+      _dropoffText = place.address.isNotEmpty ? place.address : place.label;
+      _loadingRoute = true;
+    });
+
+    // Resolve the pickup's street name before the fare sheet mounts — it takes
+    // its addresses as plain strings at construction time, so a lookup that
+    // lands afterwards would never reach it and the rider would be staring at
+    // "موقعي الحالي" on the confirmation screen. Failure is fine: the fallback
+    // label is already set above.
+    final resolved = await _locations.reverseGeocode(origin);
+    if (!mounted) return;
+    if (resolved != null && resolved.isNotEmpty && _pickupLocation == origin) {
+      setState(() => _pickupText = resolved);
+    }
+
+    await _refreshRoute(openBooking: true);
+  }
+
   // ───────────────────────────── build ─────────────────────────────
 
   @override
@@ -514,6 +581,19 @@ class _HomeScreenState extends State<HomeScreen>
                   currentIndex: _tabIndex,
                   onTap: (index) => setState(() => _tabIndex = index),
                   onCenterTap: _onCenterTap,
+                  // The first slot used to be a second way to reach the map,
+                  // which the centre crest already does. It now opens saved
+                  // destinations — the shortcut that turns a saved "home" into
+                  // a booked ride in two taps. It never shows a selected state
+                  // because it opens a sheet instead of swapping the body,
+                  // hence the non-tab sentinel index.
+                  firstDestination: NavFirstDestination(
+                    index: -1,
+                    label: 'وجهاتي',
+                    icon: Icons.bookmark_border_rounded,
+                    activeIcon: Icons.bookmark_rounded,
+                    onTap: _openSavedDestinations,
+                  ),
                 ),
     );
   }
