@@ -102,9 +102,9 @@ class MainBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkPanel : Colors.white;
-    final borderColor = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final bg = go.panel;
+    final borderColor = go.border;
     final center = centerDestination;
     final first = firstDestination;
 
@@ -182,12 +182,10 @@ class MainBottomNav extends StatelessWidget {
                 top: -20,
                 child: center == null
                     ? _CenterDomeButton(
-                        isDark: isDark,
                         logoAsset: centerLogoAsset,
                         onTap: onCenterTap,
                       )
                     : _CenterDomeDestination(
-                        isDark: isDark,
                         destination: center,
                         logoAsset: centerLogoAsset,
                         active: currentIndex == center.index,
@@ -206,12 +204,10 @@ class MainBottomNav extends StatelessWidget {
 /// so the brand moment never drifts between the two apps.
 class _DomeShell extends StatelessWidget {
   const _DomeShell({
-    required this.isDark,
     required this.logoAsset,
     this.active = false,
   });
 
-  final bool isDark;
   final String logoAsset;
 
   /// When the dome is a real destination and currently selected, the glow
@@ -220,7 +216,9 @@ class _DomeShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final haloColor = isDark ? AppTokens.darkPanel : Colors.white;
+    // Tracks the bar's own fill so the ring reads as a cutout in the bar
+    // rather than a white circle painted on top of it.
+    final haloColor = GoTheme.of(context).panel;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
@@ -276,12 +274,10 @@ class _DomeShell extends StatelessWidget {
 /// state.
 class _CenterDomeButton extends StatefulWidget {
   const _CenterDomeButton({
-    required this.isDark,
     required this.logoAsset,
     required this.onTap,
   });
 
-  final bool isDark;
   final String logoAsset;
   final VoidCallback? onTap;
 
@@ -310,7 +306,7 @@ class _CenterDomeButtonState extends State<_CenterDomeButton> {
           scale: _pressed ? 0.9 : 1.0,
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOut,
-          child: _DomeShell(isDark: widget.isDark, logoAsset: widget.logoAsset),
+          child: _DomeShell(logoAsset: widget.logoAsset),
         ),
       ),
     );
@@ -321,14 +317,12 @@ class _CenterDomeButtonState extends State<_CenterDomeButton> {
 /// state beneath the crest, plus the waiting-count badge above it.
 class _CenterDomeDestination extends StatefulWidget {
   const _CenterDomeDestination({
-    required this.isDark,
     required this.destination,
     required this.logoAsset,
     required this.active,
     required this.onTap,
   });
 
-  final bool isDark;
   final NavCenterDestination destination;
   final String logoAsset;
   final bool active;
@@ -343,10 +337,13 @@ class _CenterDomeDestinationState extends State<_CenterDomeDestination> {
 
   @override
   Widget build(BuildContext context) {
-    final inactive = widget.isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final labelColor = widget.active ? AppTokens.primary : inactive;
+    final go = GoTheme.of(context);
+    // The selected label used to be brand green on the legacy dark panel —
+    // #4E842D on #121A2B is about 3.86:1, under the 4.5:1 floor for an 11px
+    // label. On the ramp the dark action is lime, which clears 13:1.
+    final labelColor = widget.active ? go.action : go.muted;
     final count = widget.destination.badgeCount;
-    final haloColor = widget.isDark ? AppTokens.darkPanel : Colors.white;
+    final haloColor = go.panel;
 
     return Semantics(
       button: true,
@@ -375,7 +372,6 @@ class _CenterDomeDestinationState extends State<_CenterDomeDestination> {
                 alignment: Alignment.center,
                 children: [
                   _DomeShell(
-                    isDark: widget.isDark,
                     logoAsset: widget.logoAsset,
                     active: widget.active,
                   ),
@@ -452,10 +448,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inactive = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final color = active ? AppTokens.primary : inactive;
-    final badgeColor = isDark ? AppTokens.darkPanel : Colors.white;
+    final go = GoTheme.of(context);
+    final color = active ? go.action : go.muted;
+    final badgeColor = go.panel;
 
     return Semantics(
       button: true,
@@ -475,7 +470,7 @@ class _NavItem extends StatelessWidget {
               width: active ? 20 : 0,
               margin: const EdgeInsets.only(bottom: 6),
               decoration: BoxDecoration(
-                color: AppTokens.primary,
+                color: go.action,
                 borderRadius: BorderRadius.circular(AppTokens.radiusPill),
               ),
             ),

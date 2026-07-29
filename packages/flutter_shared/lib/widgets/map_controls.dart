@@ -6,6 +6,11 @@ import '../theme/app_theme.dart';
 /// Map chrome in the category is consistently a soft white puck with a real
 /// shadow — never a flat Material FAB — so it stays legible over both pale
 /// streets and dark parkland without a heavy border.
+///
+/// The puck takes its fill and icon from [GoTheme]. It previously branched on
+/// `Theme.of(context).brightness` and reached for the legacy `dark*` scale,
+/// which put a blue-leaning `#121A2B` puck on top of the neutral charcoal
+/// basemap the night tiles actually render.
 class MapCircleButton extends StatelessWidget {
   const MapCircleButton({
     super.key,
@@ -32,9 +37,9 @@ class MapCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = background ?? (isDark ? AppTokens.darkPanel : Colors.white);
-    final fg = iconColor ?? (isDark ? AppTokens.darkText : AppTokens.lightText);
+    final go = GoTheme.of(context);
+    final bg = background ?? go.panel;
+    final fg = iconColor ?? go.text;
 
     final button = Semantics(
       button: true,
