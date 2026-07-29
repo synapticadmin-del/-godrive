@@ -197,14 +197,27 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
                       title: Text(label, style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
                       subtitle: Text(address, style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                       trailing: canGo
-                          ? Icon(
-                              // The row's whole job is "go here" — point the
-                              // way in the reading direction.
-                              isAr
-                                  ? Icons.arrow_back_ios_new_rounded
-                                  : Icons.arrow_forward_ios_rounded,
-                              color: AppTokens.primary,
-                              size: 17,
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Edit sits beside go-here in the embedded tab
+                                // too — a mistyped name should not force the
+                                // rider out to the profile screen to fix it.
+                                IconButton(
+                                  icon: Icon(Icons.edit_outlined, color: muted, size: 19),
+                                  tooltip: isAr ? 'تعديل' : 'Edit',
+                                  onPressed: () => _showEditDialog(place),
+                                ),
+                                Icon(
+                                  // The row's whole job is "go here" — point
+                                  // the way in the reading direction.
+                                  isAr
+                                      ? Icons.arrow_back_ios_new_rounded
+                                      : Icons.arrow_forward_ios_rounded,
+                                  color: AppTokens.primary,
+                                  size: 17,
+                                ),
+                              ],
                             )
                           : Row(
                               mainAxisSize: MainAxisSize.min,
