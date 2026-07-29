@@ -223,11 +223,7 @@ class AppState extends ChangeNotifier {
     try {
       final res = await _get('/auth/me');
       if (res['user'] != null) {
-        final localAvatar = user?['avatarUrl'];
-        user = {
-          ...Map<String, dynamic>.from(res['user'] as Map),
-          if (localAvatar is String && localAvatar.isNotEmpty) 'avatarUrl': localAvatar,
-        };
+        user = _normaliseUser(res['user'] as Map);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_kUserData, jsonEncode(user));
         notifyListeners();
@@ -236,6 +232,42 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Bridges the server row to what the screens read.
+  ///
+  /// The users table stores `avatar_url`; the widgets read `avatarUrl`.
+  ///
+  /// This used to re-inject a locally cached avatar over every profile fetch,
+  /// because the old picker wrote one of four hardcoded stock URLs straight to
+  /// SharedPreferences and never told the server — so the value would vanish on
+  /// the next `/auth/me` unless it was carried forward by hand. Photos are real
+  /// uploads now and the column is the single source of truth, so that
+  /// workaround is gone: whatever the server says wins, including "no photo".
+  Map<String, dynamic> _normaliseUser(Map raw) {
+    final map = Map<String, dynamic>.from(raw);
+    final avatar = map['avatar_url'] ?? map['avatarUrl'];
+    map['avatarUrl'] = (avatar is String && avatar.isNotEmpty) ? avatar : null;
+    return map;
+  }
+
+  /// The rider's photo, ready to hand to a [CircleAvatar]. Null when unset.
+  ///
+  /// Uploads resolve to an API-relative path served from a route that sits
+  /// behind the bearer token, so they need [baseUrl] and the auth header
+  /// attached. A value that is already absolute is passed through untouched.
+  ///
+  /// The object key carries a timestamp and a UUID, so a new upload always
+  /// produces a new URL — which is what busts Flutter's image cache, since
+  /// [NetworkImage] keys on the URL alone and ignores headers.
+  ImageProvider? get avatarImage {
+    final raw = user?['avatarUrl'];
+    if (raw is! String || raw.isEmpty) return null;
+    if (raw.startsWith('http')) return NetworkImage(raw);
+    return NetworkImage(
+      '$baseUrl$raw',
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
+    );
   }
 
   Map<String, String> get _headers => {
@@ -553,26 +585,57 @@ class AppState extends ChangeNotifier {
   Future<void> updateUserProfile({
     String? name,
     String? phone,
-    String? avatarUrl,
   }) async {
     final payload = <String, dynamic>{
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
       if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
     };
+    if (payload.isEmpty) return;
 
-    var updatedUser = Map<String, dynamic>.from(user ?? const {});
-    if (payload.isNotEmpty) {
-      final res = await _patch('/user/profile', payload);
-      final serverUser = res['user'];
-      if (serverUser is Map) {
-        updatedUser = Map<String, dynamic>.from(serverUser);
-      }
+    final res = await _patch('/user/profile', payload);
+    final serverUser = res['user'];
+    if (serverUser is Map) {
+      user = _normaliseUser(serverUser);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kUserData, jsonEncode(user));
+    }
+    notifyListeners();
+  }
+
+  /// Uploads a photo the rider picked from their camera or gallery.
+  ///
+  /// Runs through [_executeWithAuthInterceptor] like every other call, so an
+  /// access token that expired while they were framing the shot is refreshed
+  /// and the upload retried once instead of failing in their face. The request
+  /// is rebuilt inside the closure because a multipart body is a single-use
+  /// stream and cannot be replayed.
+  Future<void> uploadAvatar(String filePath) async {
+    final res = await _executeWithAuthInterceptor(() async {
+      final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/user/avatar'))
+        ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'})
+        ..files.add(await http.MultipartFile.fromPath('file', filePath));
+      final streamed = await req.send().timeout(const Duration(seconds: 45));
+      return http.Response.fromStream(streamed);
+    });
+
+    final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+    if (res.statusCode >= 400) {
+      throw Exception(
+        data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}',
+      );
     }
 
-    user = {
-      ...updatedUser,
-      if (avatarUrl != null) 'avatarUrl': avatarUrl,
-    };
+    final url = data is Map ? data['avatarUrl'] : null;
+    user = {...?user, 'avatarUrl': url is String && url.isNotEmpty ? url : null};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUserData, jsonEncode(user));
+    notifyListeners();
+  }
+
+  /// Clears the rider's photo — both the stored object and the column.
+  Future<void> removeAvatar() async {
+    await apiDelete('/user/avatar');
+    user = {...?user, 'avatarUrl': null};
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kUserData, jsonEncode(user));
     notifyListeners();

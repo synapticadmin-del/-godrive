@@ -42,6 +42,13 @@ class AppTokens {
   static const primarySoft = Color(0xFFEAF5E3);
   static const headerAccent = Color(0xFFDDF2D1);
 
+  /// Deep forest end-stop for the account header field in dark mode.
+  ///
+  /// Light mode runs [primary] → [primaryDark]. On a near-black page that
+  /// same ramp still reads as a lit panel rather than a surface, so the dark
+  /// presentation drops one step further. White on this value is ~11.6:1.
+  static const primaryDeep = Color(0xFF22400F);
+
   // ---------------------------------------------------------------------
   // Semantic
   // ---------------------------------------------------------------------
@@ -51,6 +58,10 @@ class AppTokens {
   static const danger = Color(0xFFD92D20); // 4.53:1 on white
   static const sos = Color(0xFFDC2626); // 4.83:1 on white
   static const info = Color(0xFF1D6DBE);
+
+  /// Rating stars. Previously an inline hex inside the rider's bids sheet —
+  /// tokenised so every star in either app is the same amber.
+  static const star = Color(0xFFF5B301);
 
   /// Full-bleed emergency backdrop — a near-black red that keeps the SOS
   /// screen unmistakable even in peripheral vision, day or night.
@@ -199,6 +210,28 @@ class AppTokens {
           offset: const Offset(0, 6),
         ),
       ];
+
+  // ---------------------------------------------------------------------
+  // Gradients
+  // ---------------------------------------------------------------------
+  /// The account header field behind the rider's name, phone and avatar.
+  ///
+  /// Light runs the green ramp [primary] → [primaryDark]; white foregrounds
+  /// clear 4.5:1 even at the lightest stop, so the name, phone and balance
+  /// stay legible across the whole field. Dark shifts down to [primaryDark] →
+  /// [primaryDeep] so the header reads as a deep surface against near-black
+  /// rather than a lit panel.
+  ///
+  /// Runs topRight → bottomLeft: in the RTL layout that puts the lighter stop
+  /// behind the avatar and carries the darker stop away from it, so the eye
+  /// lands on the portrait first.
+  static LinearGradient headerGradient(bool isDark) => LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: isDark
+            ? const [primaryDark, primaryDeep]
+            : const [primary, primaryDark],
+      );
 
   // ---------------------------------------------------------------------
   // Map
@@ -480,12 +513,23 @@ class AppTheme {
     final isDark = brightness == Brightness.dark;
     final go = GoTheme.forBrightness(brightness);
 
-    final bg = isDark ? AppTokens.darkBg : AppTokens.lightBg;
-    final panel = isDark ? AppTokens.darkPanel : AppTokens.lightPanel;
-    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
-    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
-    final fill = isDark ? AppTokens.darkSurface : AppTokens.inputFill;
+    // Every widget-level theme below reads from `go`, the same extension the
+    // screens read. Previously these locals came from the `dark*` slate-blue
+    // ramp (#0B1220/#1E293B/#334155) while `go` supplied the neutral `night*`
+    // ramp (#0E0E10/#26262B/#34343B), so in dark mode Material's own widgets
+    // — inputs, chips, dialog copy, hairlines — rendered slate-blue on top of
+    // a neutral near-black page. Two dark palettes, one screen. Sourcing both
+    // from `go` collapses them into one ramp.
+    //
+    // In light mode this is a no-op: go.text/muted/border already resolve to
+    // lightText/lightMuted/lightBorder, and go.surface to inputFill.
+    //
+    // The `dark*` tokens stay defined — the Admin and Captain apps still
+    // reference them, so removing them would be a breaking change.
+    final text = go.text;
+    final muted = go.muted;
+    final border = go.border;
+    final fill = go.surface;
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppTokens.primary,
@@ -589,7 +633,7 @@ class AppTheme {
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: isDark ? go.action : AppTokens.primary,
+          foregroundColor: go.action,
           textStyle: AppTokens.font(fontWeight: FontWeight.w600, fontSize: 15),
         ),
       ),
@@ -621,7 +665,7 @@ class AppTheme {
       ),
 
       chipTheme: ChipThemeData(
-        backgroundColor: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
+        backgroundColor: go.elevated,
         side: BorderSide(color: border),
         labelStyle: AppTokens.font(fontSize: 12, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(
@@ -649,7 +693,7 @@ class AppTheme {
       iconTheme: IconThemeData(color: go.text),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: go.panel,
-        selectedItemColor: isDark ? go.action : AppTokens.primary,
+        selectedItemColor: go.action,
         unselectedItemColor: go.muted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
