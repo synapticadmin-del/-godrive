@@ -26,6 +26,12 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   webview_flutter: ^4.8.0
   url_launcher: ^6.3.0
+  # Profile photos: the rider picks from their camera or gallery. iOS already
+  # declares NSCameraUsageDescription and NSPhotoLibraryUsageDescription; on
+  # Android the plugin uses ACTION_IMAGE_CAPTURE and the system photo picker,
+  # neither of which needs a manifest permission — declaring CAMERA would
+  # actually make the capture intent require a runtime grant it does not need.
+  image_picker: ^1.1.2
   video_player: ^2.9.2
   share_plus: ^10.1.0
   flutter_localized_locales: ^2.0.5

@@ -473,5 +473,11 @@ authRoutes.get("/me", authMiddleware, async (c) => {
         .first<DbCaptain>()) ?? null;
   }
 
-  return c.json({ user, captain });
+  // `SELECT *` is deliberate — it keeps newly added columns (avatar_url) flowing
+  // to the apps without a projection change — but it also means the row carries
+  // password_hash, which was being serialised straight to the client. Strip it
+  // here rather than enumerating columns, so the next migration stays free.
+  const { password_hash: _passwordHash, ...safeUser } = user;
+
+  return c.json({ user: safeUser, captain });
 });

@@ -15,6 +15,9 @@ export type DbUser = {
   phone: string | null;
   role: UserRole;
   status: string;
+  /** API-relative path to the user's photo (`/user/avatar/<id>/<file>`), or
+   * null when they have not set one. Written only by POST /user/avatar. */
+  avatar_url?: string | null;
   wallet_balance?: number;
   wallet_updated_at?: string | null;
   created_at: string;
