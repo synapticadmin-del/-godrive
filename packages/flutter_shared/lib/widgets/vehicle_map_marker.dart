@@ -1,1 +1,194 @@
-aW1wb3J0ICdkYXJ0Om1hdGgnIGFzIG1hdGg7CgppbXBvcnQgJ3BhY2thZ2U6Zmx1dHRlci9tYXRlcmlhbC5kYXJ0JzsKCmltcG9ydCAnLi4vdGhlbWUvYXBwX3RoZW1lLmRhcnQnOwoKLy8vIEEgdmVoaWNsZSBvbiB0aGUgbWFwLCBkcmF3biB0aGUgd2F5IHJpZGVycyBrbm93IGl0IGZyb20gVWJlciBhbmQgaW5Ecml2ZToKLy8vIGEgc21hbGwgdG9wLWRvd24gY2FyIHdpdGggYSBzb2Z0IGRyb3Agc2hhZG93LCByb3RhdGVkIHRvIGl0cyBoZWFkaW5nLgovLy8KLy8vIFRoaXMgd2lkZ2V0IHBhaW50cyB0aGUgY2FyIGluIGNvZGUgKGEgW0N1c3RvbVBhaW50ZXJdKSByYXRoZXIgdGhhbiBsb2FkaW5nCi8vLyBhbiBpbWFnZSBhc3NldCwgZm9yIHRocmVlIHJlYXNvbnM6Ci8vLyAgKiBpdCByZW5kZXJzIGF0IGFueSBzaXplIHdpdGggbm8gcGl4ZWxhdGlvbiwgb24gYW55IGRlbnNpdHk7Ci8vLyAgKiBpdCByZWNvbG91cnMgaXRzZWxmIGZyb20gdGhlIGJyYW5kIHRva2Vucywgc28gb25lIHdpZGdldCBzZXJ2ZXMgdGhlCi8vLyAgICBsaWdodCBtYXAsIHRoZSBkYXJrIG1hcCwgdGhlIHJpZGVyIGFwcCBhbmQgdGhlIGNhcHRhaW4gYXBwOwovLy8gICogbm8gYXNzZXQgYnVuZGxpbmcsIG5vIGRlY29kaW5nIGNvc3Qgb24gZXZlcnkgbWFya2VyIGZyYW1lLgovLy8KLy8vIFRoZSBzaWxob3VldHRlIHBvaW50cyAqKnVwKiogYXQgMMKwIOKAlCBwYXNzIHRoZSB2ZWhpY2xlJ3MgYmVhcmluZyBpbiBkZWdyZWVzCi8vLyBjbG9ja3dpc2UgZnJvbSBub3J0aCBhbmQgdGhlIHBhaW50ZXIgcm90YXRlcyBhcm91bmQgdGhlIGNhcidzIGNlbnRyZS4KY2xhc3MgVmVoaWNsZU1hcE1hcmtlciBleHRlbmRzIFN0YXRlbGVzc1dpZGdldCB7CiAgY29uc3QgVmVoaWNsZU1hcE1hcmtlcih7CiAgICBzdXBlci5rZXksCiAgICB0aGlzLmhlYWRpbmcsCiAgICB0aGlzLmNvbG9yLAogICAgdGhpcy5zaXplID0gNDAsCiAgICB0aGlzLnNob3dTaGFkb3cgPSB0cnVlLAogIH0pOwoKICAvLy8gRGVncmVlcyBjbG9ja3dpc2UgZnJvbSBub3J0aC4gTnVsbCBkcmF3cyB0aGUgY2FyIHBvaW50aW5nIHVwLgogIGZpbmFsIGRvdWJsZT8gaGVhZGluZzsKCiAgLy8vIENhciBib2R5IGNvbG91ci4gRGVmYXVsdHMgdG8gdGhlIEdvRHJpdmUgZ3JlZW47IHBhc3MgYSBtdXRlZCBjb2xvdXIgZm9yCiAgLy8vIGFuIG9mZmxpbmUgb3Igc3RhbGUgdmVoaWNsZS4KICBmaW5hbCBDb2xvcj8gY29sb3I7CgogIC8vLyBMb2dpY2FsIHNxdWFyZSBzaXplIG9mIHRoZSB3aG9sZSBtYXJrZXIgKGluY2x1ZGluZyBzaGFkb3cgc3BhY2UpLgogIGZpbmFsIGRvdWJsZSBzaXplOwoKICAvLy8gQSBzb2Z0IGVsbGlwdGljYWwgZ3JvdW5kIHNoYWRvdyB1bmRlciB0aGUgY2FyLCBhcyBpbiB0aGUgVWJlciBtYXAuCiAgZmluYWwgYm9vbCBzaG93U2hhZG93OwoKICBAb3ZlcnJpZGUKICBXaWRnZXQgYnVpbGQoQnVpbGRDb250ZXh0IGNvbnRleHQpIHsKICAgIGZpbmFsIGJvZHkgPSBjb2xvciA/PyBBcHBUb2tlbnMucHJpbWFyeTsKICAgIGZpbmFsIGFuZ2xlID0gKGhlYWRpbmcgPz8gMCkgKiBtYXRoLnBpIC8gMTgwOwoKICAgIHJldHVybiBTaXplZEJveCgKICAgICAgd2lkdGg6IHNpemUsCiAgICAgIGhlaWdodDogc2l6ZSwKICAgICAgY2hpbGQ6IFRyYW5zZm9ybS5yb3RhdGUoCiAgICAgICAgYW5nbGU6IGFuZ2xlLAogICAgICAgIGNoaWxkOiBDdXN0b21QYWludCgKICAgICAgICAgIHBhaW50ZXI6IF9DYXJQYWludGVyKGJvZHk6IGJvZHksIHNob3dTaGFkb3c6IHNob3dTaGFkb3cpLAogICAgICAgICksCiAgICAgICksCiAgICApOwogIH0KfQoKLy8vIFBhaW50cyB0aGUgdG9wLWRvd24gc2VkYW4uIEV2ZXJ5dGhpbmcgaXMgY29tcHV0ZWQgZnJvbSB0aGUgcGFpbnQgYm91bmRzIHNvCi8vLyB0aGUgY2FyIHNjYWxlcyBjbGVhbmx5IGZyb20gYSAyNHB4IGFkbWluIGRvdCB0byBhIDU2cHggb3duLXZlaGljbGUgbWFya2VyLgpjbGFzcyBfQ2FyUGFpbnRlciBleHRlbmRzIEN1c3RvbVBhaW50ZXIgewogIGNvbnN0IF9DYXJQYWludGVyKHtyZXF1aXJlZCB0aGlzLmJvZHksIHJlcXVpcmVkIHRoaXMuc2hvd1NoYWRvd30pOwoKICBmaW5hbCBDb2xvciBib2R5OwogIGZpbmFsIGJvb2wgc2hvd1NoYWRvdzsKCiAgQG92ZXJyaWRlCiAgdm9pZCBwYWludChDYW52YXMgY2FudmFzLCBTaXplIHNpemUpIHsKICAgIGZpbmFsIHcgPSBzaXplLndpZHRoOwogICAgZmluYWwgaCA9IHNpemUuaGVpZ2h0OwoKICAgIC8vIENhciBwcm9wb3J0aW9ucyBpbnNpZGUgdGhlIHNxdWFyZTogYSBzZWRhbiBpcyBsb25nZXIgdGhhbiBpdCBpcyB3aWRlLgogICAgZmluYWwgY2FyVyA9IHcgKiAwLjYyOwogICAgZmluYWwgY2FySCA9IGggKiAwLjg2OwogICAgZmluYWwgbGVmdCA9ICh3IC0gY2FyVykgLyAyOwogICAgZmluYWwgdG9wID0gKGggLSBjYXJIKSAvIDI7CgogICAgLy8g4pSA4pSAIEdyb3VuZCBzaGFkb3cg4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSACiAgICBpZiAoc2hvd1NoYWRvdykgewogICAgICBmaW5hbCBzaGFkb3dQYWludCA9IFBhaW50KCkKICAgICAgICAuLmNvbG9yID0gQ29sb3JzLmJsYWNrLndpdGhPcGFjaXR5KDAuMjIpCiAgICAgICAgLi5tYXNrRmlsdGVyID0gY29uc3QgTWFza0ZpbHRlci5ibHVyKEJsdXJTdHlsZS5ub3JtYWwsIDMpOwogICAgICBjYW52YXMuZHJhd092YWwoCiAgICAgICAgUmVjdC5mcm9tQ2VudGVyKAogICAgICAgICAgY2VudGVyOiBPZmZzZXQodyAvIDIsIHRvcCArIGNhckggKiAwLjk0KSwKICAgICAgICAgIHdpZHRoOiBjYXJXICogMS4wNSwKICAgICAgICAgIGhlaWdodDogY2FySCAqIDAuMTYsCiAgICAgICAgKSwKICAgICAgICBzaGFkb3dQYWludCwKICAgICAgKTsKICAgIH0KCiAgICBmaW5hbCBib2R5UGFpbnQgPSBQYWludCgpLi5jb2xvciA9IGJvZHk7CiAgICBmaW5hbCBnbGFzcyA9IFBhaW50KCkuLmNvbG9yID0gX3NoYWRlKENvbG9ycy53aGl0ZSwgMC44Mik7CiAgICBmaW5hbCBkYXJrID0gUGFpbnQoKS4uY29sb3IgPSBjb25zdCBDb2xvcigweEZGMjMyNjJCKTsKICAgIGZpbmFsIGxpZ2h0ID0gUGFpbnQoKS4uY29sb3IgPSBjb25zdCBDb2xvcigweEZGRkZGN0Q2KTsKCiAgICAvLyDilIDilIAgQm9keSBzaWxob3VldHRlIChyb3VuZGVkIHJlY3RhbmdsZSwgc2xpZ2h0bHkgdGFwZXJlZCBub3NlKSDilIDilIDilIDilIAKICAgIGZpbmFsIGJvZHlSZWN0ID0gUlJlY3QuZnJvbVJlY3RBbmRSYWRpdXMoCiAgICAgIFJlY3QuZnJvbUxUV0gobGVmdCwgdG9wLCBjYXJXLCBjYXJIKSwKICAgICAgUmFkaXVzLmNpcmN1bGFyKGNhclcgKiAwLjMwKSwKICAgICk7CiAgICBjYW52YXMuZHJhd1JSZWN0KGJvZHlSZWN0LCBib2R5UGFpbnQpOwoKICAgIC8vIEEgc3VidGxlIGRhcmtlciByaW0gZ2l2ZXMgdGhlIGNhciBkZXB0aCBhZ2FpbnN0IHBhbGUgc3RyZWV0cy4KICAgIGZpbmFsIHJpbVBhaW50ID0gUGFpbnQoKQogICAgICAuLmNvbG9yID0gX3NoYWRlKGJvZHksIDAuNzIpCiAgICAgIC4uc3R5bGUgPSBQYWludGluZ1N0eWxlLnN0cm9rZQogICAgICAuLnN0cm9rZVdpZHRoID0gdyAqIDAuMDE4OwogICAgY2FudmFzLmRyYXdSUmVjdChib2R5UmVjdCwgcmltUGFpbnQpOwoKICAgIC8vIOKUgOKUgCBSb29mIC8gY2FiaW4gZ2xhc3Mg4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSACiAgICBmaW5hbCBjYWJpblcgPSBjYXJXICogMC43NDsKICAgIGZpbmFsIGNhYmluSCA9IGNhckggKiAwLjM0OwogICAgZmluYWwgY2FiaW4gPSBSUmVjdC5mcm9tUmVjdEFuZFJhZGl1cygKICAgICAgUmVjdC5mcm9tTFRXSCgKICAgICAgICB3IC8gMiAtIGNhYmluVyAvIDIsCiAgICAgICAgdG9wICsgY2FySCAqIDAuMzAsCiAgICAgICAgY2FiaW5XLAogICAgICAgIGNhYmluSCwKICAgICAgKSwKICAgICAgUmFkaXVzLmNpcmN1bGFyKGNhYmluVyAqIDAuMjIpLAogICAgKTsKICAgIGNhbnZhcy5kcmF3UlJlY3QoY2FiaW4sIGdsYXNzKTsKCiAgICAvLyBXaW5kc2hpZWxkIGJhbmQgYXQgdGhlIHRvcCBvZiB0aGUgY2FiaW4sIHNsaWdodGx5IGRhcmtlci4KICAgIGZpbmFsIHdpbmRzaGllbGQgPSBSUmVjdC5mcm9tUmVjdEFuZFJhZGl1cygKICAgICAgUmVjdC5mcm9tTFRXSCgKICAgICAgICB3IC8gMiAtIGNhYmluVyAvIDIsCiAgICAgICAgdG9wICsgY2FySCAqIDAuMzAsCiAgICAgICAgY2FiaW5XLAogICAgICAgIGNhYmluSCAqIDAuMzQsCiAgICAgICksCiAgICAgIFJhZGl1cy5jaXJjdWxhcihjYWJpblcgKiAwLjIyKSwKICAgICk7CiAgICBjYW52YXMuZHJhd1JSZWN0KHdpbmRzaGllbGQsIFBhaW50KCkuLmNvbG9yID0gX3NoYWRlKENvbG9ycy53aGl0ZSwgMC43MCkpOwoKICAgIC8vIOKUgOKUgCBIZWFkbGlnaHRzICh0d28gcGFsZSBvdmFscyBhdCB0aGUgbm9zZSA9IHRvcCBvZiB0aGUgcGFpbnRpbmcpIOKUgAogICAgZmluYWwgbGlnaHRXID0gY2FyVyAqIDAuMjA7CiAgICBmaW5hbCBsaWdodEggPSBjYXJIICogMC4wNDU7CiAgICBmb3IgKGZpbmFsIGR4IGluIFstMS4wLCAxLjBdKSB7CiAgICAgIGNhbnZhcy5kcmF3T3ZhbCgKICAgICAgICBSZWN0LmZyb21DZW50ZXIoCiAgICAgICAgICBjZW50ZXI6IE9mZnNldCh3IC8gMiArIGR4ICogY2FyVyAqIDAuMjcsIHRvcCArIGNhckggKiAwLjA3NSksCiAgICAgICAgICB3aWR0aDogbGlnaHRXLAogICAgICAgICAgaGVpZ2h0OiBsaWdodEgsCiAgICAgICAgKSwKICAgICAgICBsaWdodCwKICAgICAgKTsKICAgIH0KCiAgICAvLyDilIDilIAgVGFpbGxpZ2h0cyAodHdvIHJlZCBzbGl0cyBhdCB0aGUgcmVhcikg4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSA4pSACiAgICBmaW5hbCB0YWlsID0gUGFpbnQoKS4uY29sb3IgPSBjb25zdCBDb2xvcigweEZGRTQ1NzJFKTsKICAgIGZvciAoZmluYWwgZHggaW4gWy0xLjAsIDEuMF0pIHsKICAgICAgY2FudmFzLmRyYXdPdmFsKAogICAgICAgIFJlY3QuZnJvbUNlbnRlcigKICAgICAgICAgIGNlbnRlcjogT2Zmc2V0KHcgLyAyICsgZHggKiBjYXJXICogMC4yNywgdG9wICsgY2FySCAqIDAuOTQpLAogICAgICAgICAgd2lkdGg6IGNhclcgKiAwLjE2LAogICAgICAgICAgaGVpZ2h0OiBjYXJIICogMC4wMzUsCiAgICAgICAgKSwKICAgICAgICB0YWlsLAogICAgICApOwogICAgfQoKICAgIC8vIOKUgOKUgCBXaGVlbHMgKGZvdXIgZGFyayBudWJzIHBlZWtpbmcgZnJvbSB0aGUgZmxhbmtzKSDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIAKICAgIGZpbmFsIHdoZWVsVyA9IHcgKiAwLjA1NTsKICAgIGZpbmFsIHdoZWVsSCA9IGNhckggKiAwLjEzOwogICAgZm9yIChmaW5hbCAoZHgsIGR5KSBpbiBbCiAgICAgICgtMS4wLCAwLjI0KSwKICAgICAgKDEuMCwgMC4yNCksCiAgICAgICgtMS4wLCAwLjc2KSwKICAgICAgKDEuMCwgMC43NiksCiAgICBdKSB7CiAgICAgIGNhbnZhcy5kcmF3UlJlY3QoCiAgICAgICAgUlJlY3QuZnJvbVJlY3RBbmRSYWRpdXMoCiAgICAgICAgICBSZWN0LmZyb21DZW50ZXIoCiAgICAgICAgICAgIGNlbnRlcjogT2Zmc2V0KHcgLyAyICsgZHggKiAoY2FyVyAvIDIgKyB3aGVlbFcgKiAwLjI4KSwgdG9wICsgY2FySCAqIGR5KSwKICAgICAgICAgICAgd2lkdGg6IHdoZWVsVywKICAgICAgICAgICAgaGVpZ2h0OiB3aGVlbEgsCiAgICAgICAgICApLAogICAgICAgICAgUmFkaXVzLmNpcmN1bGFyKHdoZWVsVyAqIDAuNSksCiAgICAgICAgKSwKICAgICAgICBkYXJrLAogICAgICApOwogICAgfQogIH0KCiAgLy8vIExpZ2h0ZW5zIFtjXSB0b3dhcmRzIHdoaXRlIGJ5IFtmXSAoMOKAkzEpLgogIENvbG9yIF9zaGFkZShDb2xvciBjLCBkb3VibGUgZikgPT4gQ29sb3IubGVycChjLCBDb2xvcnMud2hpdGUsIDEgLSBmKSE7CgogIEBvdmVycmlkZQogIGJvb2wgc2hvdWxkUmVwYWludChjb3ZhcmlhbnQgX0NhclBhaW50ZXIgb2xkKSA9PgogICAgICBvbGQuYm9keSAhPSBib2R5IHx8IG9sZC5zaG93U2hhZG93ICE9IHNob3dTaGFkb3c7Cn0K
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../theme/app_theme.dart';
+
+/// A vehicle on the map, drawn the way riders know it from Uber and inDrive:
+/// a small top-down car with a soft drop shadow, rotated to its heading.
+///
+/// This widget paints the car in code (a [CustomPainter]) rather than loading
+/// an image asset, for three reasons:
+///  * it renders at any size with no pixelation, on any density;
+///  * it recolours itself from the brand tokens, so one widget serves the
+///    light map, the dark map, the rider app and the captain app;
+///  * no asset bundling, no decoding cost on every marker frame.
+///
+/// The silhouette points **up** at 0° — pass the vehicle's bearing in degrees
+/// clockwise from north and the painter rotates around the car's centre.
+class VehicleMapMarker extends StatelessWidget {
+  const VehicleMapMarker({
+    super.key,
+    this.heading,
+    this.color,
+    this.size = 40,
+    this.showShadow = true,
+  });
+
+  /// Degrees clockwise from north. Null draws the car pointing up.
+  final double? heading;
+
+  /// Car body colour. Defaults to the GoDrive green; pass a muted colour for
+  /// an offline or stale vehicle.
+  final Color? color;
+
+  /// Logical square size of the whole marker (including shadow space).
+  final double size;
+
+  /// A soft elliptical ground shadow under the car, as in the Uber map.
+  final bool showShadow;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = color ?? AppTokens.primary;
+    final angle = (heading ?? 0) * math.pi / 180;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Transform.rotate(
+        angle: angle,
+        child: CustomPaint(
+          painter: _CarPainter(body: body, showShadow: showShadow),
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints the top-down sedan. Everything is computed from the paint bounds so
+/// the car scales cleanly from a 24px admin dot to a 56px own-vehicle marker.
+class _CarPainter extends CustomPainter {
+  const _CarPainter({required this.body, required this.showShadow});
+
+  final Color body;
+  final bool showShadow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Car proportions inside the square: a sedan is longer than it is wide.
+    final carW = w * 0.62;
+    final carH = h * 0.86;
+    final left = (w - carW) / 2;
+    final top = (h - carH) / 2;
+
+    // ── Ground shadow ─────────────────────────────────────────────────
+    if (showShadow) {
+      final shadowPaint = Paint()
+        ..color = Colors.black.withOpacity(0.22)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(w / 2, top + carH * 0.94),
+          width: carW * 1.05,
+          height: carH * 0.16,
+        ),
+        shadowPaint,
+      );
+    }
+
+    final bodyPaint = Paint()..color = body;
+    final glass = Paint()..color = _shade(Colors.white, 0.82);
+    final dark = Paint()..color = const Color(0xFF23262B);
+    final light = Paint()..color = const Color(0xFFFFF7D6);
+
+    // ── Body silhouette (rounded rectangle, slightly tapered nose) ────
+    final bodyRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(left, top, carW, carH),
+      Radius.circular(carW * 0.30),
+    );
+    canvas.drawRRect(bodyRect, bodyPaint);
+
+    // A subtle darker rim gives the car depth against pale streets.
+    final rimPaint = Paint()
+      ..color = _shade(body, 0.72)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.018;
+    canvas.drawRRect(bodyRect, rimPaint);
+
+    // ── Roof / cabin glass ────────────────────────────────────────────
+    final cabinW = carW * 0.74;
+    final cabinH = carH * 0.34;
+    final cabin = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        w / 2 - cabinW / 2,
+        top + carH * 0.30,
+        cabinW,
+        cabinH,
+      ),
+      Radius.circular(cabinW * 0.22),
+    );
+    canvas.drawRRect(cabin, glass);
+
+    // Windshield band at the top of the cabin, slightly darker.
+    final windshield = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        w / 2 - cabinW / 2,
+        top + carH * 0.30,
+        cabinW,
+        cabinH * 0.34,
+      ),
+      Radius.circular(cabinW * 0.22),
+    );
+    canvas.drawRRect(windshield, Paint()..color = _shade(Colors.white, 0.70));
+
+    // ── Headlights (two pale ovals at the nose = top of the painting) ─
+    final lightW = carW * 0.20;
+    final lightH = carH * 0.045;
+    for (final dx in [-1.0, 1.0]) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(w / 2 + dx * carW * 0.27, top + carH * 0.075),
+          width: lightW,
+          height: lightH,
+        ),
+        light,
+      );
+    }
+
+    // ── Taillights (two red slits at the rear) ────────────────────────
+    final tail = Paint()..color = const Color(0xFFE4572E);
+    for (final dx in [-1.0, 1.0]) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(w / 2 + dx * carW * 0.27, top + carH * 0.94),
+          width: carW * 0.16,
+          height: carH * 0.035,
+        ),
+        tail,
+      );
+    }
+
+    // ── Wheels (four dark nubs peeking from the flanks) ───────────────
+    final wheelW = w * 0.055;
+    final wheelH = carH * 0.13;
+    for (final (dx, dy) in [
+      (-1.0, 0.24),
+      (1.0, 0.24),
+      (-1.0, 0.76),
+      (1.0, 0.76),
+    ]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(w / 2 + dx * (carW / 2 + wheelW * 0.28), top + carH * dy),
+            width: wheelW,
+            height: wheelH,
+          ),
+          Radius.circular(wheelW * 0.5),
+        ),
+        dark,
+      );
+    }
+  }
+
+  /// Lightens [c] towards white by [f] (0–1).
+  Color _shade(Color c, double f) => Color.lerp(c, Colors.white, 1 - f)!;
+
+  @override
+  bool shouldRepaint(covariant _CarPainter old) =>
+      old.body != body || old.showShadow != showShadow;
+}
