@@ -37,7 +37,6 @@ class _WalletScreenState extends State<WalletScreen> {
   Widget build(BuildContext context) {
     final balance = context.watch<AppState>().walletBalance ?? 0.0;
     final go = GoTheme.of(context);
-    final isDark = go.isDark;
     final panel = go.panel;
     final text = go.text;
     final muted = go.muted;
@@ -45,7 +44,9 @@ class _WalletScreenState extends State<WalletScreen> {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('المحفظة', style: AppTokens.font()),
+        // Inherits appBarTheme.titleTextStyle, so the title matches every other
+        // AppBar in the app instead of pinning its own typeface.
+        title: const Text('المحفظة'),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -70,25 +71,25 @@ class _WalletScreenState extends State<WalletScreen> {
                     children: [
                       Text('الرصيد المتاح', style: AppTokens.font(color: muted, fontSize: 16)),
                       const SizedBox(height: 8),
+                      // Neutral ink, not the brand colour. At 36sp the balance is
+                      // already the loudest thing on the page through sheer size;
+                      // setting it in lime as well made the dark card read as neon
+                      // — the same figure and the full-width button both in
+                      // #C1F11D on near-black. Money is authoritative, not
+                      // decorative, so the brand stays on the action below it.
                       Text(
                         '${balance.toStringAsFixed(2)} ج.م',
-                        style: AppTokens.font(
-                          color: isDark ? AppTokens.lime : AppTokens.primary,
-                          fontSize: 36,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: AppTokens.money(fontSize: 36, color: text),
                       ),
                       const SizedBox(height: 24),
+                      // Colours come from elevatedButtonTheme (go.action /
+                      // go.onAction), which is the same pairing this was
+                      // hardcoding — one less place to drift.
                       ElevatedButton(
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const TopupScreen())).then((_) => _fetchWallet());
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isDark ? AppTokens.lime : AppTokens.primary,
-                          foregroundColor: isDark ? AppTokens.onLime : Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
-                        ),
-                        child: Text('شحن المحفظة', style: AppTokens.font(fontWeight: FontWeight.bold)),
+                        child: Text('شحن المحفظة', style: AppTokens.font(fontWeight: FontWeight.w700, fontSize: 16)),
                       ),
                     ],
                   ),
@@ -119,7 +120,7 @@ class _WalletScreenState extends State<WalletScreen> {
                             '${isCredit ? '+' : '-'}${tx['amount']} ج.م',
                             style: AppTokens.font(
                               color: isCredit ? AppTokens.success : text,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),

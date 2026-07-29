@@ -430,7 +430,7 @@ class _BidCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         const Icon(Icons.star_rounded,
-                            size: 15, color: Color(0xFFF5B301)),
+                            size: 15, color: AppTokens.star),
                         const SizedBox(width: 2),
                         Text(
                           rating.toStringAsFixed(2),
