@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Bottom bar shown while the rider is in intercity ("سفر") mode.
@@ -181,7 +180,7 @@ class _TravelNavItem extends StatelessWidget {
                       child: Text(
                         badgeCount > 9 ? '9+' : '$badgeCount',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.ibmPlexSansArabic(
+                        style: AppTokens.font(
                           color: Colors.white,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -197,7 +196,7 @@ class _TravelNavItem extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.ibmPlexSansArabic(
+              style: AppTokens.font(
                 fontSize: 12,
                 fontWeight: active ? FontWeight.w800 : FontWeight.w500,
                 color: color,

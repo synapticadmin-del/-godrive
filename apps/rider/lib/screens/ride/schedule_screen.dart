@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Schedule a ride for a later time — date + time picker + summary.
@@ -57,7 +56,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Scaffold(
-      appBar: AppBar(title: Text('جدولة رحلة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text('جدولة رحلة', style: AppTokens.font(fontWeight: FontWeight.w700))),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -76,13 +75,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 const SizedBox(width: 10),
                 Expanded(child: Text(
                   'سيتم إرسال كابتن تلقائيًا قبل موعد رحلتك بـ 10 دقائق.',
-                  style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: AppTokens.primary),
+                  style: AppTokens.font(fontSize: 13, color: AppTokens.primary),
                 )),
               ]),
             ),
             const SizedBox(height: 24),
             // Date picker
-            Text('التاريخ', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: muted)),
+            Text('التاريخ', style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w700, color: muted)),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _pickDate,
@@ -94,7 +93,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   const SizedBox(width: 12),
                   Expanded(child: Text(
                     '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                    style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, color: text),
+                    style: AppTokens.font(fontSize: 16, color: text),
                   )),
                   Icon(Icons.chevron_right, color: muted, size: 20),
                 ]),
@@ -102,7 +101,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
             const SizedBox(height: 16),
             // Time picker
-            Text('الوقت', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: muted)),
+            Text('الوقت', style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w700, color: muted)),
             const SizedBox(height: 8),
             GestureDetector(
               onTap: _pickTime,
@@ -114,7 +113,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   const SizedBox(width: 12),
                   Expanded(child: Text(
                     '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                    style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, color: text),
+                    style: AppTokens.font(fontSize: 16, color: text),
                   )),
                   Icon(Icons.chevron_right, color: muted, size: 20),
                 ]),
@@ -128,7 +127,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               child: Row(children: [
                 const Icon(Icons.schedule, color: AppTokens.primary),
                 const SizedBox(width: 8),
-                Expanded(child: Text('موعد الرحلة: $_formattedDateTime', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: text))),
+                Expanded(child: Text('موعد الرحلة: $_formattedDateTime', style: AppTokens.font(fontSize: 13, color: text))),
               ]),
             ),
             const SizedBox(height: 16),
@@ -139,7 +138,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 onPressed: widget.onConfirm,
                 style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd))),
-                child: Text('جدولة الرحلة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
+                child: Text('جدولة الرحلة', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
           ],

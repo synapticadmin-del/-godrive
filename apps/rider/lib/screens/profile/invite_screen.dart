@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/app_state.dart';
@@ -52,7 +51,7 @@ class _InviteScreenState extends State<InviteScreen> {
     final invited = (_referral?['invited_count'] as num?)?.toInt() ?? 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text('دعوة الأصدقاء', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text('دعوة الأصدقاء', style: AppTokens.font(fontWeight: FontWeight.w700))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -68,9 +67,9 @@ class _InviteScreenState extends State<InviteScreen> {
                   child: Column(children: [
                     const Icon(Icons.card_giftcard, color: Colors.white, size: 48),
                     const SizedBox(height: 12),
-                    Text('ادعُ أصدقاءك واربح', style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+                    Text('ادعُ أصدقاءك واربح', style: AppTokens.font(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
                     const SizedBox(height: 4),
-                    Text('احصل على 20 ج.م لكل صديق يستخدم كودك', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: Colors.white70)),
+                    Text('احصل على 20 ج.م لكل صديق يستخدم كودك', style: AppTokens.font(fontSize: 13, color: Colors.white70)),
                   ]),
                 ),
                 const SizedBox(height: 24),
@@ -79,12 +78,12 @@ class _InviteScreenState extends State<InviteScreen> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
                   child: Column(children: [
-                    Text('كود الدعوة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+                    Text('كود الدعوة', style: AppTokens.font(fontSize: 13, color: muted)),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(color: AppTokens.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(AppTokens.radiusMd)),
-                      child: Text(code, style: GoogleFonts.ibmPlexSansArabic(fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary, letterSpacing: 2)),
+                      child: Text(code, style: AppTokens.font(fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary, letterSpacing: 2)),
                     ),
                   ]),
                 ),
@@ -102,7 +101,7 @@ class _InviteScreenState extends State<InviteScreen> {
                   child: ElevatedButton.icon(
                     onPressed: _share,
                     icon: const Icon(Icons.share, size: 20),
-                    label: Text('مشاركة الكود', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
+                    label: Text('مشاركة الكود', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700)),
                     style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd))),
                   ),
@@ -117,9 +116,9 @@ class _InviteScreenState extends State<InviteScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Column(children: [
-        Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
+        Text(label, style: AppTokens.font(fontSize: 12, color: muted)),
         const SizedBox(height: 4),
-        Text(value, style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+        Text(value, style: AppTokens.font(fontSize: 20, fontWeight: FontWeight.w800, color: AppTokens.primary)),
       ]),
     );
   }

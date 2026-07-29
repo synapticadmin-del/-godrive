@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -77,9 +76,9 @@ class _RatingSheetState extends State<RatingSheet> {
             Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(color: border, borderRadius: BorderRadius.circular(999))),
             // Title
-            Text('كيف كانت رحلتك؟', style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
+            Text('كيف كانت رحلتك؟', style: AppTokens.font(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
             const SizedBox(height: 4),
-            Text('قيّم ${widget.captainName}', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: muted)),
+            Text('قيّم ${widget.captainName}', style: AppTokens.font(fontSize: 14, color: muted)),
             const SizedBox(height: 24),
             // Stars
             Row(
@@ -122,12 +121,12 @@ class _RatingSheetState extends State<RatingSheet> {
               maxLines: 2,
               decoration: InputDecoration(
                 hintText: 'تعليق إضافي (اختياري)',
-                hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
+                hintStyle: AppTokens.font(color: muted, fontSize: 14),
                 filled: true,
                 fillColor: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
               ),
-              style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 14),
+              style: AppTokens.font(color: text, fontSize: 14),
             ),
             const SizedBox(height: 20),
             // Submit
@@ -144,13 +143,13 @@ class _RatingSheetState extends State<RatingSheet> {
                 ),
                 child: _submitting
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text('إرسال التقييم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700)),
+                    : Text('إرسال التقييم', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('تخطّي', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14)),
+              child: Text('تخطّي', style: AppTokens.font(color: muted, fontSize: 14)),
             ),
           ],
         ),
@@ -166,7 +165,7 @@ class _RatingSheetState extends State<RatingSheet> {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppTokens.primary.withOpacity(0.2)),
       ),
-      child: Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, fontWeight: FontWeight.w600, color: AppTokens.primary)),
+      child: Text(label, style: AppTokens.font(fontSize: 12, fontWeight: FontWeight.w600, color: AppTokens.primary)),
     );
   }
 }

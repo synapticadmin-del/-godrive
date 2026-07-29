@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -70,7 +69,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('المحادثة', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text('المحادثة', style: AppTokens.font()),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -97,7 +96,7 @@ class _TripChatScreenState extends State<TripChatScreen> {
                           ),
                           child: Text(
                             msg['body']?.toString() ?? '',
-                            style: GoogleFonts.ibmPlexSansArabic(
+                            style: AppTokens.font(
                               color: isMine ? go.onAction : text,
                             ),
                           ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -21,7 +20,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('الإعدادات', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text('الإعدادات', style: AppTokens.font()),
         backgroundColor: go.panel,
         foregroundColor: go.text,
       ),
@@ -33,12 +32,12 @@ class SettingsScreen extends StatelessWidget {
             child: ListTile(
               title: Text(
                 'اللغة',
-                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
+                style: AppTokens.font(color: go.text),
               ),
               trailing: DropdownButton<String>(
                 value: state.locale.languageCode,
                 dropdownColor: go.panel,
-                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
+                style: AppTokens.font(color: go.text),
                 underline: const SizedBox(),
                 items: const [
                   DropdownMenuItem(value: 'ar', child: Text('العربية')),
@@ -58,12 +57,12 @@ class SettingsScreen extends StatelessWidget {
             child: ListTile(
               title: Text(
                 'المظهر',
-                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
+                style: AppTokens.font(color: go.text),
               ),
               trailing: DropdownButton<ThemeMode>(
                 value: state.themeMode,
                 dropdownColor: go.panel,
-                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
+                style: AppTokens.font(color: go.text),
                 underline: const SizedBox(),
                 items: const [
                   DropdownMenuItem(value: ThemeMode.system, child: Text('تلقائي')),
@@ -84,7 +83,7 @@ class SettingsScreen extends StatelessWidget {
             child: ListTile(
               title: Text(
                 'عن التطبيق',
-                style: GoogleFonts.ibmPlexSansArabic(color: go.text),
+                style: AppTokens.font(color: go.text),
               ),
               trailing: Icon(Icons.info, color: go.muted),
               onTap: () {
@@ -108,7 +107,7 @@ class SettingsScreen extends StatelessWidget {
               foregroundColor: AppTokens.danger,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            child: Text('تسجيل الخروج', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.bold)),
+            child: Text('تسجيل الخروج', style: AppTokens.font(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

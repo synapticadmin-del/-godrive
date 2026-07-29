@@ -280,6 +280,7 @@ captainRoutes.get("/nearby-requests", async (c) => {
   // 20km/h guess while the real OSRM estimate sat in the row unread.
   const rows = await c.env.DB.prepare(
     `SELECT t.id, t.rider_id, u.name as rider_name, u.email as rider_email, u.phone as rider_phone,
+            u.avatar_url as rider_avatar_url,
             t.pickup_lat, t.pickup_lng, t.pickup_address,
             t.dropoff_lat, t.dropoff_lng, t.dropoff_address,
             t.distance_km, t.duration_min, t.offered_price, t.estimated_fare, t.created_at, t.city
@@ -295,6 +296,7 @@ captainRoutes.get("/nearby-requests", async (c) => {
     rider_name: string | null;
     rider_email: string;
     rider_phone: string | null;
+    rider_avatar_url: string | null;
     pickup_lat: number;
     pickup_lng: number;
     pickup_address: string | null;
@@ -332,7 +334,14 @@ captainRoutes.get("/nearby-requests", async (c) => {
         rider_id: r.rider_id,
         rider_name: r.rider_name || "عميل GoDrive",
         rider_phone: r.rider_phone || "",
-        rider_avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${r.rider_id}`,
+        // Prefer the rider's real uploaded photo once one exists (PR #34 adds
+        // users.avatar_url + the upload endpoint). Until that migration lands
+        // and a rider uploads, avatar_url is NULL and we fall back to the
+        // deterministic DiceBear identicon — so this is safe to ship on main
+        // before the column exists and starts paying off automatically after.
+        rider_avatar:
+          r.rider_avatar_url ??
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${r.rider_id}`,
         pickup_lat: r.pickup_lat,
         pickup_lng: r.pickup_lng,
         pickup_address: r.pickup_address || "موقع الانطلاق",

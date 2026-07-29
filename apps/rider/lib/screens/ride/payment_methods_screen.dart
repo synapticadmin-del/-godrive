@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -44,7 +43,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Scaffold(
-      appBar: AppBar(title: Text('طرق الدفع', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text('طرق الدفع', style: AppTokens.font(fontWeight: FontWeight.w700))),
       body: _loading
           ? const SkeletonList(count: 3)
           : ListView(
@@ -90,11 +89,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text('ملاحظة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, fontWeight: FontWeight.w700, color: muted)),
+                Text('ملاحظة', style: AppTokens.font(fontSize: 13, fontWeight: FontWeight.w700, color: muted)),
                 const SizedBox(height: 4),
                 Text(
                   'يمكنك تغيير طريقة الدفع الافتراضية في أي وقت. سيتم استخدامها تلقائيًا في رحلاتك القادمة.',
-                  style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted, height: 1.5),
+                  style: AppTokens.font(fontSize: 12, color: muted, height: 1.5),
                 ),
               ],
             ),
@@ -133,9 +132,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 15, fontWeight: FontWeight.w700, color: text)),
+            Text(title, style: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w700, color: text)),
             const SizedBox(height: 2),
-            Text(subtitle, style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
+            Text(subtitle, style: AppTokens.font(fontSize: 12, color: muted)),
           ])),
           if (trailing != null) trailing
           else Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,

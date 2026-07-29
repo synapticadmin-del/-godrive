@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -47,7 +46,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        title: Text('تفاصيل الرحلة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        title: Text('تفاصيل الرحلة', style: AppTokens.font(fontWeight: FontWeight.w700)),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -87,9 +86,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       child: Column(children: [
         StatusChip(label: _statusLabel(status), variant: _statusVariant(status), icon: _statusIcon(status)),
         const SizedBox(height: 16),
-        Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(fontSize: 32, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+        Text('${fare.toStringAsFixed(0)} ج.م', style: AppTokens.font(fontSize: 32, fontWeight: FontWeight.w800, color: AppTokens.primary)),
         const SizedBox(height: 4),
-        Text(date.substring(0, date.length >= 16 ? 16 : date.length), style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+        Text(date.substring(0, date.length >= 16 ? 16 : date.length), style: AppTokens.font(fontSize: 13, color: muted)),
       ]),
     );
   }
@@ -103,7 +102,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('المسار', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+        Text('المسار', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
         const SizedBox(height: 16),
         _routeRow(Icons.location_on, AppTokens.primary, pickup, text),
         if (distance != null) ...[
@@ -111,10 +110,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Row(children: [
-              Text('${distance.toStringAsFixed(1)} كم', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
+              Text('${distance.toStringAsFixed(1)} كم', style: AppTokens.font(fontSize: 12, color: muted)),
               if (duration != null) ...[
                 const SizedBox(width: 12),
-                Text('${duration.round()} دقيقة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: muted)),
+                Text('${duration.round()} دقيقة', style: AppTokens.font(fontSize: 12, color: muted)),
               ],
             ]),
           ),
@@ -133,7 +132,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(AppTokens.radiusLg), border: Border.all(color: border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('تفاصيل الأجرة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+        Text('تفاصيل الأجرة', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
         const SizedBox(height: 12),
         _fareRow('الأجرة', fare, text),
         if (discount > 0) _fareRow('الخصم', -discount, AppTokens.success),
@@ -159,8 +158,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           child: Text(name.substring(0, 1), style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 18))),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
-          if (plate != null) Text(plate, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+          Text(name, style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+          if (plate != null) Text(plate, style: AppTokens.font(fontSize: 13, color: muted)),
         ])),
         if (rating != null)
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -178,7 +177,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 18, color: color),
       const SizedBox(width: 10),
-      Expanded(child: Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: text), maxLines: 2, overflow: TextOverflow.ellipsis)),
+      Expanded(child: Text(label, style: AppTokens.font(fontSize: 14, color: text), maxLines: 2, overflow: TextOverflow.ellipsis)),
     ]);
   }
 
@@ -186,9 +185,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: GoogleFonts.ibmPlexSansArabic(fontSize: small ? 11 : 14, color: color.withOpacity(small ? 0.7 : 1))),
+        Text(label, style: AppTokens.font(fontSize: small ? 11 : 14, color: color.withOpacity(small ? 0.7 : 1))),
         Text('${amount.toStringAsFixed(0)} ج.م',
-          style: GoogleFonts.ibmPlexSansArabic(fontSize: small ? 11 : (bold ? 18 : 14), fontWeight: bold ? FontWeight.w800 : FontWeight.w500, color: color)),
+          style: AppTokens.font(fontSize: small ? 11 : (bold ? 18 : 14), fontWeight: bold ? FontWeight.w800 : FontWeight.w500, color: color)),
       ]),
     );
   }

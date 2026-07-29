@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -749,7 +748,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   child: Text(
                     title,
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       color: Colors.white,
                       fontSize: 14.5,
                       fontWeight: FontWeight.w700,
@@ -1039,7 +1038,7 @@ class _PillGlassButton extends StatelessWidget {
               const SizedBox(width: 7),
               Text(
                 label,
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                   color: go.text,
@@ -1177,7 +1176,7 @@ class _BookingPanel extends StatelessWidget {
                   ),
                   child: Text(
                     isArabic ? 'متابعة' : 'Continue',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                     ),
@@ -1221,7 +1220,7 @@ class _RouteSummary extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             isArabic ? 'جارٍ حساب المسار...' : 'Calculating route...',
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 13,
               color: go.muted,
             ),
@@ -1243,7 +1242,7 @@ class _RouteSummary extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             r.distanceLabel(isArabic: isArabic),
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: go.text,
@@ -1257,7 +1256,7 @@ class _RouteSummary extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             r.durationLabel(isArabic: isArabic),
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: go.text,
@@ -1267,7 +1266,7 @@ class _RouteSummary extends StatelessWidget {
           if (r.isApproximate)
             Text(
               isArabic ? 'تقريبي' : 'approx.',
-              style: GoogleFonts.ibmPlexSansArabic(
+              style: AppTokens.font(
                 fontSize: 11.5,
                 color: go.muted,
               ),
@@ -1327,7 +1326,7 @@ class _LocationField extends StatelessWidget {
                   filled ? value : hint,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 14.5,
                     fontWeight: filled ? FontWeight.w600 : FontWeight.w500,
                     color: filled ? go.text : go.muted,
@@ -1404,7 +1403,7 @@ class _PinConfirmPanel extends StatelessWidget {
                               : address,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.ibmPlexSansArabic(
+                          style: AppTokens.font(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: address.isEmpty ? go.muted : go.text,
@@ -1440,7 +1439,7 @@ class _PinConfirmPanel extends StatelessWidget {
                 isPickup
                     ? (isArabic ? 'تأكيد نقطة الانطلاق' : 'Confirm pickup')
                     : (isArabic ? 'تأكيد الوجهة' : 'Confirm destination'),
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
                 ),

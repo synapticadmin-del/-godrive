@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
@@ -117,7 +116,7 @@ class _TopupScreenState extends State<TopupScreen> {
       return Scaffold(
         backgroundColor: go.bg,
         appBar: AppBar(
-          title: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
+          title: Text('شحن المحفظة', style: AppTokens.font()),
           backgroundColor: panel,
           surfaceTintColor: Colors.transparent,
         ),
@@ -129,7 +128,7 @@ class _TopupScreenState extends State<TopupScreen> {
               const SizedBox(height: 24),
               Text(
                 'جارٍ تأكيد الشحن…',
-                style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 18),
+                style: AppTokens.font(color: text, fontSize: 18),
               ),
             ],
           ),
@@ -140,7 +139,7 @@ class _TopupScreenState extends State<TopupScreen> {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text('شحن المحفظة', style: AppTokens.font()),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -150,7 +149,7 @@ class _TopupScreenState extends State<TopupScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('أدخل المبلغ المراد شحنه', style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 18), textAlign: TextAlign.center),
+            Text('أدخل المبلغ المراد شحنه', style: AppTokens.font(color: text, fontSize: 18), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             TextField(
               controller: _amountCtrl,
@@ -178,7 +177,7 @@ class _TopupScreenState extends State<TopupScreen> {
               ),
               child: _loading
                   ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: go.onAction))
-                  : Text('متابعة الدفع', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, color: go.onAction, fontWeight: FontWeight.bold)),
+                  : Text('متابعة الدفع', style: AppTokens.font(fontSize: 18, color: go.onAction, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

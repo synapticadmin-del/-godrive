@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 import '../../services/trip_ws.dart';
@@ -427,7 +426,7 @@ class _TripScreenState extends State<TripScreen> {
           const SizedBox(width: 6),
         ],
         Text(config['label'] as String,
-          style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+          style: AppTokens.font(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
       ]),
     );
   }
@@ -467,9 +466,9 @@ class _TripScreenState extends State<TripScreen> {
     Center(child: SizedBox(width: 48, height: 48,
       child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation<Color>(AppTokens.primary)))),
     const SizedBox(height: 16),
-    Text('جارٍ البحث عن كابتن…', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
+    Text('جارٍ البحث عن كابتن…', style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
     const SizedBox(height: 4),
-    Text('سنبلغك فور قبول كابتن لرحلتك', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+    Text('سنبلغك فور قبول كابتن لرحلتك', style: AppTokens.font(fontSize: 13, color: muted)),
     const SizedBox(height: 20),
     SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
       icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
@@ -489,11 +488,11 @@ class _TripScreenState extends State<TripScreen> {
             color: go.isDark ? go.action : AppTokens.primary, size: 20),
         const SizedBox(width: 8),
         Expanded(child: Text('وصلت عروض من الكباتن',
-          style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
+          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
       ]),
       const SizedBox(height: 4),
       Text('اختار العرض اللي يناسبك من القايمة',
-        style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+        style: AppTokens.font(fontSize: 13, color: muted)),
       const SizedBox(height: 20),
       SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _syncBidsSheet,
         icon: const Icon(Icons.visibility_outlined, size: 18), label: const Text('عرض العروض'),
@@ -517,7 +516,7 @@ class _TripScreenState extends State<TripScreen> {
         Icon(isArrived ? Icons.access_time : Icons.directions_car, color: AppTokens.primary, size: 20),
         const SizedBox(width: 8),
         Expanded(child: Text(isArrived ? 'وصل الكابتن — تفضّل بالنزول' : 'الكابتن في الطريق إليك',
-          style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text))),
+          style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text))),
       ]),
       const SizedBox(height: 12),
       _fareRow(fare, muted),
@@ -543,7 +542,7 @@ class _TripScreenState extends State<TripScreen> {
       Row(children: [
         Icon(Icons.navigation, color: AppTokens.primary, size: 20),
         const SizedBox(width: 8),
-        Expanded(child: Text('الرحلة جارية', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text))),
+        Expanded(child: Text('الرحلة جارية', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text))),
       ]),
       const SizedBox(height: 12),
       _fareRow(fare, muted),
@@ -560,11 +559,11 @@ class _TripScreenState extends State<TripScreen> {
     return [
       const Icon(Icons.check_circle, color: AppTokens.success, size: 48),
       const SizedBox(height: 12),
-      Text('وصلت بسلامة!', style: GoogleFonts.ibmPlexSansArabic(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
+      Text('وصلت بسلامة!', style: AppTokens.font(fontSize: 20, fontWeight: FontWeight.w800, color: text)),
       const SizedBox(height: 4),
-      Text('الأجرة النهائية', style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+      Text('الأجرة النهائية', style: AppTokens.font(fontSize: 13, color: muted)),
       const SizedBox(height: 4),
-      Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+      Text('${fare.toStringAsFixed(0)} ج.م', style: AppTokens.font(fontSize: 28, fontWeight: FontWeight.w800, color: AppTokens.primary)),
       const SizedBox(height: 20),
       SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _rateTrip,
         icon: const Icon(Icons.star, size: 20), label: const Text('قيّم رحلتك'),
@@ -575,7 +574,7 @@ class _TripScreenState extends State<TripScreen> {
   List<Widget> _cancelledContent(Color text, Color muted) => [
     const Icon(Icons.cancel, color: AppTokens.danger, size: 48),
     const SizedBox(height: 12),
-    Text('تم إلغاء الرحلة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
+    Text('تم إلغاء الرحلة', style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
     const SizedBox(height: 20),
     SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.pop(context),
       style: ElevatedButton.styleFrom(backgroundColor: AppTokens.primary, foregroundColor: Colors.white),
@@ -588,9 +587,9 @@ class _TripScreenState extends State<TripScreen> {
         style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 18))),
     const SizedBox(width: 12),
     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(_trip?['captain_name'] ?? 'كابتن', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+      Text(_trip?['captain_name'] ?? 'كابتن', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
       if (_trip?['vehicle_plate'] != null)
-        Text(_trip!['vehicle_plate'], style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted)),
+        Text(_trip!['vehicle_plate'], style: AppTokens.font(fontSize: 13, color: muted)),
     ])),
     if (_trip?['rating_avg'] != null)
       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -605,8 +604,8 @@ class _TripScreenState extends State<TripScreen> {
   Widget _fareRow(double fare, Color muted) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
-      Text('الأجرة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: muted)),
-      Text('${fare.toStringAsFixed(0)} ج.م', style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.w800, color: AppTokens.primary)),
+      Text('الأجرة', style: AppTokens.font(fontSize: 14, color: muted)),
+      Text('${fare.toStringAsFixed(0)} ج.م', style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w800, color: AppTokens.primary)),
     ]);
 
   Map<String, dynamic> _statusConfig(String status) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// In-app notifications center — shows recent push + in-app notifications.
@@ -27,7 +26,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('الإشعارات', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        title: Text('الإشعارات', style: AppTokens.font(fontWeight: FontWeight.w700)),
         actions: [
           TextButton(
             onPressed: () {
@@ -37,7 +36,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 }
               });
             },
-            child: Text('تعليم الكل كمقروء', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: AppTokens.primary)),
+            child: Text('تعليم الكل كمقروء', style: AppTokens.font(fontSize: 12, color: AppTokens.primary)),
           ),
         ],
       ),
@@ -72,7 +71,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(n.title, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w700, color: text)),
+                                Text(n.title, style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w700, color: text)),
                                 if (n.unread) ...[
                                   const SizedBox(width: 6),
                                   Container(width: 8, height: 8, decoration: BoxDecoration(color: n.color, shape: BoxShape.circle)),
@@ -80,9 +79,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            Text(n.body, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted, height: 1.4)),
+                            Text(n.body, style: AppTokens.font(fontSize: 13, color: muted, height: 1.4)),
                             const SizedBox(height: 4),
-                            Text(n.time, style: GoogleFonts.ibmPlexSansArabic(fontSize: 11, color: muted.withOpacity(0.7))),
+                            Text(n.time, style: AppTokens.font(fontSize: 11, color: muted.withOpacity(0.7))),
                           ],
                         ),
                       ),

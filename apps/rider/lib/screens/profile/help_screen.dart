@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
 /// Help center — FAQ + contact support.
@@ -26,7 +25,7 @@ class HelpScreen extends StatelessWidget {
     final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
 
     return Scaffold(
-      appBar: AppBar(title: Text('مركز المساعدة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text('مركز المساعدة', style: AppTokens.font(fontWeight: FontWeight.w700))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -41,8 +40,8 @@ class HelpScreen extends StatelessWidget {
               const Icon(Icons.support_agent, color: Colors.white, size: 32),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('تحتاج مساعدة؟', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-                Text('فريق الدعم متاح 24/7', style: GoogleFonts.ibmPlexSansArabic(fontSize: 12, color: Colors.white70)),
+                Text('تحتاج مساعدة؟', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                Text('فريق الدعم متاح 24/7', style: AppTokens.font(fontSize: 12, color: Colors.white70)),
               ])),
               ElevatedButton(
                 onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
@@ -54,7 +53,7 @@ class HelpScreen extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 24),
-          Text('الأسئلة الشائعة', style: GoogleFonts.ibmPlexSansArabic(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
+          Text('الأسئلة الشائعة', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
           const SizedBox(height: 12),
           ..._faqs.map((faq) => _faqCard(faq['q']!, faq['a']!, panel, text, muted, border)),
         ],
@@ -69,8 +68,8 @@ class HelpScreen extends StatelessWidget {
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        title: Text(q, style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, fontWeight: FontWeight.w600, color: text)),
-        children: [Text(a, style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: muted, height: 1.5))],
+        title: Text(q, style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w600, color: text)),
+        children: [Text(a, style: AppTokens.font(fontSize: 13, color: muted, height: 1.5))],
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_shared/flutter_shared.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../services/location_service.dart';
@@ -161,7 +160,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                     widget.isPickup
                         ? (isAr ? 'نقطة الانطلاق' : 'Pickup point')
                         : (isAr ? 'الوجهة' : 'Destination'),
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                       color: go.text,
@@ -179,7 +178,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                 autofocus: true,
                 onChanged: _onQueryChanged,
                 textInputAction: TextInputAction.search,
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontSize: 15,
                   color: go.text,
                   fontWeight: FontWeight.w600,
@@ -246,7 +245,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontSize: 14,
                   color: go.muted,
                   height: 1.5,
@@ -273,7 +272,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                 isAr
                     ? 'لا توجد نتائج لهذا البحث'
                     : 'No places match that search',
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontSize: 14.5,
                   fontWeight: FontWeight.w600,
                   color: go.text,
@@ -285,7 +284,7 @@ class _LocationSearchSheetState extends State<LocationSearchSheet> {
                     ? 'جرّب اسمًا أبسط، أو حدّد المكان على الخريطة'
                     : 'Try a simpler name, or set the point on the map',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontSize: 13,
                   color: go.muted,
                 ),
@@ -391,7 +390,7 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
       child: Text(
         text,
-        style: GoogleFonts.ibmPlexSansArabic(
+        style: AppTokens.font(
           fontSize: 12.5,
           fontWeight: FontWeight.w700,
           color: go.muted,
@@ -448,7 +447,7 @@ class _PlaceTile extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.ibmPlexSansArabic(
+                      style: AppTokens.font(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w600,
                         color: go.text,
@@ -460,7 +459,7 @@ class _PlaceTile extends StatelessWidget {
                         subtitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.ibmPlexSansArabic(
+                        style: AppTokens.font(
                           fontSize: 12.5,
                           color: go.muted,
                         ),
@@ -473,7 +472,7 @@ class _PlaceTile extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   trailing!,
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     color: go.muted,
@@ -525,7 +524,7 @@ class _ActionTile extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.ibmPlexSansArabic(
+                        style: AppTokens.font(
                           fontSize: 14.5,
                           fontWeight: FontWeight.w700,
                           color: go.text,
@@ -534,7 +533,7 @@ class _ActionTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: GoogleFonts.ibmPlexSansArabic(
+                        style: AppTokens.font(
                           fontSize: 12.5,
                           color: go.muted,
                         ),
@@ -578,7 +577,7 @@ class _MapPickButton extends StatelessWidget {
       ),
       label: Text(
         isAr ? 'تحديد على الخريطة' : 'Set on map',
-        style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700),
+        style: AppTokens.font(fontWeight: FontWeight.w700),
       ),
     );
   }
