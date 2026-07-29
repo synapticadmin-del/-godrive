@@ -434,6 +434,27 @@ abstract class AppStrings {
   /// Error when the upload response carries no file key.
   String get docUploadInvalidResponse;
 
+  /// Label for the four-part legal name field (national ID documents).
+  String get docHolderFullNameLabel;
+
+  /// Hint inside the four-part legal name field.
+  String get docHolderFullNameHint;
+
+  /// Label for the national ID number field.
+  String get docNationalIdNumberLabel;
+
+  /// Hint inside the national ID number field.
+  String get docNationalIdNumberHint;
+
+  /// Label for the document expiry date field.
+  String get docExpiryDateLabel;
+
+  /// Hint inside the document expiry date field.
+  String get docExpiryDateHint;
+
+  /// Validation error when required identity fields are left empty.
+  String get docIdentityFieldsRequired;
+
   /// Generic error prefix for document actions.
   String docErrorPrefix(String error);
 
@@ -1734,6 +1755,30 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get docUploadInvalidResponse => 'استجابة الرفع غير صالحة';
+
+  @override
+  String get docHolderFullNameLabel => 'الاسم الرباعي';
+
+  @override
+  String get docHolderFullNameHint => 'كما هو مطبوع في البطاقة';
+
+  @override
+  String get docNationalIdNumberLabel => 'رقم الهوية';
+
+  @override
+  String get docNationalIdNumberHint => 'الرقم القومي (14 رقم)';
+
+  @override
+  String get docExpiryDateLabel => 'تاريخ الصلاحية';
+
+  @override
+  String get docExpiryDateHint => 'اختر تاريخ انتهاء المستند';
+
+  @override
+  String get docIdentityFieldsRequired => 'يرجى إكمال بيانات المستند المطلوبة';
+
+  @override
+  String get confirmAction => 'تأكيد';
 
   @override
   String docErrorPrefix(String error) => 'خطأ: $error';
@@ -3239,6 +3284,30 @@ class AppStringsEn extends AppStrings {
   String get docUploadInvalidResponse => 'Invalid upload response';
 
   @override
+  String get docHolderFullNameLabel => 'Full legal name';
+
+  @override
+  String get docHolderFullNameHint => 'Exactly as printed on the card';
+
+  @override
+  String get docNationalIdNumberLabel => 'National ID number';
+
+  @override
+  String get docNationalIdNumberHint => 'National ID (14 digits)';
+
+  @override
+  String get docExpiryDateLabel => 'Expiry date';
+
+  @override
+  String get docExpiryDateHint => 'Pick the document expiry date';
+
+  @override
+  String get docIdentityFieldsRequired => 'Please complete the required document details';
+
+  @override
+  String get confirmAction => 'Confirm';
+
+  @override
   String docErrorPrefix(String error) => 'Error: $error';
 
   @override
@@ -4354,4 +4423,10 @@ class AppStringsEn extends AppStrings {
   /// Studio name on the splash attribution badge.
   @override
   String get synapticStudioLabel => 'Synaptic Studio';
+}
+attribution badge.
+  @override
+  String get synapticStudioLabel => 'Synaptic Studio';
+}
+StudioLabel => 'Synaptic Studio';
 }

@@ -405,6 +405,9 @@ adminRoutes.put("/pricing/:city", async (c) => {
 
 adminRoutes.get("/documents", async (c) => {
   const status = c.req.query("status");
+  // d.* carries the identity metadata added in migration 0012
+  // (holder_full_name, national_id_number, expires_at), so the verification UI
+  // can render it beside each document image with no extra query.
   let sql = `
     SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone
     FROM driver_documents d
