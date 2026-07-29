@@ -11,6 +11,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../services/app_state.dart';
 import '../../services/location_service.dart';
 import '../history/history_screen.dart';
+import '../places/saved_places_screen.dart';
 import '../wallet/wallet_screen.dart';
 import '../profile/profile_screen.dart';
 import 'fare_estimate_sheet.dart';
@@ -32,7 +33,14 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
 
-  int _tabIndex = 0;
+  /// Tab indices: 0 = saved places, 1 = history, 2 = wallet, 3 = profile,
+  /// 4 = the live map overlay. The map used to own slot 0, but the elevated
+  /// centre button already returns to the map from anywhere — so the first
+  /// slot now earns its keep as the quick-reorder surface: one tap on a saved
+  /// place sets it as the destination and jumps straight to the fare.
+  static const int _mapTab = 4;
+
+  int _tabIndex = _mapTab;
   LatLng? _currentLocation;
   LatLng? _pickupLocation;
   LatLng? _dropoffLocation;
@@ -321,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _pickMode = mode;
       _pinAddress = '';
-      _tabIndex = 0;
+      _tabIndex = _mapTab;
     });
 
     if (seed != null) _mapController.move(seed, 16.5);
@@ -426,6 +434,24 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Quick-reorder from the saved-places tab: the tapped place becomes the
+  /// trip destination, the view returns to the map, and the booking flow
+  /// opens with the fare estimate once the route resolves.
+  void _selectSavedPlaceAsDestination(double lat, double lng, String label) {
+    final destination = LatLng(lat, lng);
+    setState(() {
+      _dropoffLocation = destination;
+      _dropoffText = label;
+      // A saved-place reorder always leaves from where the rider is now —
+      // anything else would be a stale pickup from an older session.
+      _pickupLocation = _currentLocation ?? _pickupLocation;
+      _tabIndex = _mapTab;
+    });
+    _refreshRoute(
+      openBooking: _pickupLocation != null && _dropoffLocation != null,
+    );
+  }
+
   void _showBookingFlow() {
     final pickup = _pickupLocation;
     final dropoff = _dropoffLocation;
@@ -446,8 +472,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onCenterTap() {
-    if (_tabIndex != 0) {
-      setState(() => _tabIndex = 0);
+    if (_tabIndex != _mapTab) {
+      setState(() => _tabIndex = _mapTab);
       return;
     }
     if (_currentLocation != null) {
@@ -469,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: go.bg,
       body: Stack(
         children: [
-          if (_tabIndex == 0) _buildMap(go),
+          if (_tabIndex == _mapTab) _buildMap(go),
 
           // Tab content sits above the map. The home tab is a transparent
           // overlay so the map stays visible and interactive beneath it.
@@ -477,10 +503,14 @@ class _HomeScreenState extends State<HomeScreen>
             child: IndexedStack(
               index: _tabIndex,
               children: [
-                _buildHomeOverlay(appState, go),
+                SavedPlacesScreen(
+                  embedded: true,
+                  onSelectAsDestination: _selectSavedPlaceAsDestination,
+                ),
                 const HistoryScreen(),
                 const WalletScreen(),
                 const ProfileScreen(),
+                _buildHomeOverlay(appState, go),
               ],
             ),
           ),
@@ -501,13 +531,13 @@ class _HomeScreenState extends State<HomeScreen>
                     _travelTab = tab;
                     // The orders tab reuses the shared history screen, which
                     // lives at index 1 of the IndexedStack; the trip tab is the
-                    // map overlay at index 0.
-                    _tabIndex = tab == TravelTab.orders ? 1 : 0;
+                    // map overlay at index _mapTab.
+                    _tabIndex = tab == TravelTab.orders ? 1 : _mapTab;
                   }),
                   onExitTravelMode: () => setState(() {
                     _category = 'ride';
                     _travelTab = TravelTab.trip;
-                    _tabIndex = 0;
+                    _tabIndex = _mapTab;
                   }),
                 )
               : MainBottomNav(
@@ -693,7 +723,7 @@ class _HomeScreenState extends State<HomeScreen>
               // to that mode's first destination rather than leaving a stale
               // index selected in a bar that no longer has it.
               _travelTab = TravelTab.trip;
-              _tabIndex = 0;
+              _tabIndex = _mapTab;
             }),
             pickupText: _pickupText,
             dropoffText: _dropoffText,

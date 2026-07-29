@@ -32,8 +32,8 @@ class NavCenterDestination {
 ///
 /// The Captain app uses this to put "رحلات متاحة" (the browsable queue of
 /// nearby requests, with its waiting-count badge) in the first slot, while
-/// the elevated centre destination carries the map. Null keeps the original
-/// "الخريطة" first tab untouched, which is exactly what the Rider app needs.
+/// the elevated centre destination carries the map. Null keeps the default
+/// "الأماكن" first tab, which is what the Rider app uses.
 @immutable
 class NavFirstDestination {
   const NavFirstDestination({
@@ -60,13 +60,15 @@ class NavFirstDestination {
 /// this button; that now lives on an explicit control in the map sheet, where
 /// a new captain can actually find it.)
 ///
+/// The first slot is the rider's saved places by default: the map itself is
+/// one tap away on the centre button, so the corner slot earns its keep as
+/// the quick-reorder surface (Home, Work, …) rather than duplicating the map.
+///
 /// Two opt-ins let each app re-shape the bar without breaking the other:
 ///  * [centerDestination] turns the centre slot into a real destination with
 ///    a label and a selected state (the Captain app puts its map there).
 ///  * [firstDestination] replaces the first slot's icon/label and adds an
 ///    optional badge (the Captain app puts "رحلات متاحة" there).
-/// Left null, the original bar is preserved exactly — which is what the
-/// Rider app relies on.
 class MainBottomNav extends StatelessWidget {
   const MainBottomNav({
     super.key,
@@ -87,7 +89,7 @@ class MainBottomNav extends StatelessWidget {
   /// Opt in to a real centre destination. Null keeps the shortcut behaviour.
   final NavCenterDestination? centerDestination;
 
-  /// Opt in to overriding the first destination. Null keeps "الخريطة".
+  /// Opt in to overriding the first destination. Null keeps "الأماكن".
   final NavFirstDestination? firstDestination;
 
   @override
@@ -114,9 +116,9 @@ class MainBottomNav extends StatelessWidget {
               Expanded(
                 child: first == null
                     ? _NavItem(
-                        icon: Icons.map_outlined,
-                        activeIcon: Icons.map_rounded,
-                        label: isAr ? 'الخريطة' : 'Map',
+                        icon: Icons.bookmark_outline_rounded,
+                        activeIcon: Icons.bookmark_rounded,
+                        label: isAr ? 'الأماكن' : 'Places',
                         active: currentIndex == 0,
                         onTap: () => onTap(0),
                       )

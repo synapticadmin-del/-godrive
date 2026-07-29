@@ -11,8 +11,31 @@ import '../../services/location_service.dart';
 /// Saved places screen — lets the rider add Home/Work/custom places by
 /// picking a real location on the map (or using current GPS location).
 /// Coordinates are always real — never hardcoded.
+///
+/// Two presentation modes:
+///  * Standalone (pushed from the profile): full Scaffold with AppBar and FAB,
+///    managing places is the whole job of the screen.
+///  * Embedded (a tab on the home screen): [embedded] strips the Scaffold,
+///    AppBar and FAB so it composes inside the home IndexedStack, and
+///    [onSelectAsDestination] turns each row into a quick-reorder action —
+///    one tap sets the place as the trip destination and returns to the map
+///    with the fare estimate ready.
 class SavedPlacesScreen extends StatefulWidget {
-  const SavedPlacesScreen({super.key});
+  const SavedPlacesScreen({
+    super.key,
+    this.embedded = false,
+    this.onSelectAsDestination,
+  });
+
+  /// True when rendered as a tab inside the home screen's IndexedStack rather
+  /// than pushed as its own route.
+  final bool embedded;
+
+  /// Quick-reorder callback: the rider tapped "go here" on a saved place.
+  /// Receives the place's coordinates and display label so the home screen
+  /// can set the destination and open the booking flow. When null, rows are
+  /// management-only (standalone behaviour).
+  final void Function(double lat, double lng, String label)? onSelectAsDestination;
 
   @override
   State<SavedPlacesScreen> createState() => _SavedPlacesScreenState();
@@ -87,11 +110,127 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
     final panel = go.panel;
     final text = go.text;
     final muted = go.muted;
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+
+    final body = _loading
+        ? const SkeletonList(count: 4)
+        : _places.isEmpty
+            ? EmptyState(
+                icon: Icons.place_outlined,
+                title: isAr ? 'لا توجد أماكن محفوظة' : 'No saved places',
+                subtitle: isAr
+                    ? 'أضف منزلك أو عملك لطلب رحلة سريعة'
+                    : 'Add your home or work for a quick reorder',
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _places.length,
+                itemBuilder: (context, index) {
+                  final place = _places[index];
+                  final label = place['label'] ?? (isAr ? 'مكان' : 'Place');
+                  final address = place['address'] ?? '';
+                  final lat = (place['lat'] as num?)?.toDouble();
+                  final lng = (place['lng'] as num?)?.toDouble();
+                  final canGo = widget.onSelectAsDestination != null &&
+                      lat != null &&
+                      lng != null;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: panel,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    ),
+                    child: ListTile(
+                      onTap: canGo
+                          ? () => widget.onSelectAsDestination!(lat, lng, label)
+                          : null,
+                      leading: Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          color: AppTokens.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                        ),
+                        child: Icon(
+                          place['label'] == 'المنزل' || place['label'] == 'Home'
+                              ? Icons.home
+                              : (place['label'] == 'العمل' || place['label'] == 'Work' ? Icons.work : Icons.place),
+                          color: AppTokens.primary, size: 20,
+                        ),
+                      ),
+                      title: Text(label, style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
+                      subtitle: Text(address, style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: canGo
+                          ? Icon(
+                              // The row's whole job is "go here" — point the
+                              // way in the reading direction.
+                              isAr
+                                  ? Icons.arrow_back_ios_new_rounded
+                                  : Icons.arrow_forward_ios_rounded,
+                              color: AppTokens.primary,
+                              size: 17,
+                            )
+                          : IconButton(
+                              icon: const Icon(Icons.delete_outline, color: AppTokens.danger, size: 20),
+                              onPressed: () => _deletePlace(place['id']),
+                            ),
+                    ),
+                  );
+                },
+              );
+
+    if (widget.embedded) {
+      // Tab mode: no Scaffold of our own — the home screen supplies it. A
+      // lightweight header keeps the destination readable without an AppBar,
+      // and the add button floats above the list instead of a FAB.
+      return Stack(
+        children: [
+          Positioned.fill(child: body),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 16,
+            right: 16,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  isAr ? 'الأماكن المحفوظة' : 'Saved places',
+                  style: GoogleFonts.ibmPlexSansArabic(
+                    color: text,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
+                ),
+                Material(
+                  color: panel,
+                  shape: const CircleBorder(),
+                  elevation: go.isDark ? 0 : 3,
+                  shadowColor: Colors.black26,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _showAddDialog,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: go.border, width: go.isDark ? 1 : 0),
+                      ),
+                      child: Icon(Icons.add_rounded, size: 23, color: go.text),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('الأماكن المحفوظة', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text(isAr ? 'الأماكن المحفوظة' : 'Saved places', style: GoogleFonts.ibmPlexSansArabic()),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -101,49 +240,7 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
         onPressed: _showAddDialog,
         child: const Icon(Icons.add),
       ),
-      body: _loading
-          ? const SkeletonList(count: 4)
-          : _places.isEmpty
-              ? EmptyState(
-                  icon: Icons.place_outlined,
-                  title: 'لا توجد أماكن محفوظة',
-                  subtitle: 'أضف منزلك أو عملك لطلب رحلة سريعة',
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _places.length,
-                  itemBuilder: (context, index) {
-                    final place = _places[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: panel,
-                        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-                      ),
-                      child: ListTile(
-                        leading: Container(
-                          width: 40, height: 40,
-                          decoration: BoxDecoration(
-                            color: AppTokens.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                          ),
-                          child: Icon(
-                            place['label'] == 'المنزل' || place['label'] == 'Home'
-                                ? Icons.home
-                                : (place['label'] == 'العمل' || place['label'] == 'Work' ? Icons.work : Icons.place),
-                            color: AppTokens.primary, size: 20,
-                          ),
-                        ),
-                        title: Text(place['label'] ?? 'مكان', style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
-                        subtitle: Text(place['address'] ?? '', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: AppTokens.danger, size: 20),
-                          onPressed: () => _deletePlace(place['id']),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+      body: body,
     );
   }
 }
