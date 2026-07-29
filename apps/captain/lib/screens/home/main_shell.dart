@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
 import 'package:synaptic_go_captain/screens/documents/document_upload_screen.dart';
+import 'package:synaptic_go_captain/screens/onboarding/onboarding_screen.dart';
 import 'package:synaptic_go_captain/screens/earnings/earnings_screen.dart';
 import 'package:synaptic_go_captain/screens/profile/settings_screen.dart';
 import 'package:synaptic_go_captain/screens/safety/sos_screen.dart';
@@ -371,7 +372,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     // A captain who has not been approved yet cannot receive work, so the
     // document queue is the only meaningful screen for them.
-    if (!isApproved) return const DocumentUploadScreen();
+    if (!isApproved) return const CaptainOnboardingScreen();
 
     final go = GoTheme.of(context);
     final onMapTab = _tabIndex == _mapIndex;

@@ -69,11 +69,55 @@ captainRoutes.post("/profile", async (c) => {
       .run();
   }
 
+  // Onboarding fields (migration 0014): partial updates only — COALESCE keeps
+  // whatever earlier steps already saved. The year column is INTEGER, so the
+  // numeric value is bound directly while everything else is text.
+  await c.env.DB.prepare(
+    `UPDATE captains SET
+      first_name = COALESCE(?, first_name),
+      father_name = COALESCE(?, father_name),
+      grandfather_name = COALESCE(?, grandfather_name),
+      family_name = COALESCE(?, family_name),
+      birth_date = COALESCE(?, birth_date),
+      national_id_number = COALESCE(?, national_id_number),
+      license_expiry = COALESCE(?, license_expiry),
+      vehicle_year = COALESCE(?, vehicle_year),
+      updated_at = ?
+     WHERE user_id = ?`,
+  )
+    .bind(
+      body.firstName ?? null,
+      body.fatherName ?? null,
+      body.grandfatherName ?? null,
+      body.familyName ?? null,
+      body.birthDate ?? null,
+      body.nationalIdNumber ?? null,
+      body.licenseExpiry ?? null,
+      body.vehicleYear ?? null,
+      nowIso(),
+      user.id,
+    )
+    .run();
+
   const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
     .bind(user.id)
     .first<DbCaptain>();
 
   return c.json({ captain });
+});
+
+// GET /captain/profile — what the onboarding flow pre-fills from: the captain
+// row plus the display name on the user record. Reads are idempotent, so the
+// flow can re-fetch on resume without side effects.
+captainRoutes.get("/profile", async (c) => {
+  const user = c.get("user");
+  const captain = await c.env.DB.prepare(
+    `SELECT c.*, u.name as user_name, u.email, u.phone as user_phone
+     FROM captains c JOIN users u ON u.id = c.user_id WHERE c.user_id = ?`,
+  )
+    .bind(user.id)
+    .first();
+  return c.json({ captain: captain ?? null });
 });
 
 captainRoutes.post("/online", async (c) => {
@@ -280,7 +324,6 @@ captainRoutes.get("/nearby-requests", async (c) => {
   // 20km/h guess while the real OSRM estimate sat in the row unread.
   const rows = await c.env.DB.prepare(
     `SELECT t.id, t.rider_id, u.name as rider_name, u.email as rider_email, u.phone as rider_phone,
-            u.avatar_url as rider_avatar_url,
             t.pickup_lat, t.pickup_lng, t.pickup_address,
             t.dropoff_lat, t.dropoff_lng, t.dropoff_address,
             t.distance_km, t.duration_min, t.offered_price, t.estimated_fare, t.created_at, t.city
@@ -296,7 +339,6 @@ captainRoutes.get("/nearby-requests", async (c) => {
     rider_name: string | null;
     rider_email: string;
     rider_phone: string | null;
-    rider_avatar_url: string | null;
     pickup_lat: number;
     pickup_lng: number;
     pickup_address: string | null;
@@ -334,14 +376,7 @@ captainRoutes.get("/nearby-requests", async (c) => {
         rider_id: r.rider_id,
         rider_name: r.rider_name || "عميل GoDrive",
         rider_phone: r.rider_phone || "",
-        // Prefer the rider's real uploaded photo once one exists (PR #34 adds
-        // users.avatar_url + the upload endpoint). Until that migration lands
-        // and a rider uploads, avatar_url is NULL and we fall back to the
-        // deterministic DiceBear identicon — so this is safe to ship on main
-        // before the column exists and starts paying off automatically after.
-        rider_avatar:
-          r.rider_avatar_url ??
-          `https://api.dicebear.com/7.x/bottts/svg?seed=${r.rider_id}`,
+        rider_avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${r.rider_id}`,
         pickup_lat: r.pickup_lat,
         pickup_lng: r.pickup_lng,
         pickup_address: r.pickup_address || "موقع الانطلاق",
@@ -390,10 +425,28 @@ captainRoutes.get("/offers", async (c) => {
   return c.json({ trips: trips.results ?? [], captainLocation: captain });
 });
 
+// GET /captain/document-types — the catalog that drives the onboarding upload
+// grid. Only active types are returned, ordered the way the admin arranged
+// them; each row tells the app whether the document is required or optional
+// (اختياري) so it can badge the tile without any client-side hard-coding.
+captainRoutes.get("/document-types", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT id, title_ar, title_en, icon, required, sort_order
+     FROM document_types WHERE active = 1 ORDER BY sort_order ASC, id ASC`,
+  ).all();
+  return c.json({ types: rows.results ?? [] });
+});
+
 captainRoutes.get("/documents", async (c) => {
   const user = c.get("user");
   const docs = await c.env.DB.prepare(
-    `SELECT * FROM driver_documents WHERE captain_id = ? ORDER BY created_at DESC`
+    `SELECT d.*,
+            COALESCE(t.title_ar, d.type) as title_ar,
+            COALESCE(t.title_en, '') as title_en,
+            COALESCE(t.required, 1) as required
+     FROM driver_documents d
+     LEFT JOIN document_types t ON t.id = d.type
+     WHERE d.captain_id = ? ORDER BY d.created_at DESC`
   )
     .bind(user.id)
     .all();
@@ -406,6 +459,11 @@ captainRoutes.post("/documents", async (c) => {
   const body = await parseBody(c, documentRegisterSchema);
   if (isResponse(body)) return body;
 
+  // The type id comes from the admin-managed document_types catalog, so it is
+  // validated as a slug by the schema and checked against the catalog below —
+  // not against a hard-coded list that would reject any newly added type.
+  const type = body.type;
+
   const r2Key = body.r2Key;
 
   // Reject registration when the file key points outside the captain's own
@@ -414,6 +472,30 @@ captainRoutes.post("/documents", async (c) => {
   if (!r2Key.startsWith(`docs/${user.id}/`)) {
     return c.json({ error: "Invalid document key", code: "INVALID_KEY" }, 400);
   }
+
+  // Validate against the catalog when it exists. Types predating the catalog
+  // (or deactivated later) are still accepted so older app builds never break:
+  // a row that is missing from document_types simply falls through. But a
+  // known-inactive type is an admin decision — refuse new uploads for it.
+  const typeRow = await c.env.DB.prepare(
+    `SELECT id, active FROM document_types WHERE id = ?`,
+  )
+    .bind(type)
+    .first<{ id: string; active: number }>();
+  if (typeRow && !typeRow.active) {
+    return c.json({ error: "Document type is not currently accepted", code: "TYPE_INACTIVE" }, 400);
+  }
+
+  // Re-uploading the same type must not stack duplicate rows: retire any
+  // previous submission of this type (pending or rejected) and replace it with
+  // the fresh upload, so the admin queue shows one row per document type per
+  // captain — the latest. Approved documents are left untouched; the UI only
+  // offers re-upload for missing/rejected types.
+  await c.env.DB.prepare(
+    `DELETE FROM driver_documents WHERE captain_id = ? AND type = ? AND status != 'approved'`,
+  )
+    .bind(user.id, type)
+    .run();
 
   const docId = id("doc");
   await c.env.DB.prepare(
@@ -437,6 +519,23 @@ captainRoutes.post("/documents", async (c) => {
     .first();
 
   return c.json({ document: doc });
+});
+
+// DELETE /captain/documents/:type — removes the captain's pending upload for
+// a document type so an onboarding tile can truly reset when the captain taps
+// "×". Only pending rows are touched: approved history stays (admins own it),
+// and rejected rows keep the admin's feedback visible until the next upload.
+captainRoutes.delete("/documents/:type", async (c) => {
+  const user = c.get("user");
+  const type = c.req.param("type");
+
+  await c.env.DB.prepare(
+    `DELETE FROM driver_documents WHERE captain_id = ? AND type = ? AND status = 'pending'`,
+  )
+    .bind(user.id, type)
+    .run();
+
+  return c.json({ ok: true });
 });
 
 // POST /captain/upload — upload a file directly to R2 (multipart/form-data).

@@ -36,7 +36,7 @@ interface CaptainGroup {
   rejectedCount: number;
 }
 
-const docTypeLabels: Record<string, string> = {
+const fallbackDocTypeLabels: Record<string, string> = {
   license: 'رخصة القيادة',
   national_id: 'بطاقة رقم قومي',
   criminal_record: 'فيش جنائي',
@@ -192,7 +192,7 @@ function ZoomablePreviewModal({
           </div>
           <div>
             <h4 className="font-bold text-white text-sm">
-              {docTypeLabels[doc.type] || doc.type}
+              {docTypeLabel(doc)}
             </h4>
             <p className="text-xs text-white/50">
               {doc.captain_name || doc.captain_email} • {currentIdx + 1} من {allDocs.length}
@@ -727,11 +727,13 @@ export default function CaptainVerificationPage() {
                           {/* Document Info */}
                           <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                             <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded-md border border-primary-500/20">
-                                  {docTypeLabels[d.type] || d.type}
-                                </span>
-                                <span className="text-[10px] text-text-tertiary font-mono">
+                              <div className="flex items-center gap-2 mb-2">
+                                <FileText className="w-4 h-4 text-primary-500" />
+                                <h4 className="text-sm font-extrabold text-text-primary">
+                                  {docTypeLabel(d)}
+                                </h4>
+                                {d.status === 'pending' && <span className="px-1.5 py-0.5 rounded bg-warning-main/10 text-warning-main text-[10px] font-bold">جديد</span>}
+                                <span className="text-[10px] text-text-tertiary font-mono ml-auto">
                                   {new Date(d.created_at).toLocaleDateString('ar-EG')}
                                 </span>
                               </div>
@@ -804,7 +806,7 @@ export default function CaptainVerificationPage() {
       {rejectingDoc && (
         <RejectionReasonModal
           isOpen={!!rejectingDoc}
-          docTitle={docTypeLabels[rejectingDoc.doc.type] || rejectingDoc.doc.type}
+          docTitle={docTypeLabel(rejectingDoc.doc)}
           captainName={rejectingDoc.captainName}
           onClose={() => setRejectingDoc(null)}
           onSubmit={handleRejectSubmit}

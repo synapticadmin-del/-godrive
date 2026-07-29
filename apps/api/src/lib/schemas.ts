@@ -95,7 +95,7 @@ export const sosSchema = z.object({
 });
 
 export const tripShareSchema = z.object({
-  tripId: z.string().min(1).max(60),
+  tripId: z.string().min(1),
   ttlMinutes: z.number().int().min(5).max(10080).default(1440),
 });
 
@@ -158,6 +158,17 @@ export const captainProfileSchema = z.object({
   licenseNumber: z.string().max(60).optional(),
   name: z.string().max(120).optional(),
   phone: z.string().max(30).optional(),
+  // Four-step onboarding (migration 0014): Arabic four-part name, birth date,
+  // national ID number, licence expiry and vehicle year. All optional so the
+  // flow can save partial progress one step at a time.
+  firstName: z.string().max(60).optional(),
+  fatherName: z.string().max(60).optional(),
+  grandfatherName: z.string().max(60).optional(),
+  familyName: z.string().max(60).optional(),
+  birthDate: z.string().max(20).optional(),
+  nationalIdNumber: z.string().max(20).optional(),
+  licenseExpiry: z.string().max(20).optional(),
+  vehicleYear: z.number().int().min(1980).max(2100).optional(),
 });
 
 export const captainOnlineSchema = z.object({
@@ -180,7 +191,12 @@ export const captainLocationSchema = z.object({
 // bare photo the way the flow worked before, and so document types without
 // the data (a criminal-record certificate carries no expiry) stay valid.
 export const documentRegisterSchema = z.object({
-  type: z.enum(["license", "national_id", "criminal_record", "vehicle_reg"]),
+  // Document type id from the admin-managed `document_types` catalog. This is
+  // deliberately a slug rather than a fixed enum: the catalog is data-driven,
+  // so a type added from the dashboard (e.g. vehicle_photo, profile_photo)
+  // must register without shipping a new API build. POST /captain/documents
+  // validates the id against the catalog and refuses deactivated types.
+  type: z.string().min(1).max(60).regex(/^[a-z0-9_]+$/),
   r2Key: z.string().min(1).max(500),
   // Four-part legal name as printed on the national ID card.
   holderFullName: z.string().max(200).optional(),
@@ -201,7 +217,7 @@ export const pricingUpdateSchema = z.object({
   baseFare: z.number().min(0).max(1000).optional(),
   perKm: z.number().min(0).max(100).optional(),
   perMin: z.number().min(0).max(100).optional(),
-  bookingFee: z.number().min(0).max(100).optional(),
+  bookingFee: z.number().min(0).max(1000).optional(),
   minFare: z.number().min(0).max(1000).optional(),
   commissionRate: z.number().min(0).max(1).optional(),
 });

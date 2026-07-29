@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
 import 'document_status_screen.dart';
+import 'documents_onboarding_screen.dart';
 
 /// Document checklist — the first screen an unapproved captain lands on.
 ///
@@ -42,12 +43,26 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   bool _loading = true;
   Set<String> _uploading = {};
 
-  static const _docTypes = [
+  /// The checklist renders the admin-managed catalog from
+  /// GET /captain/document-types when it is available, and falls back to the
+  /// classic four for backends that predate the catalog (migration 0013).
+  static const _fallbackDocTypes = [
     {'type': 'license', 'title': 'رخصة القيادة', 'icon': Icons.card_membership_rounded},
     {'type': 'national_id', 'title': 'البطاقة الشخصية', 'icon': Icons.badge_rounded},
     {'type': 'vehicle_reg', 'title': 'رخصة السيارة', 'icon': Icons.directions_car_rounded},
     {'type': 'criminal_record', 'title': 'فيش جنائي', 'icon': Icons.fact_check_rounded},
   ];
+
+  List<Map<String, dynamic>> _docTypes = _fallbackDocTypes;
+
+  static const _iconByName = <String, IconData>{
+    'card_membership': Icons.card_membership_rounded,
+    'badge': Icons.badge_rounded,
+    'directions_car': Icons.directions_car_rounded,
+    'fact_check': Icons.fact_check_rounded,
+    'account_circle': Icons.account_circle_rounded,
+    'description': Icons.description_rounded,
+  };
 
   @override
   void initState() {
@@ -58,11 +73,31 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   Future<void> _loadDocs() async {
     try {
       final state = context.read<CaptainState>();
-      final res = await state.apiGet('/captain/documents');
+      // Catalog + documents load together; a missing catalog endpoint (older
+      // backend) is tolerated so the checklist keeps working with the fallback.
+      final results = await Future.wait([
+        state.apiGet('/captain/documents'),
+        state.apiGet('/captain/document-types').catchError((_) => <String, dynamic>{'types': const []}),
+      ]);
       // Guard against leaving the screen while the request is in flight.
       if (!mounted) return;
+
+      final typesRaw = (results[1]['types'] as List?) ?? const [];
+      if (typesRaw.isNotEmpty) {
+        _docTypes = typesRaw.whereType<Map>().map((e) {
+          final t = Map<String, dynamic>.from(e);
+          return {
+            'type': t['id']?.toString() ?? '',
+            'title': (t['title_ar']?.toString().isNotEmpty ?? false)
+                ? t['title_ar'].toString()
+                : (t['title_en']?.toString() ?? t['id']?.toString() ?? ''),
+            'icon': _iconByName[t['icon']?.toString()] ?? Icons.description_rounded,
+          };
+        }).where((t) => (t['type'] as String).isNotEmpty).toList();
+      }
+
       setState(() {
-        _docs = (res['documents'] as List?)
+        _docs = (results[0]['documents'] as List?)
                 ?.whereType<Map>()
                 .map((e) => Map<String, dynamic>.from(e))
                 .toList() ??
@@ -493,6 +528,22 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         backgroundColor: go.panel,
         surfaceTintColor: Colors.transparent,
         actions: [
+          // Grid view — the onboarding-style tile layout from the product
+          // mock-ups, backed by the same catalog + documents endpoints.
+          IconButton(
+            tooltip: 'عرض الشبكة',
+            icon: const Icon(Icons.grid_view_rounded),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DocumentsOnboardingScreen(
+                    onNext: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+              );
+            },
+          ),
           // A read-through status view: every document, its review state, and
           // the admin's exact rejection reason in one place.
           IconButton(

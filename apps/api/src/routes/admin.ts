@@ -403,93 +403,168 @@ adminRoutes.put("/pricing/:city", async (c) => {
   return c.json({ pricing: row });
 });
 
-const DOCUMENTS_DEFAULT_PAGE_SIZE = 25;
-const DOCUMENTS_MAX_PAGE_SIZE = 100;
-
-/** Parses a query param into a bounded integer, falling back on garbage input. */
-function boundedInt(raw: string | undefined, fallback: number, min: number, max: number) {
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(Math.trunc(parsed), min), max);
-}
-
-// GET /admin/documents?status=&page=&pageSize=
-//
-// Paginated by CAPTAIN, not by document. The verification UI groups every
-// document under its captain, so paging raw document rows would split one
-// captain's paperwork across two pages and make bulk-approve lie about what it
-// covers. We page the captain list, then fetch that page's documents in full.
-//
-// This replaces a hard `LIMIT 200` with no offset, which made every document
-// past the first 200 permanently unreachable from the admin UI.
 adminRoutes.get("/documents", async (c) => {
   const status = c.req.query("status");
-  const pageSize = boundedInt(
-    c.req.query("pageSize"),
-    DOCUMENTS_DEFAULT_PAGE_SIZE,
-    1,
-    DOCUMENTS_MAX_PAGE_SIZE,
-  );
-  const requestedPage = boundedInt(c.req.query("page"), 1, 1, Number.MAX_SAFE_INTEGER);
-
-  const where = status ? `WHERE d.status = ?` : ``;
-  const statusBinds: string[] = status ? [status] : [];
-
-  // 1. How many distinct captains have documents matching this filter? Drives
-  //    the page count the UI needs to render its next/prev controls.
-  const countStmt = c.env.DB.prepare(`
-    SELECT COUNT(DISTINCT d.captain_id) as total
-    FROM driver_documents d
-    JOIN users u ON u.id = d.captain_id
-    ${where}
-  `);
-  const countRow = await (statusBinds.length ? countStmt.bind(...statusBinds) : countStmt).first<{
-    total: number;
-  }>();
-  const total = countRow?.total ?? 0;
-  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
-  // Clamp instead of returning an empty page when the caller overshoots (e.g.
-  // the last captain on page 9 just got approved and the filter shrank).
-  const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * pageSize;
-  const meta = { page, pageSize, total, totalPages };
-
-  // 2. Which captains land on this page? Most recent submission first, matching
-  //    the previous ORDER BY created_at DESC behaviour.
-  const captainRes = await c.env.DB.prepare(`
-    SELECT d.captain_id, MAX(d.created_at) as latest_at
-    FROM driver_documents d
-    JOIN users u ON u.id = d.captain_id
-    ${where}
-    GROUP BY d.captain_id
-    ORDER BY latest_at DESC
-    LIMIT ? OFFSET ?
-  `)
-    .bind(...statusBinds, pageSize, offset)
-    .all<{ captain_id: string }>();
-
-  const captainIds = (captainRes.results ?? []).map((r) => r.captain_id);
-  if (captainIds.length === 0) {
-    return c.json({ documents: [], ...meta });
-  }
-
-  // 3. Every matching document for those captains.
   // d.* carries the identity metadata added in migration 0012
   // (holder_full_name, national_id_number, expires_at), so the verification UI
   // can render it beside each document image with no extra query.
-  const placeholders = captainIds.map(() => "?").join(", ");
-  const docsBinds: (string | number)[] = status ? [...captainIds, status] : [...captainIds];
-  const res = await c.env.DB.prepare(`
-    SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone
+  let sql = `
+    SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone,
+           COALESCE(t.title_ar, d.type) as type_title_ar,
+           COALESCE(t.title_en, '') as type_title_en
     FROM driver_documents d
     JOIN users u ON u.id = d.captain_id
-    WHERE d.captain_id IN (${placeholders})${status ? ` AND d.status = ?` : ``}
-    ORDER BY d.created_at DESC
-  `)
-    .bind(...docsBinds)
-    .all();
+    LEFT JOIN document_types t ON t.id = d.type
+  `;
+  const binds: string[] = [];
+  if (status) {
+    sql += ` WHERE d.status = ?`;
+    binds.push(status);
+  }
+  sql += ` ORDER BY d.created_at DESC LIMIT 200`;
 
-  return c.json({ documents: res.results ?? [], ...meta });
+  const stmt = c.env.DB.prepare(sql);
+  const res = binds.length ? await stmt.bind(...binds).all() : await stmt.all();
+  return c.json({ documents: res.results ?? [] });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Document type catalog (admin-managed)                              */
+/*                                                                     */
+/*  The captain app's onboarding grid renders whatever this catalog    */
+/*  returns, so adding a new required document (تأمين السيارة, شهادة   */
+/*  صحية, …) is an admin action — not an app release. Deactivating a   */
+/*  type hides it from new uploads but keeps every historical row.     */
+/* ------------------------------------------------------------------ */
+
+adminRoutes.get("/document-types", async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT * FROM document_types ORDER BY sort_order ASC, id ASC`,
+  ).all();
+  return c.json({ types: rows.results ?? [] });
+});
+
+adminRoutes.post("/document-types", async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json().catch(() => ({}));
+
+  const docId = typeof body.id === "string" ? body.id.trim() : "";
+  const titleAr = typeof body.titleAr === "string" ? body.titleAr.trim() : "";
+  if (!docId || !titleAr) {
+    return c.json({ error: "id and titleAr are required", code: "MISSING_FIELDS" }, 400);
+  }
+  // Machine ids are what driver_documents.type stores — keep them URL/icon safe.
+  if (!/^[a-z][a-z0-9_]{1,48}$/.test(docId)) {
+    return c.json(
+      { error: "id must be lowercase letters, digits and underscores (e.g. 'car_insurance')", code: "BAD_ID" },
+      400,
+    );
+  }
+
+  const existing = await c.env.DB.prepare(`SELECT id FROM document_types WHERE id = ?`)
+    .bind(docId)
+    .first();
+  if (existing) {
+    return c.json({ error: "Document type id already exists", code: "DUPLICATE_ID" }, 409);
+  }
+
+  await c.env.DB.prepare(
+    `INSERT INTO document_types (id, title_ar, title_en, icon, required, sort_order, active)
+     VALUES (?, ?, ?, ?, ?, ?, 1)`,
+  )
+    .bind(
+      docId,
+      titleAr,
+      typeof body.titleEn === "string" ? body.titleEn.trim() : "",
+      typeof body.icon === "string" && body.icon.trim() ? body.icon.trim() : "description",
+      body.required === false ? 0 : 1,
+      Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 100,
+    )
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: user.id,
+    action: "document_type.create",
+    entityType: "document_type",
+    entityId: docId,
+    payload: JSON.stringify({ titleAr }),
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  const row = await c.env.DB.prepare(`SELECT * FROM document_types WHERE id = ?`).bind(docId).first();
+  return c.json({ type: row });
+});
+
+adminRoutes.put("/document-types/:id", async (c) => {
+  const user = c.get("user");
+  const typeId = c.req.param("id");
+  const body = await c.req.json().catch(() => ({}));
+
+  const existing = await c.env.DB.prepare(`SELECT * FROM document_types WHERE id = ?`)
+    .bind(typeId)
+    .first<{ id: string }>();
+  if (!existing) return c.json({ error: "Not found", code: "NOT_FOUND" }, 404);
+
+  await c.env.DB.prepare(
+    `UPDATE document_types SET
+       title_ar = COALESCE(?, title_ar),
+       title_en = COALESCE(?, title_en),
+       icon = COALESCE(?, icon),
+       required = COALESCE(?, required),
+       sort_order = COALESCE(?, sort_order),
+       active = COALESCE(?, active),
+       updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(
+      typeof body.titleAr === "string" ? body.titleAr.trim() : null,
+      typeof body.titleEn === "string" ? body.titleEn.trim() : null,
+      typeof body.icon === "string" && body.icon.trim() ? body.icon.trim() : null,
+      typeof body.required === "boolean" ? (body.required ? 1 : 0) : null,
+      Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : null,
+      typeof body.active === "boolean" ? (body.active ? 1 : 0) : null,
+      nowIso(),
+      typeId,
+    )
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: user.id,
+    action: "document_type.update",
+    entityType: "document_type",
+    entityId: typeId,
+    payload: JSON.stringify(body),
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  const row = await c.env.DB.prepare(`SELECT * FROM document_types WHERE id = ?`).bind(typeId).first();
+  return c.json({ type: row });
+});
+
+// Deletion is a soft delete: driver_documents rows reference the type id, so a
+// hard delete would orphan history. Active=0 removes it from every client.
+adminRoutes.delete("/document-types/:id", async (c) => {
+  const user = c.get("user");
+  const typeId = c.req.param("id");
+
+  const existing = await c.env.DB.prepare(`SELECT id FROM document_types WHERE id = ?`)
+    .bind(typeId)
+    .first();
+  if (!existing) return c.json({ error: "Not found", code: "NOT_FOUND" }, 404);
+
+  await c.env.DB.prepare(`UPDATE document_types SET active = 0, updated_at = ? WHERE id = ?`)
+    .bind(nowIso(), typeId)
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: user.id,
+    action: "document_type.deactivate",
+    entityType: "document_type",
+    entityId: typeId,
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  return c.json({ ok: true });
 });
 
 adminRoutes.post("/documents/:id/review", async (c) => {
