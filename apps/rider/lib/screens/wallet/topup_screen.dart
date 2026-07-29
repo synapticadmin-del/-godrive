@@ -16,6 +16,15 @@ class _TopupScreenState extends State<TopupScreen> {
   bool _loading = false;
   WebViewController? _webCtrl;
 
+  @override
+  void dispose() {
+    // Top-up is a repeat visit from the wallet, so the undisposed amount field
+    // leaked a controller per visit. _webCtrl needs no teardown: WebViewController
+    // has no dispose() — the platform view goes with the widget.
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _processTopup() async {
     final amountStr = _amountCtrl.text;
     final amount = double.tryParse(amountStr);
