@@ -5,6 +5,7 @@ import {
   captainProfileSchema,
   captainOnlineSchema,
   captainLocationSchema,
+  documentRegisterSchema,
 } from "../lib/schemas";
 import { id, nowIso } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
@@ -393,20 +394,33 @@ captainRoutes.get("/documents", async (c) => {
 
 captainRoutes.post("/documents", async (c) => {
   const user = c.get("user");
-  const body = await c.req.json().catch(() => ({}));
-  const type = body.type; // 'license', 'national_id', 'criminal_record', 'vehicle_reg'
-  const r2Key = body.r2Key || body.url || `docs/${user.id}/${type}_${Date.now()}`;
+  const body = await parseBody(c, documentRegisterSchema);
+  if (isResponse(body)) return body;
 
-  if (!type) {
-    return c.json({ error: "Document type is required", code: "MISSING_TYPE" }, 400);
+  const r2Key = body.r2Key;
+
+  // Reject registration when the file key points outside the captain's own
+  // folder — the upload endpoint always writes under docs/<userId>/, so a
+  // foreign prefix means the key was fabricated rather than uploaded.
+  if (!r2Key.startsWith(`docs/${user.id}/`)) {
+    return c.json({ error: "Invalid document key", code: "INVALID_KEY" }, 400);
   }
 
   const docId = id("doc");
   await c.env.DB.prepare(
-    `INSERT INTO driver_documents (id, captain_id, type, r2_key, status, created_at)
-     VALUES (?, ?, ?, ?, 'pending', ?)`,
+    `INSERT INTO driver_documents (id, captain_id, type, r2_key, status, holder_full_name, national_id_number, expires_at, created_at)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
   )
-    .bind(docId, user.id, type, r2Key, nowIso())
+    .bind(
+      docId,
+      user.id,
+      body.type,
+      r2Key,
+      body.holderFullName ?? null,
+      body.nationalIdNumber ?? null,
+      body.expiresAt ?? null,
+      nowIso(),
+    )
     .run();
 
   const doc = await c.env.DB.prepare(`SELECT * FROM driver_documents WHERE id = ?`)

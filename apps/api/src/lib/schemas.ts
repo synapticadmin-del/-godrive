@@ -175,6 +175,27 @@ export const captainLocationSchema = z.object({
   city: z.string().max(60).optional(),
 });
 
+// Captain document registration: the optional identity fields the captain
+// fills in at upload time. All are optional so a captain can still upload a
+// bare photo the way the flow worked before, and so document types without
+// the data (a criminal-record certificate carries no expiry) stay valid.
+export const documentRegisterSchema = z.object({
+  type: z.enum(["license", "national_id", "criminal_record", "vehicle_reg"]),
+  r2Key: z.string().min(1).max(500),
+  // Four-part legal name as printed on the national ID card.
+  holderFullName: z.string().max(200).optional(),
+  // National ID number (14 digits in Egypt; kept loose for other markets).
+  nationalIdNumber: z.string().max(30).optional(),
+  // Document expiry, as YYYY-MM-DD from a date picker or a full ISO stamp.
+  expiresAt: z
+    .union([
+      z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      z.string().datetime(),
+      z.null(),
+    ])
+    .optional(),
+});
+
 export const pricingUpdateSchema = z.object({
   currency: z.string().max(3).optional(),
   baseFare: z.number().min(0).max(1000).optional(),

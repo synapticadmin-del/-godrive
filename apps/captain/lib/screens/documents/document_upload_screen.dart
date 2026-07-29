@@ -24,7 +24,11 @@ import 'document_status_screen.dart';
 ///     status (pending / approved / rejected) reads at a glance.
 ///  4. A clear "رفع" action only where it's needed (missing / rejected).
 ///
-/// All upload logic, API calls, and image-picker usage are preserved exactly.
+/// Uploads can now carry the identity metadata the admin verifies by eye:
+/// the four-part legal name and national ID number (for the ID card), plus
+/// each document's expiry date. The metadata sheet appears after the photo
+/// is picked, so the photo-first flow stays unchanged for the document types
+/// that need no extra data.
 class DocumentUploadScreen extends StatefulWidget {
   const DocumentUploadScreen({super.key});
 
@@ -95,6 +99,236 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   List<Map<String, dynamic>> get _rejectedDocs => _docTypes
       .where((d) => _docStatus(d['type'] as String) == 'rejected')
       .toList();
+
+  /// Which identity fields (if any) a document type collects at upload time.
+  /// The national ID card is where the four-part legal name and the ID number
+  /// belong; expiry applies to every document except the criminal record,
+  /// which carries no expiry in this flow.
+  static bool _collectsHolderName(String type) => type == 'national_id';
+  static bool _collectsNationalIdNumber(String type) => type == 'national_id';
+  static bool _collectsExpiry(String type) =>
+      type == 'license' || type == 'national_id' || type == 'vehicle_reg';
+
+  /// Bottom sheet that gathers the identity metadata for a document before
+  /// the registration call. Returns null when the captain cancels — in that
+  /// case the already-picked photo is simply discarded and nothing uploads,
+  /// matching how dismissing the source sheet behaves.
+  Future<Map<String, String>?> _collectIdentityFields(
+    String docType,
+    String title,
+  ) async {
+    final needsName = _collectsHolderName(docType);
+    final needsIdNumber = _collectsNationalIdNumber(docType);
+    final needsExpiry = _collectsExpiry(docType);
+    if (!needsName && !needsIdNumber && !needsExpiry) return const {};
+
+    final nameCtrl = TextEditingController();
+    final idCtrl = TextEditingController();
+    DateTime? expiry;
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        final strings = AppStrings.of(sheetCtx);
+        final go = GoTheme.of(sheetCtx);
+
+        InputDecoration fieldDecoration({
+          required String label,
+          required String hint,
+          required IconData icon,
+        }) =>
+            InputDecoration(
+              labelText: label,
+              hintText: hint,
+              prefixIcon: Icon(icon, color: AppTokens.primary, size: 20),
+              filled: true,
+              fillColor: go.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                borderSide: BorderSide(color: go.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                borderSide: BorderSide(color: go.border),
+              ),
+            );
+
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              // Keep the sheet above the soft keyboard.
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: go.panel,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppTokens.radiusXl),
+                  ),
+                ),
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppTokens.spaceMd),
+                    child: Form(
+                      key: formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Sheet handle
+                          Center(
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: AppTokens.spaceMd),
+                              width: 36,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: go.border,
+                                borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                              ),
+                            ),
+                          ),
+                          Text(
+                            title,
+                            style: AppTokens.font(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: go.text,
+                            ),
+                          ),
+                          const SizedBox(height: AppTokens.spaceMd),
+
+                          if (needsName) ...[
+                            TextFormField(
+                              controller: nameCtrl,
+                              textInputAction: TextInputAction.next,
+                              style: AppTokens.font(color: go.text),
+                              decoration: fieldDecoration(
+                                label: strings.docHolderFullNameLabel,
+                                hint: strings.docHolderFullNameHint,
+                                icon: Icons.person_outline_rounded,
+                              ),
+                              validator: (v) => (v == null || v.trim().length < 8)
+                                  ? strings.docIdentityFieldsRequired
+                                  : null,
+                            ),
+                            const SizedBox(height: AppTokens.spaceSm),
+                          ],
+
+                          if (needsIdNumber) ...[
+                            TextFormField(
+                              controller: idCtrl,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              style: AppTokens.font(color: go.text),
+                              decoration: fieldDecoration(
+                                label: strings.docNationalIdNumberLabel,
+                                hint: strings.docNationalIdNumberHint,
+                                icon: Icons.fingerprint_rounded,
+                              ),
+                              validator: (v) => (v == null || v.trim().length < 10)
+                                  ? strings.docIdentityFieldsRequired
+                                  : null,
+                            ),
+                            const SizedBox(height: AppTokens.spaceSm),
+                          ],
+
+                          if (needsExpiry) ...[
+                            InkWell(
+                              borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                              onTap: () async {
+                                final now = DateTime.now();
+                                final picked = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: now.add(const Duration(days: 365)),
+                                  firstDate: now,
+                                  lastDate: now.add(const Duration(days: 365 * 15)),
+                                );
+                                if (picked != null) {
+                                  setSheetState(() => expiry = picked);
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: fieldDecoration(
+                                  label: strings.docExpiryDateLabel,
+                                  hint: strings.docExpiryDateHint,
+                                  icon: Icons.event_rounded,
+                                ),
+                                child: Text(
+                                  expiry == null
+                                      ? strings.docExpiryDateHint
+                                      : '${expiry!.year}-${expiry!.month.toString().padLeft(2, '0')}-${expiry!.day.toString().padLeft(2, '0')}',
+                                  style: AppTokens.font(
+                                    color: expiry == null ? go.muted : go.text,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppTokens.spaceSm),
+                          ],
+
+                          const SizedBox(height: AppTokens.spaceXs),
+                          SizedBox(
+                            width: double.infinity,
+                            height: AppTokens.tapTarget,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                final valid = formKey.currentState?.validate() ?? false;
+                                if (!valid) return;
+                                if (needsExpiry && expiry == null) {
+                                  ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                                    SnackBar(
+                                      content: Text(strings.docIdentityFieldsRequired),
+                                      backgroundColor: AppTokens.danger,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Navigator.pop(sheetCtx, {
+                                  if (needsName) 'holderFullName': nameCtrl.text.trim(),
+                                  if (needsIdNumber)
+                                    'nationalIdNumber': idCtrl.text.trim(),
+                                  if (needsExpiry && expiry != null)
+                                    'expiresAt':
+                                        '${expiry!.year}-${expiry!.month.toString().padLeft(2, '0')}-${expiry!.day.toString().padLeft(2, '0')}',
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTokens.primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                                ),
+                              ),
+                              child: Text(
+                                strings.confirm,
+                                style: AppTokens.font(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    nameCtrl.dispose();
+    idCtrl.dispose();
+    return result;
+  }
 
   Future<void> _upload(String docType, String title) async {
     // Offer gallery alongside camera — camera-only forces captains to re-shoot
@@ -170,6 +404,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     final XFile? image = await _picker.pickImage(source: source, imageQuality: 75);
     if (image == null || !mounted) return;
 
+    // Gather the identity metadata that travels with this document. A null
+    // result means the captain backed out of the details sheet — treat that
+    // like cancelling the whole upload, not like "upload without data".
+    final identityFields = await _collectIdentityFields(docType, title);
+    if (identityFields == null || !mounted) return;
+
     setState(() => _uploading.add(docType));
 
     final state = context.read<CaptainState>();
@@ -209,8 +449,13 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
         throw Exception(strings.docUploadInvalidResponse);
       }
 
-      // Step 2: register document in DB
-      await state.apiPost('/captain/documents', {'type': docType, 'r2Key': r2Key});
+      // Step 2: register document in DB, with whatever identity metadata the
+      // details sheet collected (empty for documents that carry none).
+      await state.apiPost('/captain/documents', {
+        'type': docType,
+        'r2Key': r2Key,
+        ...identityFields,
+      });
 
       if (!mounted) return;
       messenger.showSnackBar(
