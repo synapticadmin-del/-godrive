@@ -247,7 +247,7 @@ class AppState extends ChangeNotifier {
   Future<http.Response> _executeWithAuthInterceptor(Future<http.Response> Function() reqFn) async {
     final res = await reqFn();
     if (res.statusCode == 401 && token != null) {
-      // Shares one refresh implementation with launch-time restore so both
+      // Shares one refresh implementation with launch-time refresh so both
       // paths handle token rotation identically.
       if (await _refreshAccessToken()) {
         return await reqFn(); // Retry original request with the new token
@@ -304,6 +304,7 @@ class AppState extends ChangeNotifier {
 
   Future<Map<String, dynamic>> apiGet(String path) => _get(path);
   Future<Map<String, dynamic>> apiPost(String path, [Map<String, dynamic>? body]) => _post(path, body ?? {});
+  Future<Map<String, dynamic>> apiPatch(String path, [Map<String, dynamic>? body]) => _patch(path, body ?? {});
   Future<Map<String, dynamic>> apiDelete(String path) async {
     final res = await _executeWithAuthInterceptor(() => http
         .delete(
