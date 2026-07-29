@@ -92,12 +92,48 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
     }
   }
 
+  Future<void> _updatePlace(String id, String name, double lat, double lng, String address) async {
+    try {
+      await context.read<AppState>().apiPatch('/user/saved-places/$id', {
+        'label': name,
+        'address': address,
+        'lat': lat,
+        'lng': lng,
+      });
+      _fetchPlaces();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   void _showAddDialog() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _PickLocationScreen(
           onConfirm: (name, lat, lng, address) {
             _addPlace(name, lat, lng, address);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Edit flow reuses the same centre-pin picker as the add flow, seeded with
+  /// the place's current name and coordinates. The rider can rename only,
+  /// move the pin only, or do both in one save.
+  void _showEditDialog(Map<String, dynamic> place) {
+    final lat = (place['lat'] as num?)?.toDouble();
+    final lng = (place['lng'] as num?)?.toDouble();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _PickLocationScreen(
+          initialName: place['label']?.toString(),
+          initialAddress: place['address']?.toString(),
+          initialLocation: (lat != null && lng != null) ? LatLng(lat, lng) : null,
+          onConfirm: (name, newLat, newLng, address) {
+            _updatePlace(place['id'].toString(), name, newLat, newLng, address);
           },
         ),
       ),
@@ -170,9 +206,20 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
                               color: AppTokens.primary,
                               size: 17,
                             )
-                          : IconButton(
-                              icon: const Icon(Icons.delete_outline, color: AppTokens.danger, size: 20),
-                              onPressed: () => _deletePlace(place['id']),
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, color: AppTokens.primary, size: 20),
+                                  tooltip: isAr ? 'تعديل' : 'Edit',
+                                  onPressed: () => _showEditDialog(place),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: AppTokens.danger, size: 20),
+                                  tooltip: isAr ? 'حذف' : 'Delete',
+                                  onPressed: () => _deletePlace(place['id']),
+                                ),
+                              ],
                             ),
                     ),
                   );
@@ -258,7 +305,18 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
 class _PickLocationScreen extends StatefulWidget {
   final void Function(String name, double lat, double lng, String address) onConfirm;
 
-  const _PickLocationScreen({required this.onConfirm});
+  /// Edit-mode seeds. All optional — nulls produce the original "add place"
+  /// behaviour (blank name, camera on the rider's current GPS fix).
+  final String? initialName;
+  final String? initialAddress;
+  final LatLng? initialLocation;
+
+  const _PickLocationScreen({
+    required this.onConfirm,
+    this.initialName,
+    this.initialAddress,
+    this.initialLocation,
+  });
 
   @override
   State<_PickLocationScreen> createState() => _PickLocationScreenState();
@@ -288,6 +346,9 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
   void initState() {
     super.initState();
     _locations = LocationService(context.read<AppState>());
+    // Seed the name field synchronously so the edit screen never flashes an
+    // empty field before the async location work finishes.
+    _nameCtrl.text = widget.initialName ?? '';
     _initToCurrentLocation();
   }
 
@@ -299,6 +360,15 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
   }
 
   Future<void> _initToCurrentLocation() async {
+    // Edit mode: the saved coordinates are the starting point — no GPS lookup
+    // at all, which also means the picker works fully offline and never yanks
+    // the pin away from the place being edited.
+    final seed = widget.initialLocation;
+    if (seed != null) {
+      _finishInit(seed);
+      return;
+    }
+
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -334,7 +404,17 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
       _ready = true;
     });
     if (location != null) _mapController.move(location, 16);
-    _reverseGeocode(centre);
+    // The stored address is already correct for the stored pin — re-geocoding
+    // here would replace a known-good label with whatever the geocoder says
+    // today, and the rider might only be here to fix a typo in the name.
+    if (widget.initialAddress != null && widget.initialAddress!.isNotEmpty) {
+      setState(() {
+        _address = widget.initialAddress!;
+        _resolvedCentre = centre;
+      });
+    } else {
+      _reverseGeocode(centre);
+    }
   }
 
   Future<void> _reverseGeocode(LatLng point) async {
@@ -367,10 +447,15 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
     final surface = go.surface;
     final accent = go.isDark ? go.action : AppTokens.primary;
 
+    final isEditing = widget.initialLocation != null;
+
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('اختر الموقع', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        title: Text(
+          isEditing ? 'تعديل المكان' : 'اختر الموقع',
+          style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700),
+        ),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -515,7 +600,10 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                           disabledForegroundColor: go.muted,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusPill)),
                         ),
-                        child: Text('حفظ المكان', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700, fontSize: 15)),
+                        child: Text(
+                          isEditing ? 'حفظ التعديلات' : 'حفظ المكان',
+                          style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700, fontSize: 15),
+                        ),
                       ),
                     ),
                   ],

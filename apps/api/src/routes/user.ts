@@ -21,6 +21,16 @@ const savedPlaceSchema = z.object({
   address: z.string().max(255).optional(),
 });
 
+// Partial update for an existing place — the edit screen lets the rider
+// change the name, the pin, or both in one save, so every field is optional
+// and COALESCE keeps whatever was not sent.
+const savedPlaceUpdateSchema = z.object({
+  label: z.string().min(1).max(50).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  address: z.string().max(255).optional(),
+});
+
 userRoutes.get("/profile", async (c) => {
   const user = c.get("user");
   const dbUser = await c.env.DB.prepare(
@@ -83,6 +93,49 @@ userRoutes.post("/saved-places", async (c) => {
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(placeId, user.id, body.label, body.lat, body.lng, body.address ?? null, nowIso())
+    .run();
+
+  const row = await c.env.DB.prepare(`SELECT * FROM saved_places WHERE id = ?`)
+    .bind(placeId)
+    .first();
+
+  return c.json({ place: row });
+});
+
+userRoutes.patch("/saved-places/:id", async (c) => {
+  const user = c.get("user");
+  const placeId = c.req.param("id");
+  const body = await parseBody(c, savedPlaceUpdateSchema);
+  if (isResponse(body)) return body;
+
+  // Ownership check first: without it the UPDATE below silently succeeds with
+  // zero rows affected when the id belongs to someone else, which reads as
+  // success to the client while changing nothing.
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM saved_places WHERE id = ? AND user_id = ?`
+  )
+    .bind(placeId, user.id)
+    .first();
+  if (!existing) {
+    return c.json({ error: "Place not found", code: "NOT_FOUND" }, 404);
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE saved_places SET
+       label = COALESCE(?, label),
+       lat = COALESCE(?, lat),
+       lng = COALESCE(?, lng),
+       address = COALESCE(?, address)
+     WHERE id = ? AND user_id = ?`
+  )
+    .bind(
+      body.label ?? null,
+      body.lat ?? null,
+      body.lng ?? null,
+      body.address ?? null,
+      placeId,
+      user.id,
+    )
     .run();
 
   const row = await c.env.DB.prepare(`SELECT * FROM saved_places WHERE id = ?`)
