@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 
@@ -75,7 +74,7 @@ class _PromoScreenState extends State<PromoScreen> {
     final surface = isDark ? AppTokens.darkSurface : AppTokens.lightSurface;
 
     return Scaffold(
-      appBar: AppBar(title: Text('أكواد الخصم', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700))),
+      appBar: AppBar(title: Text('أكواد الخصم', style: AppTokens.font(fontWeight: FontWeight.w700))),
       body: Column(
         children: [
           // Enter code
@@ -87,12 +86,12 @@ class _PromoScreenState extends State<PromoScreen> {
                   controller: _codeController,
                   decoration: InputDecoration(
                     hintText: 'أدخل كود الخصم',
-                    hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
+                    hintStyle: AppTokens.font(color: muted, fontSize: 14),
                     filled: true, fillColor: surface,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
                     prefixIcon: const Icon(Icons.local_offer, color: AppTokens.primary, size: 20),
                   ),
-                  style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 14),
+                  style: AppTokens.font(color: text, fontSize: 14),
                 ),
               ),
               const SizedBox(width: 8),
@@ -140,14 +139,14 @@ class _PromoScreenState extends State<PromoScreen> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(code, style: GoogleFonts.ibmPlexSansArabic(fontSize: 15, fontWeight: FontWeight.w800, color: text)),
+                                Text(code, style: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w800, color: text)),
                                 const SizedBox(height: 2),
                                 Text(
                                   type == 'percent' ? 'خصم ${value.toInt()}%' : 'خصم ${value.toInt()} ج.م',
-                                  style: GoogleFonts.ibmPlexSansArabic(fontSize: 13, color: AppTokens.primary, fontWeight: FontWeight.w600),
+                                  style: AppTokens.font(fontSize: 13, color: AppTokens.primary, fontWeight: FontWeight.w600),
                                 ),
                                 if (expires.isNotEmpty)
-                                  Text('ينتهي $expires', style: GoogleFonts.ibmPlexSansArabic(fontSize: 11, color: muted)),
+                                  Text('ينتهي $expires', style: AppTokens.font(fontSize: 11, color: muted)),
                               ])),
                             ]),
                           );

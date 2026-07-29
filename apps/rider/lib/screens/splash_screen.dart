@@ -73,16 +73,22 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lightTheme = AppTheme.light();
-    final go = GoTheme.forBrightness(Brightness.light);
+    // Follow the rider's chosen theme instead of forcing light. Previously the
+    // splash pinned AppTheme.light() unconditionally, so a dark-mode rider saw
+    // a white flash on every cold start before their theme could paint.
+    final brightness = Theme.of(context).brightness;
+    final themed = brightness == Brightness.dark ? AppTheme.dark() : AppTheme.light();
+    final go = GoTheme.forBrightness(brightness);
 
     return Theme(
-      data: lightTheme,
+      data: themed,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: const SystemUiOverlayStyle(
+        value: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
+          statusBarIconBrightness:
+              go.isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness:
+              go.isDark ? Brightness.dark : Brightness.light,
         ),
         child: _buildSplash(go),
       ),

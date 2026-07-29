@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../services/app_state.dart';
@@ -91,7 +90,7 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('الأماكن المحفوظة', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text('الأماكن المحفوظة', style: AppTokens.font()),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -134,8 +133,8 @@ class _SavedPlacesScreenState extends State<SavedPlacesScreen> {
                             color: AppTokens.primary, size: 20,
                           ),
                         ),
-                        title: Text(place['label'] ?? 'مكان', style: GoogleFonts.ibmPlexSansArabic(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
-                        subtitle: Text(place['address'] ?? '', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        title: Text(place['label'] ?? 'مكان', style: AppTokens.font(color: text, fontWeight: FontWeight.w700, fontSize: 15)),
+                        subtitle: Text(place['address'] ?? '', style: AppTokens.font(color: muted, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_outline, color: AppTokens.danger, size: 20),
                           onPressed: () => _deletePlace(place['id']),
@@ -273,7 +272,7 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('اختر الموقع', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700)),
+        title: Text('اختر الموقع', style: AppTokens.font(fontWeight: FontWeight.w700)),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -366,12 +365,12 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                       controller: _nameCtrl,
                       decoration: InputDecoration(
                         hintText: 'اسم المكان (المنزل، العمل...)',
-                        hintStyle: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 14),
+                        hintStyle: AppTokens.font(color: muted, fontSize: 14),
                         filled: true, fillColor: surface,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppTokens.radiusMd), borderSide: BorderSide.none),
                         prefixIcon: const Icon(Icons.label_outline, color: AppTokens.primary, size: 20),
                       ),
-                      style: GoogleFonts.ibmPlexSansArabic(color: text, fontSize: 15),
+                      style: AppTokens.font(color: text, fontSize: 15),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -384,7 +383,7 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                         Expanded(
                           child: Text(
                             _address.isEmpty ? 'حرّك الخريطة لتحديد الموقع' : _address,
-                            style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 13),
+                            style: AppTokens.font(color: muted, fontSize: 13),
                             maxLines: 2, overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -418,7 +417,7 @@ class _PickLocationScreenState extends State<_PickLocationScreen> {
                           disabledForegroundColor: go.muted,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusPill)),
                         ),
-                        child: Text('حفظ المكان', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w700, fontSize: 15)),
+                        child: Text('حفظ المكان', style: AppTokens.font(fontWeight: FontWeight.w700, fontSize: 15)),
                       ),
                     ),
                   ],

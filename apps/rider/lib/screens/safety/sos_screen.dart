@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:geolocator/geolocator.dart';
@@ -30,8 +29,8 @@ class _SosScreenState extends State<SosScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTokens.lightPanel,
-        title: Text('تحذير', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.danger)),
-        content: Text('هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك للسلطات وإدارة التطبيق.', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightText)),
+        title: Text('تحذير', style: AppTokens.font(color: AppTokens.danger)),
+        content: Text('هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك للسلطات وإدارة التطبيق.', style: AppTokens.font(color: AppTokens.lightText)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
           ElevatedButton(
@@ -113,7 +112,7 @@ class _SosScreenState extends State<SosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('الطوارئ والسلامة', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text('الطوارئ والسلامة', style: AppTokens.font()),
         backgroundColor: AppTokens.lightPanel,
       ),
       body: Padding(
@@ -136,21 +135,21 @@ class _SosScreenState extends State<SosScreen> {
                 child: Center(
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : Text('SOS', style: GoogleFonts.ibmPlexSansArabic(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white)),
+                      : Text('SOS', style: AppTokens.font(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
             ),
             const SizedBox(height: 48),
             Text(
               'اضغط على الزر أعلاه في حالة الطوارئ القصوى فقط',
-              style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.lightMuted, fontSize: 16),
+              style: AppTokens.font(color: AppTokens.lightMuted, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: _shareTrip,
               icon: const Icon(Icons.share, color: Colors.white),
-              label: Text('مشاركة تفاصيل الرحلة', style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontSize: 16)),
+              label: Text('مشاركة تفاصيل الرحلة', style: AppTokens.font(color: Colors.white, fontSize: 16)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTokens.primary,
                 padding: const EdgeInsets.symmetric(vertical: 16),

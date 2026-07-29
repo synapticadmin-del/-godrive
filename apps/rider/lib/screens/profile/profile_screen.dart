@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 import '../history/history_screen.dart';
@@ -55,7 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 16),
                 Text(
                   isAr ? 'تعديل البيانات الشخصية' : 'Edit Profile Information',
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -126,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: Text(
                     isAr ? 'حفظ التعديلات' : 'Save Changes',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -166,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 isAr ? 'تغيير الصورة الشخصية' : 'Change Profile Picture',
-                style: GoogleFonts.ibmPlexSansArabic(fontSize: 18, fontWeight: FontWeight.bold),
+                style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
               Row(
@@ -195,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: const Icon(Icons.photo_camera_outlined),
                 label: Text(
                   isAr ? 'اختيار صورة جديدة' : 'Choose New Photo',
-                  style: GoogleFonts.ibmPlexSansArabic(),
+                  style: AppTokens.font(),
                 ),
               ),
             ],
@@ -236,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isAr ? 'الملف الشخصي' : 'Profile', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text(isAr ? 'الملف الشخصي' : 'Profile', style: AppTokens.font()),
         actions: [
           IconButton(
             icon: Icon(
@@ -293,14 +292,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 16),
           Text(
             displayName,
-            style: GoogleFonts.ibmPlexSansArabic(fontSize: 22, fontWeight: FontWeight.bold),
+            style: AppTokens.font(fontSize: 22, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           if (email.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               email,
-              style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
+              style: AppTokens.font(fontSize: 14, color: AppTokens.lightMuted),
               textAlign: TextAlign.center,
             ),
           ],
@@ -309,7 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 phone,
-                style: GoogleFonts.ibmPlexSansArabic(fontSize: 14, color: AppTokens.lightMuted),
+                style: AppTokens.font(fontSize: 14, color: AppTokens.lightMuted),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -320,7 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: const Icon(Icons.edit_outlined, size: 18),
               label: Text(
                 isAr ? 'تعديل البيانات' : 'Edit Details',
-                style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w600),
+                style: AppTokens.font(fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -352,12 +351,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Text(
                       isAr ? 'الرصيد المتاح' : 'Available Balance',
-                      style: GoogleFonts.ibmPlexSansArabic(color: Colors.white70, fontSize: 14),
+                      style: AppTokens.font(color: Colors.white70, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${balance.toStringAsFixed(2)} ${isAr ? "ج.م" : "EGP"}',
-                      style: GoogleFonts.ibmPlexSansArabic(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      style: AppTokens.font(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -366,7 +365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const WalletScreen()));
                   },
                   icon: const Icon(Icons.add, size: 18, color: AppTokens.primary),
-                  label: Text(isAr ? 'المحفظة' : 'Wallet', style: GoogleFonts.ibmPlexSansArabic(color: AppTokens.primary, fontWeight: FontWeight.bold)),
+                  label: Text(isAr ? 'المحفظة' : 'Wallet', style: AppTokens.font(color: AppTokens.primary, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
                 ),
               ],
@@ -396,7 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: ListTile(
         leading: Icon(icon, color: AppTokens.primary),
-        title: Text(title, style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.w500)),
+        title: Text(title, style: AppTokens.font(fontWeight: FontWeight.w500)),
         trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppTokens.lightMuted),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
       ),

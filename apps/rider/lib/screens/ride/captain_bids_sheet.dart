@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_shared/flutter_shared.dart';
 
@@ -223,7 +222,7 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
             const SizedBox(height: 12),
             Text(
               _error!,
-              style: GoogleFonts.ibmPlexSansArabic(
+              style: AppTokens.font(
                 fontSize: 14,
                 color: go.muted,
               ),
@@ -233,7 +232,7 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
               onPressed: _fetchBids,
               child: Text(
                 'إعادة المحاولة',
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -284,7 +283,7 @@ class _Header extends StatelessWidget {
             children: [
               Text(
                 'اختيار سائق',
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontSize: 21,
                   fontWeight: FontWeight.w800,
                   color: go.text,
@@ -301,7 +300,7 @@ class _Header extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     'تم التحقق من جميع السائقين',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 12.5,
                       color: go.muted,
                     ),
@@ -325,7 +324,7 @@ class _Header extends StatelessWidget {
             ),
             label: Text(
               'إلغاء الطلب',
-              style: GoogleFonts.ibmPlexSansArabic(
+              style: AppTokens.font(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -382,7 +381,7 @@ class _BidCard extends StatelessWidget {
             children: [
               Text(
                 '${price.round()} ج.م',
-                style: GoogleFonts.ibmPlexSansArabic(
+                style: AppTokens.font(
                   fontSize: 27,
                   fontWeight: FontWeight.w900,
                   color: go.text,
@@ -393,7 +392,7 @@ class _BidCard extends StatelessWidget {
               if (bid['eta_min'] != null)
                 Text(
                   '${bid['eta_min']} دقيقة',
-                  style: GoogleFonts.ibmPlexSansArabic(
+                  style: AppTokens.font(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: go.muted,
@@ -422,7 +421,7 @@ class _BidCard extends StatelessWidget {
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.ibmPlexSansArabic(
+                            style: AppTokens.font(
                               fontSize: 14.5,
                               fontWeight: FontWeight.w700,
                               color: go.text,
@@ -435,7 +434,7 @@ class _BidCard extends StatelessWidget {
                         const SizedBox(width: 2),
                         Text(
                           rating.toStringAsFixed(2),
-                          style: GoogleFonts.ibmPlexSansArabic(
+                          style: AppTokens.font(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
                             color: go.text,
@@ -445,7 +444,7 @@ class _BidCard extends StatelessWidget {
                           const SizedBox(width: 5),
                           Text(
                             '$ratingCount رحلة',
-                            style: GoogleFonts.ibmPlexSansArabic(
+                            style: AppTokens.font(
                               fontSize: 12,
                               color: go.muted,
                             ),
@@ -459,7 +458,7 @@ class _BidCard extends StatelessWidget {
                         vehicle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.ibmPlexSansArabic(
+                        style: AppTokens.font(
                           fontSize: 12.5,
                           color: go.muted,
                         ),
@@ -499,7 +498,7 @@ class _BidCard extends StatelessWidget {
                         )
                       : Text(
                           'قبول',
-                          style: GoogleFonts.ibmPlexSansArabic(
+                          style: AppTokens.font(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                           ),
@@ -520,7 +519,7 @@ class _BidCard extends StatelessWidget {
                   ),
                   child: Text(
                     'رفض',
-                    style: GoogleFonts.ibmPlexSansArabic(
+                    style: AppTokens.font(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -559,7 +558,7 @@ class _SearchingState extends StatelessWidget {
           const SizedBox(height: 18),
           Text(
             'جارٍ البحث عن كباتن قريبين',
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               color: go.text,
@@ -568,7 +567,7 @@ class _SearchingState extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'هتوصلك عروض الأسعار هنا أول ما يردّوا',
-            style: GoogleFonts.ibmPlexSansArabic(
+            style: AppTokens.font(
               fontSize: 13,
               color: go.muted,
             ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import '../../services/app_state.dart';
 import 'topup_screen.dart';
@@ -46,7 +45,7 @@ class _WalletScreenState extends State<WalletScreen> {
     return Scaffold(
       backgroundColor: go.bg,
       appBar: AppBar(
-        title: Text('المحفظة', style: GoogleFonts.ibmPlexSansArabic()),
+        title: Text('المحفظة', style: AppTokens.font()),
         backgroundColor: panel,
         surfaceTintColor: Colors.transparent,
       ),
@@ -69,11 +68,11 @@ class _WalletScreenState extends State<WalletScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('الرصيد المتاح', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 16)),
+                      Text('الرصيد المتاح', style: AppTokens.font(color: muted, fontSize: 16)),
                       const SizedBox(height: 8),
                       Text(
                         '${balance.toStringAsFixed(2)} ج.م',
-                        style: GoogleFonts.ibmPlexSansArabic(
+                        style: AppTokens.font(
                           color: isDark ? AppTokens.lime : AppTokens.primary,
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
@@ -89,7 +88,7 @@ class _WalletScreenState extends State<WalletScreen> {
                           foregroundColor: isDark ? AppTokens.onLime : Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppTokens.radiusSm)),
                         ),
-                        child: Text('شحن المحفظة', style: GoogleFonts.ibmPlexSansArabic(fontWeight: FontWeight.bold)),
+                        child: Text('شحن المحفظة', style: AppTokens.font(fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -114,11 +113,11 @@ class _WalletScreenState extends State<WalletScreen> {
                             backgroundColor: isCredit ? AppTokens.success.withOpacity(0.2) : AppTokens.danger.withOpacity(0.2),
                             child: Icon(isCredit ? Icons.arrow_downward : Icons.arrow_upward, color: isCredit ? AppTokens.success : AppTokens.danger),
                           ),
-                          title: Text(tx['description'] ?? 'عملية', style: GoogleFonts.ibmPlexSansArabic(color: text)),
-                          subtitle: Text(tx['createdAt'] ?? '', style: GoogleFonts.ibmPlexSansArabic(color: muted, fontSize: 12)),
+                          title: Text(tx['description'] ?? 'عملية', style: AppTokens.font(color: text)),
+                          subtitle: Text(tx['createdAt'] ?? '', style: AppTokens.font(color: muted, fontSize: 12)),
                           trailing: Text(
                             '${isCredit ? '+' : '-'}${tx['amount']} ج.م',
-                            style: GoogleFonts.ibmPlexSansArabic(
+                            style: AppTokens.font(
                               color: isCredit ? AppTokens.success : text,
                               fontWeight: FontWeight.bold,
                             ),

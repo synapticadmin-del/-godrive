@@ -26,17 +26,21 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // ── Palette — pinned to the night scale so the screen cannot be
-  // repainted by the ambient theme. Uses the rider's green as the action
-  // colour (instead of the captain's lime).
-  static const _bg = AppTokens.nightBg;
-  static const _panel = AppTokens.nightPanel;
-  static const _fieldFill = AppTokens.nightSurface;
-  static const _border = AppTokens.nightBorder;
-  static const _text = AppTokens.nightText;
-  static const _muted = AppTokens.nightMuted;
-  static const _action = AppTokens.primary; // rider green
-  static const _onAction = Colors.white;
+  // ── Palette — resolved per-build from the active theme. The previous
+  // revision pinned the night scale as `static const`, so a light-mode rider
+  // still got the dark stage (and the status-bar icons stayed light-on-dark
+  // even when the app was in light mode). Resolving from GoTheme keeps the
+  // inDrive dark look in dark mode while giving light mode its own canvas.
+  bool get _isDark => GoTheme.of(context).isDark;
+
+  Color get _bg => _isDark ? AppTokens.nightBg : AppTokens.lightBg;
+  Color get _panel => _isDark ? AppTokens.nightPanel : AppTokens.lightPanel;
+  Color get _fieldFill => _isDark ? AppTokens.nightSurface : AppTokens.inputFill;
+  Color get _border => _isDark ? AppTokens.nightBorder : AppTokens.lightBorder;
+  Color get _text => _isDark ? AppTokens.nightText : AppTokens.lightText;
+  Color get _muted => _isDark ? AppTokens.nightMuted : AppTokens.lightMuted;
+  Color get _action => AppTokens.primary; // rider green
+  Color get _onAction => Colors.white;
 
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
@@ -105,14 +109,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Light icons: this screen is a dark canvas, unconditionally.
+    // Status-bar icons follow the active canvas: light icons on the dark
+    // stage, dark icons on the light canvas.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness:
+            _isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: _isDark ? Brightness.dark : Brightness.light,
         systemNavigationBarColor: _panel,
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarIconBrightness:
+            _isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: _bg,
@@ -210,9 +217,9 @@ class _LoginScreenState extends State<LoginScreen> {
         AppTokens.spaceLg,
         AppTokens.spaceLg + MediaQuery.of(context).padding.bottom,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _panel,
-        borderRadius: BorderRadius.vertical(
+        borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppTokens.radiusXl),
         ),
       ),
@@ -360,7 +367,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 value: _acceptedTerms,
                 activeColor: _action,
                 checkColor: _onAction,
-                side: const BorderSide(color: _border, width: 1.6),
+                side: BorderSide(color: _border, width: 1.6),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
@@ -384,7 +391,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final strings = AppStrings.of(context);
     return Row(
       children: [
-        const Expanded(child: Divider(color: _border, thickness: 1)),
+        Expanded(child: Divider(color: _border, thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
           child: Text(
@@ -392,7 +399,7 @@ class _LoginScreenState extends State<LoginScreen> {
             style: AppTokens.font(fontSize: 12, color: _muted),
           ),
         ),
-        const Expanded(child: Divider(color: _border, thickness: 1)),
+        Expanded(child: Divider(color: _border, thickness: 1)),
       ],
     );
   }
@@ -633,7 +640,7 @@ class _HeroSlide extends StatelessWidget {
             style: AppTokens.font(
               fontSize: 25,
               fontWeight: FontWeight.w900,
-              color: AppTokens.nightText,
+              color: GoTheme.of(context).text,
               height: 1.25,
             ),
           ),
@@ -643,7 +650,7 @@ class _HeroSlide extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppTokens.font(
               fontSize: 14,
-              color: AppTokens.nightMuted,
+              color: GoTheme.of(context).muted,
               height: 1.6,
             ),
           ),
@@ -673,7 +680,7 @@ class _DotIndicator extends StatelessWidget {
           width: isActive ? 22 : 8,
           height: 8,
           decoration: BoxDecoration(
-            color: isActive ? AppTokens.primary : AppTokens.nightBorder,
+            color: isActive ? AppTokens.primary : GoTheme.of(context).border,
             borderRadius: BorderRadius.circular(AppTokens.radiusPill),
           ),
         );
@@ -696,9 +703,9 @@ class _ModeSwitch extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppTokens.nightBg,
+        color: GoTheme.of(context).bg,
         borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-        border: Border.all(color: AppTokens.nightBorder),
+        border: Border.all(color: GoTheme.of(context).border),
       ),
       child: Row(
         children: [
@@ -728,7 +735,7 @@ class _ModeSwitch extends StatelessWidget {
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-              color: active ? Colors.white : AppTokens.nightMuted,
+              color: active ? Colors.white : GoTheme.of(context).muted,
             ),
           ),
         ),
@@ -752,9 +759,9 @@ class _LanguageChip extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceSm),
         decoration: BoxDecoration(
-          color: AppTokens.nightPanel,
+          color: GoTheme.of(context).panel,
           borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-          border: Border.all(color: AppTokens.nightBorder),
+          border: Border.all(color: GoTheme.of(context).border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -766,7 +773,7 @@ class _LanguageChip extends StatelessWidget {
               style: AppTokens.font(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppTokens.nightText,
+                color: GoTheme.of(context).text,
               ),
             ),
           ],
@@ -792,19 +799,19 @@ class _SocialTile extends StatelessWidget {
     return Expanded(
       child: OutlinedButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 24, color: AppTokens.nightText),
+        icon: Icon(icon, size: 24, color: GoTheme.of(context).text),
         label: Text(
           label,
           style: AppTokens.font(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: AppTokens.nightText,
+            color: GoTheme.of(context).text,
           ),
         ),
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(AppTokens.tapTarget),
-          backgroundColor: AppTokens.nightSurface,
-          side: const BorderSide(color: AppTokens.nightBorder, width: 1.2),
+          backgroundColor: GoTheme.of(context).surface,
+          side: BorderSide(color: GoTheme.of(context).border, width: 1.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           ),
