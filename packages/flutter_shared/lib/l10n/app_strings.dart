@@ -70,6 +70,9 @@ abstract class AppStrings {
   /// Generic cancel action in dialogs and sheets.
   String get cancelAction;
 
+  /// Generic confirm action in dialogs and sheets.
+  String get confirm;
+
   /// Localised label for a trip status key coming from the API
   /// (searching / offered / assigned / arrived / in_progress / completed /
   /// cancelled). Centralised so every screen that renders a trip status —
@@ -2893,6 +2896,9 @@ class AppStringsAr extends AppStrings {
   /// Studio name on the splash attribution badge.
   @override
   String get synapticStudioLabel => 'Synaptic Studio';
+
+  @override
+  String get confirm => 'تأكيد';
 }
 
 /// English copy.
@@ -4423,10 +4429,7 @@ class AppStringsEn extends AppStrings {
   /// Studio name on the splash attribution badge.
   @override
   String get synapticStudioLabel => 'Synaptic Studio';
-}
-attribution badge.
+
   @override
-  String get synapticStudioLabel => 'Synaptic Studio';
-}
-StudioLabel => 'Synaptic Studio';
+  String get confirm => 'Confirm';
 }
