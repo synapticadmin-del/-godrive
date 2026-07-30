@@ -1020,12 +1020,20 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                     style: AppTokens.font(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: AppTokens.onLime,
+                      color: valid ? AppTokens.onLime : AppTokens.nightMuted,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: valid ? AppTokens.lime : AppTokens.nightSurface,
-                    foregroundColor: AppTokens.onLime,
+                    // While the step is incomplete this button used to paint
+                    // nightSurface-on-nightBg with an onLime (#101010) label —
+                    // a dark pill on a dark page, which captains read as
+                    // "there is no button at all". It now renders a legible
+                    // muted state instead: still visibly a button, visibly
+                    // not the active action, and still tappable so _next()
+                    // can surface the Arabic validation toast saying exactly
+                    // what is missing (profile photo, name fields, ...).
+                    backgroundColor: valid ? AppTokens.lime : AppTokens.nightElevated,
+                    foregroundColor: valid ? AppTokens.onLime : AppTokens.nightMuted,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
                     shape: RoundedRectangleBorder(
