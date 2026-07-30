@@ -1923,7 +1923,7 @@ class AppStringsAr extends AppStrings {
   @override
   String get docIdentityFieldsRequired => 'يرجى إكمال بيانات المستند المطلوبة';
 
-  @override
+  // Not an override: `AppStrings` declares `confirm`, never `confirmAction`.
   String get confirmAction => 'تأكيد';
 
   @override
@@ -3547,7 +3547,7 @@ class AppStringsEn extends AppStrings {
   @override
   String get docIdentityFieldsRequired => 'Please complete the required document details';
 
-  @override
+  // Not an override: `AppStrings` declares `confirm`, never `confirmAction`.
   String get confirmAction => 'Confirm';
 
   @override

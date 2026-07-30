@@ -325,7 +325,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 child: _busy
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
@@ -709,14 +709,14 @@ class _ModeSwitch extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _segment(strings.loginSignInAction, !isSignUp, () => onChanged(false)),
-          _segment(strings.loginSignUpAction, isSignUp, () => onChanged(true)),
+          _segment(context, strings.loginSignInAction, !isSignUp, () => onChanged(false)),
+          _segment(context, strings.loginSignUpAction, isSignUp, () => onChanged(true)),
         ],
       ),
     );
   }
 
-  Widget _segment(String label, bool active, VoidCallback onTap) {
+  Widget _segment(BuildContext context, String label, bool active, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,

@@ -579,6 +579,47 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  ImageProvider? get avatarImage {
+    final raw = user?['avatarUrl'];
+    if (raw is! String || raw.isEmpty) return null;
+    if (raw.startsWith('http')) return NetworkImage(raw);
+    return NetworkImage(
+      '$baseUrl$raw',
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
+    );
+  }
+
+  Future<void> uploadAvatar(String filePath) async {
+    final res = await _executeWithAuthInterceptor(() async {
+      final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/user/avatar'))
+        ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'})
+        ..files.add(await http.MultipartFile.fromPath('file', filePath));
+      final streamed = await req.send().timeout(const Duration(seconds: 45));
+      return http.Response.fromStream(streamed);
+    });
+
+    final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+    if (res.statusCode >= 400) {
+      throw Exception(
+        data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}',
+      );
+    }
+
+    final url = data is Map ? data['avatarUrl'] : null;
+    user = {...?user, 'avatarUrl': url is String && url.isNotEmpty ? url : null};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUserData, jsonEncode(user));
+    notifyListeners();
+  }
+
+  Future<void> removeAvatar() async {
+    await apiDelete('/user/avatar');
+    user = {...?user, 'avatarUrl': null};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUserData, jsonEncode(user));
+    notifyListeners();
+  }
+
   /// Wallet balance (from backend). Null until first fetch.
   double? walletBalance;
 

@@ -46,6 +46,15 @@ class AppTokens {
   // Semantic
   // ---------------------------------------------------------------------
   static const accent = Color(0xFFA56A07); // 4.50:1 on white
+  static const star = Color(0xFFF5B301);
+
+  static LinearGradient headerGradient(bool isDark) => LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: isDark
+            ? const [primaryDark, primaryDeep]
+            : const [primary, primaryDark],
+      );
   static const success = Color(0xFF178841); // 4.53:1 on white
   static const warning = Color(0xFF947105); // 4.54:1 on white
   static const danger = Color(0xFFD92D20); // 4.53:1 on white
@@ -245,6 +254,7 @@ class AppTokens {
   static TextStyle font({
     double? fontSize,
     FontWeight? fontWeight,
+    FontStyle? fontStyle,
     Color? color,
     double? height,
     double? letterSpacing,
@@ -254,6 +264,7 @@ class AppTokens {
       GoogleFonts.cairo(
         fontSize: fontSize,
         fontWeight: fontWeight,
+        fontStyle: fontStyle,
         color: color,
         height: height,
         letterSpacing: letterSpacing,

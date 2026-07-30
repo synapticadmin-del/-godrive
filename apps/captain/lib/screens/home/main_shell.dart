@@ -9,7 +9,6 @@ import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
-import 'package:synaptic_go_captain/screens/documents/document_upload_screen.dart';
 import 'package:synaptic_go_captain/screens/onboarding/onboarding_screen.dart';
 import 'package:synaptic_go_captain/screens/earnings/earnings_screen.dart';
 import 'package:synaptic_go_captain/screens/profile/settings_screen.dart';
