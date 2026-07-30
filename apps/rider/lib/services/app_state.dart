@@ -218,16 +218,39 @@ class AppState extends ChangeNotifier {
     await prefs.remove(_kUserData);
   }
 
+  /// Reconciles a raw user object from the API with the client-only
+  /// `avatarUrl` key the UI actually reads.
+  ///
+  /// The server stores and returns the photo as snake_case `avatar_url` (the
+  /// raw D1 column — see `GET /auth/me`, `GET /user/profile` and
+  /// `PATCH /user/profile`). Before this helper existed, nothing ever copied
+  /// that column into the camelCase `avatarUrl` key `avatarImage` reads: only
+  /// `uploadAvatar()` set `avatarUrl` (from `POST /user/avatar`'s response,
+  /// which *is* camelCase), and `fetchProfile()` merely preserved whatever
+  /// local `avatarUrl` already happened to be cached. That made the photo
+  /// disappear back to the initial-letter placeholder on a fresh login, a
+  /// reinstall, a second device — anywhere the local cache did not already
+  /// carry it — even though the server still had it saved. It also meant
+  /// editing the name/phone (which replaces `user` wholesale from
+  /// `PATCH /user/profile`) silently dropped a photo that had just been
+  /// uploaded in the same session.
+  ///
+  /// The server is authoritative, so this always derives `avatarUrl` from the
+  /// fresh `avatar_url` column rather than trusting a stale local value.
+  static Map<String, dynamic> _withAvatarKey(Map<String, dynamic> serverUser) {
+    final serverAvatar = serverUser['avatar_url'];
+    return {
+      ...serverUser,
+      'avatarUrl': serverAvatar is String && serverAvatar.isNotEmpty ? serverAvatar : null,
+    };
+  }
+
   Future<Map<String, dynamic>?> fetchProfile() async {
     if (token == null) return null;
     try {
       final res = await _get('/auth/me');
       if (res['user'] != null) {
-        final localAvatar = user?['avatarUrl'];
-        user = {
-          ...Map<String, dynamic>.from(res['user'] as Map),
-          if (localAvatar is String && localAvatar.isNotEmpty) 'avatarUrl': localAvatar,
-        };
+        user = _withAvatarKey(Map<String, dynamic>.from(res['user'] as Map));
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_kUserData, jsonEncode(user));
         notifyListeners();
@@ -566,7 +589,7 @@ class AppState extends ChangeNotifier {
       final res = await _patch('/user/profile', payload);
       final serverUser = res['user'];
       if (serverUser is Map) {
-        updatedUser = Map<String, dynamic>.from(serverUser);
+        updatedUser = _withAvatarKey(Map<String, dynamic>.from(serverUser));
       }
     }
 

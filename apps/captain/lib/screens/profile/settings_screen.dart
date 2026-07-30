@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
@@ -18,8 +19,212 @@ import '../safety/sos_screen.dart';
 ///
 /// All copy is read from [AppStrings] (resolved from the ambient locale) so
 /// this file carries no inline Arabic literals — see `app_strings.dart`.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  /// True while an avatar upload/removal round-trip is in flight — disables
+  /// the avatar tap target and shows a spinner over it so a captain cannot
+  /// fire a second upload before the first one lands.
+  bool _busyAvatar = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Best-effort refresh so the photo (and rating/trip stats above it)
+    // reflect the server the moment this tab is opened, rather than whatever
+    // was cached at the last login or offers-poll tick. Failures are silent —
+    // an offline captain still sees their last-known profile.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CaptainState>().refreshMe().catchError((_) {});
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Profile photo
+  // ---------------------------------------------------------------------
+  //
+  // Mirrors the rider app's upload flow (same POST/DELETE /user/avatar
+  // endpoints — see CaptainState's "Profile photo" section) but keeps the
+  // captain app's own bottom-sheet look: rounded icon containers on each row,
+  // matching the image-source sheet already used in the onboarding wizard,
+  // rather than the rider app's plain icon-row sheet.
+
+  Future<void> _pickAvatar(ImageSource source) async {
+    final strings = AppStrings.of(context);
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        // Downscaled client-side before it ever leaves the device: a phone
+        // camera frame would otherwise trip the endpoint's 5MB ceiling and
+        // spend the captain's data on detail that is thrown away rendering
+        // it at 64dp.
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked == null || !mounted) return;
+
+      setState(() => _busyAvatar = true);
+      await context.read<CaptainState>().uploadAvatar(picked.path);
+      if (!mounted) return;
+      _toast(strings.profilePhotoUpdatedMessage);
+    } catch (e) {
+      if (!mounted) return;
+      _toast(
+        strings.docErrorPrefix(e.toString().replaceAll('Exception:', '').trim()),
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busyAvatar = false);
+    }
+  }
+
+  Future<void> _removeAvatar() async {
+    final strings = AppStrings.of(context);
+    try {
+      setState(() => _busyAvatar = true);
+      await context.read<CaptainState>().removeAvatar();
+      if (!mounted) return;
+      _toast(strings.profilePhotoRemovedMessage);
+    } catch (e) {
+      if (!mounted) return;
+      _toast(
+        strings.docErrorPrefix(e.toString().replaceAll('Exception:', '').trim()),
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busyAvatar = false);
+    }
+  }
+
+  void _toast(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: AppTokens.font(color: Colors.white, fontSize: 14)),
+        backgroundColor: error ? AppTokens.danger : AppTokens.success,
+      ),
+    );
+  }
+
+  void _showAvatarSheet() {
+    final strings = AppStrings.of(context);
+    final hasPhoto = context.read<CaptainState>().avatarImage != null;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        final go = GoTheme.of(sheetCtx);
+        return Container(
+          decoration: BoxDecoration(
+            color: go.panel,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppTokens.radiusXl),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: AppTokens.spaceSm),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: go.border,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTokens.spaceLg,
+                    AppTokens.spaceXs,
+                    AppTokens.spaceLg,
+                    AppTokens.spaceSm,
+                  ),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      strings.changeProfilePictureTitle,
+                      style: AppTokens.font(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: go.text,
+                      ),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  leading: Container(
+                    width: AppTokens.tapTarget,
+                    height: AppTokens.tapTarget,
+                    decoration: BoxDecoration(
+                      color: AppTokens.primarySoft,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                    child: const Icon(Icons.camera_alt_rounded, color: AppTokens.primary),
+                  ),
+                  title: Text(
+                    strings.sourceCamera,
+                    style: AppTokens.font(fontWeight: FontWeight.w600, color: go.text),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _pickAvatar(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    width: AppTokens.tapTarget,
+                    height: AppTokens.tapTarget,
+                    decoration: BoxDecoration(
+                      color: AppTokens.accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                    child: const Icon(Icons.photo_library_rounded, color: AppTokens.accent),
+                  ),
+                  title: Text(
+                    strings.sourceGallery,
+                    style: AppTokens.font(fontWeight: FontWeight.w600, color: go.text),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _pickAvatar(ImageSource.gallery);
+                  },
+                ),
+                if (hasPhoto)
+                  ListTile(
+                    leading: Container(
+                      width: AppTokens.tapTarget,
+                      height: AppTokens.tapTarget,
+                      decoration: BoxDecoration(
+                        color: AppTokens.danger.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: AppTokens.danger),
+                    ),
+                    title: Text(
+                      strings.removeProfilePictureAction,
+                      style: AppTokens.font(fontWeight: FontWeight.w600, color: AppTokens.danger),
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      _removeAvatar();
+                    },
+                  ),
+                const SizedBox(height: AppTokens.spaceMd),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,19 +264,16 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
             child: Row(
               children: [
-                // Avatar — brand-tinted initial, large enough to feel personal
-                // without requiring a photo-upload flow for new captains.
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: AppTokens.primarySoft,
-                  child: Text(
-                    initial,
-                    style: AppTokens.font(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: AppTokens.primary,
-                    ),
-                  ),
+                // Tappable avatar: shows the uploaded photo when there is
+                // one, otherwise the brand-tinted initial. The camera badge
+                // and bottom sheet are what let a captain set a photo at all
+                // — previously this was a fixed placeholder with no upload
+                // flow.
+                _CaptainAvatar(
+                  image: state.avatarImage,
+                  initial: initial,
+                  busy: _busyAvatar,
+                  onTap: _busyAvatar ? null : _showAvatarSheet,
                 ),
                 const SizedBox(width: AppTokens.spaceMd),
                 Expanded(
@@ -420,6 +622,83 @@ class SettingsScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-widgets — private helpers that keep the build method readable.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Tappable avatar in the profile header: the uploaded photo (or the
+/// brand-tinted initial when there is none), a small camera badge hinting
+/// that it is editable, and a busy spinner while an upload/removal is in
+/// flight. Mirrors the rider app's account-tab avatar treatment.
+class _CaptainAvatar extends StatelessWidget {
+  const _CaptainAvatar({
+    required this.image,
+    required this.initial,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final ImageProvider? image;
+  final String initial;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: AppTokens.primarySoft,
+            backgroundImage: image,
+            child: image == null
+                ? Text(
+                    initial,
+                    style: AppTokens.font(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: AppTokens.primary,
+                    ),
+                  )
+                : null,
+          ),
+          if (busy)
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.45),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                ),
+              ),
+            )
+          else
+            // Directional so the badge tucks toward the centre of the layout
+            // instead of hanging off the screen edge in either language.
+            PositionedDirectional(
+              bottom: 0,
+              end: 0,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(
+                  Icons.photo_camera_rounded,
+                  size: 12,
+                  color: AppTokens.primary,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 /// A single stat card: icon, numeric/text value, and a label underneath.
 class _StatCard extends StatelessWidget {
