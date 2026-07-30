@@ -752,6 +752,12 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
     final identityFields = await _collectIdentityFields(docType, title);
     if (identityFields == null || !mounted) return;
 
+    // Gather the identity metadata that travels with this document. A null
+    // result means the captain backed out of the details sheet — treat that
+    // like cancelling the whole upload, not like "upload without data".
+    final identityFields = await _collectIdentityFields(docType, title);
+    if (identityFields == null || !mounted) return;
+
     setState(() => _uploading.add(docType));
 
     final state = context.read<CaptainState>();
