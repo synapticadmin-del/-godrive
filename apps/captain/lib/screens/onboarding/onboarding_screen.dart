@@ -59,6 +59,10 @@ class _DocTypeDef {
 
 class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   static const int _totalSteps = 4;
+
+  /// Earliest accepted vehicle model year — same floor the birth-date picker
+  /// uses, so the two date-ish inputs on this screen agree.
+  static const int _minVehicleYear = 1950;
   int _step = 0; // 0..3
   bool _loading = true;
   bool _saving = false;
@@ -378,6 +382,20 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   // Step navigation
   // ------------------------------------------------------------------
 
+  /// Latest accepted model year: next calendar year, so a brand-new model year
+  /// is not rejected in December.
+  int get _maxVehicleYear => DateTime.now().year + 1;
+
+  /// The year field is optional, so blank passes. A filled one has to be a
+  /// plausible model year — `maxLength: 4` alone happily accepted 0001.
+  bool _vehicleYearValid() {
+    final raw = _vehicleYear.text.trim();
+    if (raw.isEmpty) return true;
+    final year = int.tryParse(raw);
+    if (year == null) return false;
+    return year >= _minVehicleYear && year <= _maxVehicleYear;
+  }
+
   bool _validForStep(int step) {
     switch (step) {
       case 0:
@@ -395,7 +413,8 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         return !_docMissing('vehicle_reg') &&
             _vehicleMake.text.trim().isNotEmpty &&
             _vehicleModel.text.trim().isNotEmpty &&
-            _vehiclePlate.text.trim().isNotEmpty;
+            _vehiclePlate.text.trim().isNotEmpty &&
+            _vehicleYearValid();
       default:
         return true;
     }
@@ -460,9 +479,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         }
         return 'اكتب رقم الهوية';
       default:
-        return _docMissing('vehicle_reg')
-            ? 'ارفع رخصة السيارة أولاً'
-            : 'أكمل بيانات السيارة (الماركة والطراز ورقم اللوحة)';
+        if (_docMissing('vehicle_reg')) return 'ارفع رخصة السيارة أولاً';
+        if (!_vehicleYearValid()) {
+          return 'أدخل سنة إنتاج صحيحة (من $_minVehicleYear إلى $_maxVehicleYear)';
+        }
+        return 'أكمل بيانات السيارة (الماركة والطراز ورقم اللوحة)';
     }
   }
 
@@ -501,14 +522,15 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           });
         }
       case 3:
+        final year = int.tryParse(_vehicleYear.text.trim());
         await state.apiPost('/captain/profile', {
           'vehicleMake': _vehicleMake.text.trim(),
           'vehicleModel': _vehicleModel.text.trim(),
           'vehicleColor': _vehicleColor.text.trim(),
           'vehiclePlate': _vehiclePlate.text.trim(),
           'licenseNumber': _vehiclePlate.text.trim(),
-          if (int.tryParse(_vehicleYear.text.trim()) != null)
-            'vehicleYear': int.parse(_vehicleYear.text.trim()),
+          // Range already enforced by _vehicleYearValid() via _validForStep(3).
+          if (year != null) 'vehicleYear': year,
         });
     }
   }
