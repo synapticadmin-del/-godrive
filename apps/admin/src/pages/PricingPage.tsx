@@ -19,6 +19,22 @@ interface PricingRule {
   category?: string;
 }
 
+/** A row of the vehicle_types table, from GET /admin/vehicle-types. */
+interface VehicleType {
+  id: string;
+  name: string;
+  multiplier: number;
+  active: number;
+}
+
+/** Arabic labels for the seeded vehicle categories; falls back to the row's
+ *  English `name` for any category an admin adds later. */
+const VEHICLE_NAMES_AR: Record<string, string> = {
+  economy: 'اقتصادي',
+  comfort: 'راحة',
+  xl: 'عائلي (XL)',
+};
+
 const CITY_NAMES_AR: Record<string, string> = {
   cairo: 'القاهرة الكبرى',
   alex: 'الإسكندرية والساحل',
@@ -33,7 +49,15 @@ export default function PricingPage() {
   const [pricing, setPricing] = useState<PricingRule[]>([]);
   const [selected, setSelected] = useState<PricingRule | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'economy' | 'standard' | 'comfort'>('standard');
+  // Vehicle categories come from the vehicle_types table rather than a hardcoded
+  // list. The previous hardcoded trio (economy/standard/comfort) did not match
+  // the database, where the rows are economy/comfort/xl.
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // Fare estimator inputs. These were fixed at 8 km / 12 min, so the estimate
+  // could only ever describe one hypothetical trip.
+  const [estimateDistanceKm, setEstimateDistanceKm] = useState(8);
+  const [estimateTimeMin, setEstimateTimeMin] = useState(12);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,8 +92,25 @@ export default function PricingPage() {
     }
   };
 
+  const loadVehicleTypes = async () => {
+    try {
+      const res = await api<{ vehicleTypes: VehicleType[] }>('/admin/vehicle-types', { token });
+      const types = res.vehicleTypes || [];
+      setVehicleTypes(types);
+      // Default to the 1.0-multiplier category when present so the estimate
+      // opens on the unmodified fare; otherwise fall back to the first row.
+      setSelectedCategory((prev) => prev ?? (types.find((t) => t.multiplier === 1)?.id ?? types[0]?.id ?? null));
+    } catch (err) {
+      // A missing category list should not block the pricing editor, which is
+      // the primary purpose of this page — the estimator just falls back to a
+      // 1.0 multiplier.
+      console.error('failed to load vehicle types', err);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadVehicleTypes();
   }, [token]);
 
   const onSave = async (e: FormEvent) => {
@@ -131,22 +172,50 @@ export default function PricingPage() {
     }
   };
 
-  // Live Sample Trip Fare Estimation (e.g. 8 km, 12 mins ride)
-  const estimateDistanceKm = 8;
-  const estimateTimeMin = 12;
+  // Fare estimate for the distance/duration the admin entered.
+  //
+  // This mirrors calculateFare() in packages/shared/src/index.ts, which is what
+  // the API actually charges. Two details the previous inline version got wrong:
+  // the vehicle multiplier applies to the base, distance and time components but
+  // NOT to the booking fee, and the result is rounded to 2 decimals before the
+  // min-fare clamp. Reproducing it by hand is a duplication we accept for now
+  // because the admin app does not yet depend on @synaptic-go/shared — switching
+  // to the shared function is tracked as part of the data-layer work.
+  const round2 = (n: number) => Math.round(n * 100) / 100;
 
-  const estimatedTotal = selected
-    ? Math.max(
-        selected.min_fare,
-        selected.base_fare +
-          selected.per_km * estimateDistanceKm +
-          selected.per_min * estimateTimeMin +
-          selected.booking_fee
-      )
-    : 0;
+  const activeMultiplier =
+    vehicleTypes.find((t) => t.id === selectedCategory)?.multiplier ?? 1;
 
-  const estimatedCommission = selected ? estimatedTotal * selected.commission_rate : 0;
-  const estimatedDriverEarnings = estimatedTotal - estimatedCommission;
+  const estimate = (() => {
+    if (!selected) {
+      return { total: 0, commission: 0, driverEarnings: 0, baseFare: 0, distanceFare: 0, timeFare: 0 };
+    }
+    const km = Number.isFinite(estimateDistanceKm) ? Math.max(0, estimateDistanceKm) : 0;
+    const min = Number.isFinite(estimateTimeMin) ? Math.max(0, estimateTimeMin) : 0;
+
+    const baseFare = selected.base_fare * activeMultiplier;
+    const distanceFare = km * selected.per_km * activeMultiplier;
+    const timeFare = min * selected.per_min * activeMultiplier;
+    const raw = baseFare + distanceFare + timeFare + selected.booking_fee;
+    const total = Math.max(selected.min_fare, round2(raw));
+    const commission = round2(total * selected.commission_rate);
+
+    return {
+      total,
+      commission,
+      driverEarnings: round2(total - commission),
+      baseFare: round2(baseFare),
+      distanceFare: round2(distanceFare),
+      timeFare: round2(timeFare),
+    };
+  })();
+
+  const estimatedTotal = estimate.total;
+  const estimatedCommission = estimate.commission;
+  const estimatedDriverEarnings = estimate.driverEarnings;
+  // True when the computed fare was raised to the city's minimum, which is worth
+  // flagging: it means the per-km/per-min values are not what the rider pays.
+  const minFareApplied = selected ? round2(estimatedTotal) === round2(selected.min_fare) : false;
 
   const filteredPricing = pricing.filter(
     (p) =>
@@ -190,45 +259,39 @@ export default function PricingPage() {
         </div>
       )}
 
-      {/* Vehicle Category Selector Bar */}
-      <div className="bg-surface-primary border border-border-primary rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-2">
-          <Car className="w-5 h-5 text-primary-500" />
-          <span className="text-sm font-semibold text-text-primary">فئة التوصيل:</span>
+      {/* Vehicle category selector — drives the fare estimate below via each
+          category's real multiplier from the vehicle_types table. The previous
+          version was a hardcoded economy/standard/comfort toggle whose value was
+          never read by anything. */}
+      {vehicleTypes.length > 0 && (
+        <div className="bg-surface-primary border border-border-primary rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Car className="w-5 h-5 text-primary-500" />
+            <span className="text-sm font-semibold text-text-primary">فئة المركبة:</span>
+            <span className="text-xs text-text-tertiary">
+              تُستخدم في حساب التقدير أدناه — أسعار المدينة نفسها موحدة لكل الفئات
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-surface-secondary p-1 rounded-lg border border-border-primary">
+            {vehicleTypes.map((vt) => (
+              <button
+                key={vt.id}
+                type="button"
+                onClick={() => setSelectedCategory(vt.id)}
+                aria-pressed={selectedCategory === vt.id}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  selectedCategory === vt.id
+                    ? 'bg-primary-500 text-white shadow-xs'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {VEHICLE_NAMES_AR[vt.id] || vt.name}
+                <span className="mr-1.5 font-mono opacity-75">×{vt.multiplier}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 bg-surface-secondary p-1 rounded-lg border border-border-primary">
-          <button
-            onClick={() => setSelectedCategory('economy')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              selectedCategory === 'economy'
-                ? 'bg-primary-500 text-white shadow-xs'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            سكوتر / توفير (Economy)
-          </button>
-          <button
-            onClick={() => setSelectedCategory('standard')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              selectedCategory === 'standard'
-                ? 'bg-primary-500 text-white shadow-xs'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            سيارة ملاكي (Go Standard)
-          </button>
-          <button
-            onClick={() => setSelectedCategory('comfort')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              selectedCategory === 'comfort'
-                ? 'bg-primary-500 text-white shadow-xs'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            راحة / تكسي (Go Comfort)
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Main Grid: City List & Form */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -494,10 +557,63 @@ export default function PricingPage() {
               <div className="flex items-center justify-between border-b border-border-primary pb-3">
                 <h4 className="font-bold text-text-primary text-sm flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-primary-500" />
-                  حاسبة تخمينية لتسعير الرحلة (مثال توضيحي)
+                  حاسبة تسعير الرحلة
                 </h4>
-                <span className="text-xs text-text-tertiary font-mono">رحلة 8 كم · 12 دقيقة</span>
+                {activeMultiplier !== 1 && (
+                  <span className="text-xs text-text-tertiary font-mono">
+                    مضاعف الفئة ×{activeMultiplier}
+                  </span>
+                )}
               </div>
+
+              {/* Real inputs. The distance and duration used to be constants
+                  (8 km / 12 min) with the values printed as static label text,
+                  so the widget could only describe one hypothetical trip. */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="estimate-distance"
+                    className="block text-[11px] font-bold text-text-secondary mb-1.5"
+                  >
+                    المسافة (كم)
+                  </label>
+                  <input
+                    id="estimate-distance"
+                    type="number"
+                    min="0"
+                    max="500"
+                    step="0.5"
+                    value={estimateDistanceKm}
+                    onChange={(e) => setEstimateDistanceKm(Number(e.target.value))}
+                    className="input font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="estimate-duration"
+                    className="block text-[11px] font-bold text-text-secondary mb-1.5"
+                  >
+                    المدة (دقيقة)
+                  </label>
+                  <input
+                    id="estimate-duration"
+                    type="number"
+                    min="0"
+                    max="600"
+                    step="1"
+                    value={estimateTimeMin}
+                    onChange={(e) => setEstimateTimeMin(Number(e.target.value))}
+                    className="input font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {minFareApplied && (
+                <p className="text-[11px] text-warning-dark bg-warning-light border border-warning-main/30 rounded-lg px-3 py-2 leading-relaxed">
+                  الأجرة المحسوبة أقل من الحد الأدنى للمدينة ({selected.min_fare} ج.م)، فتم تطبيق
+                  الحد الأدنى. أسعار الكيلومتر والدقيقة لا تؤثر على هذه الرحلة.
+                </p>
+              )}
 
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="p-3 bg-surface-secondary rounded-lg border border-border-primary">

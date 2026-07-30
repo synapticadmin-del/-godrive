@@ -284,9 +284,41 @@ export const savedPlaceSchema = z.object({
   address: z.string().max(300).optional(),
 });
 
+// PUT /admin/system-config — every field optional so the admin form can send a
+// partial patch. Bounds mirror the min/max already enforced by the number
+// inputs in SettingsPage, so a value that passes client validation also passes
+// here; anything outside the range is a hand-crafted request and is rejected.
+//
+// Commission is expressed as a whole percentage here (the admin types "20")
+// while pricing_rules.commission_rate stores a 0-1 fraction. Keeping the admin
+// unit as a percentage avoids a confusing 0.2 in the UI; the API converts when
+// seeding a new city.
+export const systemConfigUpdateSchema = z.object({
+  defaultCommissionPct: z.number().min(0).max(100).optional(),
+  searchRadiusKm: z.number().min(1).max(30).optional(),
+  freeCancelMin: z.number().int().min(0).max(120).optional(),
+  cancelFeeEgp: z.number().min(0).max(1000).optional(),
+  // Egyptian numbers arrive as "+201xxxxxxxxx"; allow the common local forms
+  // rather than pinning a single country to keep support numbers editable.
+  supportPhone: z
+    .string()
+    .max(30)
+    .regex(/^\+?[\d\s-]{6,}$/, "expected a phone number")
+    .transform((s) => s.replace(/[\s-]/g, ""))
+    .optional(),
+  supportWhatsapp: z
+    .string()
+    .max(30)
+    .regex(/^\+?[\d\s-]{6,}$/, "expected a phone number")
+    .transform((s) => s.replace(/[\s-]/g, ""))
+    .optional(),
+  autoAssign: z.boolean().optional(),
+});
+
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type CreateTripInput = z.infer<typeof createTripSchema>;
 export type CaptainProfileInput = z.infer<typeof captainProfileSchema>;
 export type CaptainLocationInput = z.infer<typeof captainLocationSchema>;
 export type PricingUpdateInput = z.infer<typeof pricingUpdateSchema>;
+export type SystemConfigUpdateInput = z.infer<typeof systemConfigUpdateSchema>;

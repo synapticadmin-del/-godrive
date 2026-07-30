@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { formatDate } from '../lib/utils';
+import { formatCurrency, formatDate } from '../lib/utils';
 import { StatusBadge } from '../components/ui/Badge';
 import { DataTable, type Column } from '../components/ui/DataTable';
 import { Filter, Search, Download, RefreshCw } from 'lucide-react';
@@ -119,10 +119,13 @@ export default function TripsPage() {
       sortable: true,
       accessor: (t) => (
         <span className="text-xs font-mono font-bold text-primary-600 dark:text-primary-400">
+          {/* formatCurrency, not string interpolation: it applies the ar-EG
+              thousands separator, so 12500 reads as ١٢٬٥٠٠ ج.م rather than
+              "12500 ج.م". Matches how fares render everywhere else. */}
           {t.offered_price != null
-            ? `${t.offered_price} ج.م`
+            ? formatCurrency(t.offered_price)
             : t.estimated_fare != null
-              ? `${t.estimated_fare} ج.م`
+              ? formatCurrency(t.estimated_fare)
               : '—'}
         </span>
       ),
@@ -136,9 +139,9 @@ export default function TripsPage() {
           {/* `!= null` rather than a truthy test: a genuine 0 fare (a fully
               discounted promo trip) must not read as "still negotiating". */}
           {t.accepted_price != null
-            ? `${t.accepted_price} ج.م`
+            ? formatCurrency(t.accepted_price)
             : t.final_fare != null
-              ? `${t.final_fare} ج.م`
+              ? formatCurrency(t.final_fare)
               : 'قيد التفاوض'}
         </span>
       ),
