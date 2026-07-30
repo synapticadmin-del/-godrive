@@ -14,7 +14,8 @@ import '../documents/document_status_screen.dart';
 ///
 ///   1. المعلومات الشخصية  — profile photo + four-part name + birth date
 ///   2. رخصة القيادة        — licence photo + expiry date
-///   3. المستندات الشخصية   — criminal record (front + optional back) + national ID number
+///   3. المستندات الشخصية   — national ID card + criminal record
+///                            (front + optional back) + national ID number
 ///   4. معلومات السيارة     — vehicle photo + registration (front + optional back) + make/model/colour/plate/year
 ///
 /// Design language follows the screenshots exactly: a near-black canvas, dark
@@ -347,7 +348,8 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
       case 1:
         return _hasDoc('license');
       case 2:
-        return _hasDoc('criminal_record') &&
+        return _hasDoc('national_id') &&
+            _hasDoc('criminal_record') &&
             (!_isRequired('national_id', fallback: false) ||
                 _nationalId.text.trim().isNotEmpty);
       case 3:
@@ -413,9 +415,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
       case 1:
         return 'ارفع صورة رخصة القيادة أولاً';
       case 2:
-        return !_hasDoc('criminal_record')
-            ? 'ارفع صحيفة الحالة الجنائية أولاً'
-            : 'اكتب رقم الهوية';
+        if (!_hasDoc('national_id')) return 'ارفع صورة البطاقة الشخصية أولاً';
+        if (!_hasDoc('criminal_record')) {
+          return 'ارفع صحيفة الحالة الجنائية أولاً';
+        }
+        return 'اكتب رقم الهوية';
       default:
         return !_hasDoc('vehicle_reg')
             ? 'ارفع رخصة السيارة أولاً'
@@ -653,10 +657,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'criminal_record_back',
-                label: _titleFor('criminal_record_back', 'الجانب الخلفي لصحيفة الحالة الجنائية'),
+                label: _titleFor(
+                    'criminal_record_back', 'الجانب الخلفي لصحيفة الحالة الجنائية'),
                 isDark: isDark,
                 optionalBadge: !_isRequired('criminal_record_back', fallback: false),
-                height: 130,
+                height: 120,
               ),
             ),
             const SizedBox(width: AppTokens.spaceSm),
@@ -666,7 +671,19 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                 label: _titleFor('criminal_record', 'صحيفة الحالة الجنائية'),
                 isDark: isDark,
                 optionalBadge: !_isRequired('criminal_record'),
-                height: 130,
+                height: 120,
+              ),
+            ),
+            const SizedBox(width: AppTokens.spaceSm),
+            // `national_id` is seeded required in the catalog (migration 0014)
+            // but had no tile in any step, so it could never be supplied.
+            Expanded(
+              child: _uploadTile(
+                type: 'national_id',
+                label: _titleFor('national_id', 'البطاقة الشخصية'),
+                isDark: isDark,
+                optionalBadge: !_isRequired('national_id'),
+                height: 120,
               ),
             ),
           ],
