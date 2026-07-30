@@ -608,29 +608,75 @@ adminRoutes.get("/search", async (c) => {
   });
 });
 
+/*  Paged BY CAPTAIN, not by document. The verification UI groups documents into
+ *  one accordion per captain and offers a bulk "approve all" per group, so a
+ *  page boundary that splits one captain's paperwork across two pages would
+ *  make that button silently approve only part of the file. Paging the captain
+ *  list and then returning every matching document for the captains on the
+ *  page keeps each group whole.
+ *
+ *  The previous implementation returned a flat `LIMIT 200` with no offset, so
+ *  no document past the first 200 was reachable from the dashboard at all.  */
 adminRoutes.get("/documents", async (c) => {
   const status = c.req.query("status");
+
+  const page = Math.max(1, Number.parseInt(c.req.query("page") ?? "1", 10) || 1);
+  const rawSize = Number.parseInt(c.req.query("pageSize") ?? "10", 10) || 10;
+  const pageSize = Math.min(50, Math.max(1, rawSize));
+  const offset = (page - 1) * pageSize;
+
+  const where = status ? ` WHERE d.status = ?` : ``;
+  const statusBind: string[] = status ? [status] : [];
+
+  // Total is a count of captains (the paged unit), not of documents.
+  const countRow = await (statusBind.length
+    ? c.env.DB.prepare(
+        `SELECT COUNT(DISTINCT d.captain_id) as total FROM driver_documents d
+         JOIN users u ON u.id = d.captain_id${where}`,
+      ).bind(...statusBind)
+    : c.env.DB.prepare(
+        `SELECT COUNT(DISTINCT d.captain_id) as total FROM driver_documents d
+         JOIN users u ON u.id = d.captain_id`,
+      )
+  ).first<{ total: number }>();
+  const total = countRow?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // The captains on this page, most recently active first.
+  const idsRes = await c.env.DB.prepare(
+    `SELECT d.captain_id as captain_id, MAX(d.created_at) as last_doc
+     FROM driver_documents d
+     JOIN users u ON u.id = d.captain_id${where}
+     GROUP BY d.captain_id
+     ORDER BY last_doc DESC
+     LIMIT ? OFFSET ?`,
+  )
+    .bind(...statusBind, pageSize, offset)
+    .all<{ captain_id: string }>();
+
+  const captainIds = (idsRes.results ?? []).map((r) => r.captain_id);
+  if (captainIds.length === 0) {
+    return c.json({ documents: [], page, pageSize, total, totalPages });
+  }
+
   // d.* carries the identity metadata added in migration 0012
   // (holder_full_name, national_id_number, expires_at), so the verification UI
   // can render it beside each document image with no extra query.
-  let sql = `
-    SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone, u.avatar_url as captain_avatar_url,
-           COALESCE(t.title_ar, d.type) as type_title_ar,
-           COALESCE(t.title_en, '') as type_title_en
-    FROM driver_documents d
-    JOIN users u ON u.id = d.captain_id
-    LEFT JOIN document_types t ON t.id = d.type
-  `;
-  const binds: string[] = [];
-  if (status) {
-    sql += ` WHERE d.status = ?`;
-    binds.push(status);
-  }
-  sql += ` ORDER BY d.created_at DESC LIMIT 200`;
+  const placeholders = captainIds.map(() => "?").join(", ");
+  const res = await c.env.DB.prepare(
+    `SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone, u.avatar_url as captain_avatar_url,
+            COALESCE(t.title_ar, d.type) as type_title_ar,
+            COALESCE(t.title_en, '') as type_title_en
+     FROM driver_documents d
+     JOIN users u ON u.id = d.captain_id
+     LEFT JOIN document_types t ON t.id = d.type
+     WHERE d.captain_id IN (${placeholders})${status ? ` AND d.status = ?` : ``}
+     ORDER BY d.created_at DESC`,
+  )
+    .bind(...captainIds, ...statusBind)
+    .all();
 
-  const stmt = c.env.DB.prepare(sql);
-  const res = binds.length ? await stmt.bind(...binds).all() : await stmt.all();
-  return c.json({ documents: res.results ?? [] });
+  return c.json({ documents: res.results ?? [], page, pageSize, total, totalPages });
 });
 
 /* ------------------------------------------------------------------ */

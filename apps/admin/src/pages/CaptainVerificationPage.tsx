@@ -10,6 +10,7 @@ import {
 import { PageHeader } from '../components/layout/PageHeader';
 import { RejectionReasonModal } from '../components/RejectionReasonModal';
 import { useToast } from '../components/ui/Toast';
+import { Pagination } from '../components/ui/Pagination';
 
 interface Doc {
   id: string;
@@ -25,6 +26,10 @@ interface Doc {
   captain_email?: string;
   captain_phone?: string;
   captain_avatar_url?: string;
+  // Identity metadata captured at upload time (migration 0012).
+  holder_full_name?: string | null;
+  national_id_number?: string | null;
+  expires_at?: string | null;
 }
 
 interface CaptainGroup {
@@ -50,6 +55,40 @@ const docTypeLabel = (doc: Doc) => {
   const typeKey = doc.type || (doc as any).document_type || '';
   return fallbackDocTypeLabels[typeKey] || typeKey;
 };
+
+/** Whole days until `expiresAt`; negative when already expired, null when unset/unparseable. */
+function daysUntilExpiry(expiresAt: string | null | undefined): number | null {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime();
+  if (Number.isNaN(ms)) return null;
+  return Math.ceil((ms - Date.now()) / 86400000);
+}
+
+/** Traffic-light chip for a document's remaining validity: expired/<=30d red, <=90d amber. */
+function expiryChip(days: number): { classes: string; label: string } {
+  if (days < 0) {
+    return {
+      classes: 'bg-error-main/10 text-error-main border-error-main/30',
+      label: `منتهي منذ ${Math.abs(days)} يوم`,
+    };
+  }
+  if (days <= 30) {
+    return {
+      classes: 'bg-error-main/10 text-error-main border-error-main/30',
+      label: `ينتهي خلال ${days} يوم`,
+    };
+  }
+  if (days <= 90) {
+    return {
+      classes: 'bg-warning-light text-warning-main border-warning-main/30',
+      label: `ينتهي خلال ${days} يوم`,
+    };
+  }
+  return {
+    classes: 'bg-surface-secondary text-text-secondary border-border-primary',
+    label: `صالح ${days} يوم`,
+  };
+}
 
 /**
  * Fetch a protected document as an authenticated blob URL and manage its
@@ -351,14 +390,35 @@ export default function CaptainVerificationPage() {
   // Accordion open/collapsed state per captain ID
   const [expandedCaptains, setExpandedCaptains] = useState<Record<string, boolean>>({});
 
+  // Server-side paging. The unit is the CAPTAIN, not the document, so a
+  // captain's paperwork is never split across two pages (bulk-approve acts on
+  // a whole group). `total` therefore counts captains, not documents.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const load = async () => {
     try {
       setLoading(true);
       setError(null);
-      const params = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await api<{ documents: Doc[] }>(`/admin/documents${params}`, { token });
+      const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (statusFilter) qs.set('status', statusFilter);
+      const res = await api<{
+        documents: Doc[];
+        page?: number;
+        pageSize?: number;
+        total?: number;
+        totalPages?: number;
+      }>(`/admin/documents?${qs.toString()}`, { token });
       const fetchedDocs = res.documents || [];
       setDocs(fetchedDocs);
+      setTotal(res.total ?? fetchedDocs.length);
+      const pages = res.totalPages ?? 1;
+      setTotalPages(pages);
+      // Approving the last pending captain on the final page can shrink the
+      // range out from under us; step back instead of showing an empty screen.
+      if (page > pages) setPage(pages);
 
       // Expand all captain groups by default
       const initialExpanded: Record<string, boolean> = {};
@@ -375,7 +435,7 @@ export default function CaptainVerificationPage() {
 
   useEffect(() => {
     load();
-  }, [token, statusFilter]);
+  }, [token, statusFilter, page, pageSize]);
 
   // Group documents by Captain ID
   const captainGroups = useMemo(() => {
@@ -570,7 +630,7 @@ export default function CaptainVerificationPage() {
             ).map(([st, label]) => (
               <button
                 key={st}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => { setStatusFilter(st); setPage(1); }}
                 className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
                   statusFilter === st
                     ? 'bg-primary-500 text-white shadow-xs'
@@ -774,24 +834,15 @@ export default function CaptainVerificationPage() {
                                 <FileText className="w-12 h-12 text-text-tertiary" />
                               )}
 
-                            {/* Status Badge */}
-                            <div className="absolute top-2.5 right-2.5">
-                              {statusBadge(d)}
-                            </div>
-                          </div>
-
-                          {/* Document Info */}
-                          <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <FileText className="w-4 h-4 text-primary-500" />
-                                <h4 className="text-sm font-extrabold text-text-primary">
-                                  {docTypeLabel(d)}
-                                </h4>
-                                {d.status === 'pending' && <span className="px-1.5 py-0.5 rounded bg-warning-main/10 text-warning-main text-[10px] font-bold">جديد</span>}
-                                <span className="text-[10px] text-text-tertiary font-mono ml-auto">
-                                  {new Date(d.created_at).toLocaleDateString('ar-EG')}
-                                </span>
+                              {/* Hover Overlay */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <button
+                                  onClick={() => openPreview(d, group.documents)}
+                                  className="px-4 py-2.5 bg-surface-primary/90 text-text-primary text-xs font-bold rounded-xl shadow-lg flex items-center gap-2 backdrop-blur-md hover:bg-surface-primary transition-colors"
+                                >
+                                  <Eye className="w-4 h-4 text-primary-500" />
+                                  معاينة كاملة مع تكبير
+                                </button>
                               </div>
 
                               {/* Status Badge */}
@@ -803,11 +854,13 @@ export default function CaptainVerificationPage() {
                             {/* Document Info */}
                             <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                               <div>
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold text-primary-600 dark:text-primary-400 bg-primary-500/10 px-2 py-0.5 rounded-md border border-primary-500/20">
-                                    {docTypeLabels[d.type] || d.type}
-                                  </span>
-                                  <span className="text-[10px] text-text-tertiary font-mono">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <FileText className="w-4 h-4 text-primary-500" />
+                                  <h4 className="text-sm font-extrabold text-text-primary">
+                                    {docTypeLabel(d)}
+                                  </h4>
+                                  {d.status === 'pending' && <span className="px-1.5 py-0.5 rounded bg-warning-main/10 text-warning-main text-[10px] font-bold">جديد</span>}
+                                  <span className="text-[10px] text-text-tertiary font-mono ml-auto">
                                     {new Date(d.created_at).toLocaleDateString('ar-EG')}
                                   </span>
                                 </div>
@@ -912,6 +965,20 @@ export default function CaptainVerificationPage() {
             );
           })}
         </div>
+      )}
+
+      {!loading && !error && total > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={total}
+          itemNoun="كابتن"
+          pageSize={pageSize}
+          pageSizeOptions={[10, 25, 50]}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          busy={loading}
+        />
       )}
 
       {/* ─── Zoomable Full-Screen Preview Modal ─── */}
