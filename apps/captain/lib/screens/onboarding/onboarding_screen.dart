@@ -559,6 +559,133 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     );
   }
 
+  /// The "المساعدة" sheet.
+  ///
+  /// Leads with the concrete blocker for the current step — the same string
+  /// the Next button's toast uses — because "why can I not continue?" is the
+  /// only question a stalled captain is asking. General guidance follows.
+  Future<void> _showHelp() async {
+    final go = GoTheme.of(context);
+    final badge = GoBadgeColors.of(go, GoBadgeTone.pending);
+    final optionalLabel = AppStrings.of(context).docOptionalBadge;
+    final blocker = _validForStep(_step) ? null : _validationMessage();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Container(
+        decoration: BoxDecoration(
+          color: go.panel,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppTokens.radiusXl),
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceMd,
+              AppTokens.spaceSm,
+              AppTokens.spaceMd,
+              AppTokens.spaceMd,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppTokens.spaceMd),
+                    decoration: BoxDecoration(
+                      color: go.border,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                    ),
+                  ),
+                ),
+                Text(
+                  'كيف تُكمل التسجيل؟',
+                  style: AppTokens.font(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: go.text,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.spaceSm),
+                if (blocker != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(AppTokens.spaceSm),
+                    decoration: BoxDecoration(
+                      color: badge.bg,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 18, color: badge.accent),
+                        const SizedBox(width: AppTokens.spaceXs),
+                        Expanded(
+                          child: Text(
+                            'المطلوب الآن: $blocker',
+                            style: AppTokens.font(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: badge.fg,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppTokens.spaceMd),
+                ],
+                Text(
+                  'التسجيل أربع خطوات: المعلومات الشخصية، رخصة القيادة، '
+                  'المستندات الشخصية، ثم معلومات السيارة.\n\n'
+                  'كل ما تكتبه وكل صورة ترفعها تُحفظ فوراً، فيمكنك إغلاق '
+                  'التطبيق والعودة لاحقاً دون فقدان ما أدخلته.\n\n'
+                  'المربّعات المكتوب عليها «$optionalLabel» ليست شرطاً '
+                  'للمتابعة، لكن رفعها يسرّع مراجعة حسابك.\n\n'
+                  'لرفع صورة اضغط على المربّع، ولحذفها اضغط «×» في زاويته.',
+                  style: AppTokens.font(
+                    fontSize: 13.5,
+                    color: go.muted,
+                    height: 1.7,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.spaceMd),
+                SizedBox(
+                  height: AppTokens.tapTarget,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(sheetCtx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTokens.lime,
+                      foregroundColor: AppTokens.onLime,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                      ),
+                    ),
+                    child: Text(
+                      'فهمت',
+                      style: AppTokens.font(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppTokens.onLime,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _topBar(Color text) {
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -567,14 +694,15 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
       ),
       child: Row(
         children: [
-          TextButton(
-            onPressed: () {},
-            child: Text(
+          TextButton.icon(
+            onPressed: _showHelp,
+            icon: Icon(Icons.help_outline_rounded, size: 18, color: text),
+            label: Text(
               'المساعدة',
               style: AppTokens.font(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppTokens.info,
+                color: text,
               ),
             ),
           ),
