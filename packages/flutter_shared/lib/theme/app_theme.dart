@@ -37,6 +37,7 @@ class AppTokens {
   static const primaryFill = Color(0xFF4E842D);
   static const primaryLight = Color(0xFF69A83D);
   static const primaryDark = Color(0xFF38631E);
+  static const primaryDeep = Color(0xFF22400F);
 
   /// Tinted fills for chips, avatars and selected states.
   static const primarySoft = Color(0xFFEAF5E3);
