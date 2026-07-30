@@ -288,7 +288,10 @@ class _OfferCardState extends State<OfferCard>
       builder: (context, _) {
         final urgent =
             widget.showCountdown && _secondsLeft <= 5 && !_expired;
-        final accent = urgent ? AppTokens.danger : AppTokens.primary;
+        // go.action for the normal accent so the ring/avatar tint is
+        // brightness-aware (lime on dark, green on light); danger overrides
+        // at urgency regardless of brightness.
+        final accent = urgent ? AppTokens.danger : go.action;
 
         return Opacity(
           opacity: _expired ? 0.5 : 1,
@@ -360,12 +363,14 @@ class _OfferCardState extends State<OfferCard>
         AppTokens.spaceXs,
       ),
       decoration: BoxDecoration(
+        // go.action tint so the header gradient uses the brightness-aware
+        // colour (lime on dark, green on light) instead of always being green.
         gradient: LinearGradient(
           begin: AlignmentDirectional.topStart,
           end: AlignmentDirectional.bottomEnd,
           colors: [
-            AppTokens.primary.withOpacity(go.isDark ? 0.16 : 0.10),
-            AppTokens.primary.withOpacity(0.03),
+            go.action.withOpacity(go.isDark ? 0.16 : 0.10),
+            go.action.withOpacity(0.03),
           ],
         ),
       ),
@@ -410,7 +415,7 @@ class _OfferCardState extends State<OfferCard>
                         _fare.toStringAsFixed(0),
                         style: AppTokens.money(
                           fontSize: 30,
-                          color: go.isDark ? go.action : AppTokens.primary,
+                          color: go.action,
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -419,7 +424,7 @@ class _OfferCardState extends State<OfferCard>
                         style: AppTokens.font(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: go.isDark ? go.action : AppTokens.primary,
+                          color: go.action,
                         ),
                       ),
                     ],
@@ -606,10 +611,9 @@ class _OfferCardState extends State<OfferCard>
           child: ElevatedButton(
             onPressed: disabled ? null : _accept,
             style: ElevatedButton.styleFrom(
-              backgroundColor: go.isDark ? go.action : AppTokens.primary,
-              foregroundColor: go.isDark ? go.onAction : Colors.white,
-              disabledBackgroundColor:
-                  (go.isDark ? go.action : AppTokens.primary).withOpacity(0.4),
+              backgroundColor: go.action,
+              foregroundColor: go.onAction,
+              disabledBackgroundColor: go.action.withOpacity(0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTokens.radiusMd),
               ),
@@ -620,7 +624,7 @@ class _OfferCardState extends State<OfferCard>
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.2,
-                      color: go.isDark ? go.onAction : Colors.white,
+                      color: go.onAction,
                     ),
                   )
                 : FittedBox(
@@ -635,7 +639,7 @@ class _OfferCardState extends State<OfferCard>
                           style: AppTokens.font(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: go.isDark ? go.onAction : Colors.white,
+                            color: go.onAction,
                           ),
                         ),
                       ],
@@ -653,12 +657,11 @@ class _OfferCardState extends State<OfferCard>
                 child: OutlinedButton(
                   onPressed: disabled ? null : _counterOffer,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: go.isDark ? go.action : AppTokens.primary,
+                    foregroundColor: go.action,
                     side: BorderSide(
                       color: disabled
                           ? go.border
-                          : (go.isDark ? go.action : AppTokens.primary)
-                              .withOpacity(0.55),
+                          : go.action.withOpacity(0.55),
                       width: 1.3,
                     ),
                     shape: RoundedRectangleBorder(
@@ -671,7 +674,7 @@ class _OfferCardState extends State<OfferCard>
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: go.isDark ? go.action : AppTokens.primary,
+                            color: go.action,
                           ),
                         )
                       : FittedBox(
@@ -686,7 +689,7 @@ class _OfferCardState extends State<OfferCard>
                                 style: AppTokens.font(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w800,
-                                  color: go.isDark ? go.action : AppTokens.primary,
+                                  color: go.action,
                                 ),
                               ),
                             ],
@@ -788,10 +791,9 @@ class _OfferCardState extends State<OfferCard>
                 child: OutlinedButton(
                   onPressed: _busy || _expired ? null : _accept,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: go.isDark ? go.action : AppTokens.primary,
+                    foregroundColor: go.action,
                     side: BorderSide(
-                      color: (go.isDark ? go.action : AppTokens.primary)
-                          .withOpacity(0.55),
+                      color: go.action.withOpacity(0.55),
                       width: 1.3,
                     ),
                     shape: RoundedRectangleBorder(
@@ -804,7 +806,7 @@ class _OfferCardState extends State<OfferCard>
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: go.isDark ? go.action : AppTokens.primary,
+                            color: go.action,
                           ),
                         )
                       : FittedBox(
@@ -814,7 +816,7 @@ class _OfferCardState extends State<OfferCard>
                             style: AppTokens.font(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: go.isDark ? go.action : AppTokens.primary,
+                              color: go.action,
                             ),
                           ),
                         ),

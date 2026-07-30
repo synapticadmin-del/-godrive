@@ -82,21 +82,37 @@ class _GoOnlineButtonState extends State<GoOnlineButton>
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
     final interactive = widget.enabled && !widget.busy;
 
-    final background = !widget.enabled
-        ? (Theme.of(context).brightness == Brightness.dark
-            ? AppTokens.darkSurface
-            : AppTokens.lightBorder)
-        : widget.online
-            ? AppTokens.primary
-            : AppTokens.neutralInk;
+    final go = GoTheme.of(context);
+
+    // Fill and foreground are picked as a pair, never independently. The
+    // offline pill is deliberately fixed ink in both presentations; the online
+    // pill follows the ramp — and after dark the ramp's action is lime, on
+    // which the old hardcoded white sat at roughly 1.8:1.
+    final Color background;
+    final Color foreground;
+    if (!widget.enabled) {
+      // Was `lightBorder` under `lightMuted` (~3.99:1) in daylight and the
+      // legacy `darkSurface` after dark. On the ramp this lands at ~4.47:1 and
+      // ~5.41:1 — an inactive control, so formally exempt from the 4.5:1 floor,
+      // but worth improving since "pending approval" is the reason the captain
+      // cannot earn and they need to be able to read it.
+      background = go.surface;
+      foreground = go.muted;
+    } else if (widget.online) {
+      background = go.action;
+      foreground = go.onAction;
+    } else {
+      // "Heavy neutral ink" is the offline signal in both themes, so this pair
+      // stays fixed; white on `neutralInk` is ~16:1.
+      background = AppTokens.neutralInk;
+      foreground = Colors.white;
+    }
 
     final label = !widget.enabled
         ? (widget.disabledLabel ?? (isAr ? 'بانتظار الموافقة' : 'Pending approval'))
         : widget.online
             ? (widget.onlineLabel ?? (isAr ? 'متصل الآن' : 'You are online'))
             : (widget.offlineLabel ?? (isAr ? 'ابدأ العمل' : 'Go online'));
-
-    final foreground = widget.enabled ? Colors.white : AppTokens.lightMuted;
 
     return Semantics(
       button: true,
@@ -122,7 +138,9 @@ class _GoOnlineButtonState extends State<GoOnlineButton>
               color: background,
               borderRadius: BorderRadius.circular(AppTokens.radiusPill),
               boxShadow: widget.online && widget.enabled
-                  ? AppTokens.glow(AppTokens.primary)
+                  // Halo the colour actually on screen — a green glow bled out
+                  // from under a lime pill after dark.
+                  ? AppTokens.glow(go.action)
                   : AppTokens.shadowFloating,
             ),
             child: Row(
@@ -139,7 +157,7 @@ class _GoOnlineButtonState extends State<GoOnlineButton>
                     ),
                   )
                 else if (widget.online)
-                  _LivePulse(animation: _pulse)
+                  _LivePulse(animation: _pulse, color: foreground)
                 else
                   Icon(
                     widget.enabled ? Icons.power_settings_new_rounded : Icons.hourglass_top_rounded,
@@ -170,9 +188,14 @@ class _GoOnlineButtonState extends State<GoOnlineButton>
 
 /// A breathing dot — the "we are live and listening" signal.
 class _LivePulse extends StatelessWidget {
-  const _LivePulse({required this.animation});
+  const _LivePulse({required this.animation, required this.color});
 
   final Animation<double> animation;
+
+  /// Matches the pill's foreground. This was hardcoded white, which vanished
+  /// against the lime night action — the one state where the dot has to be
+  /// visible is precisely when the captain is online.
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -191,15 +214,15 @@ class _LivePulse extends StatelessWidget {
                 height: 10 + (10 * t),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.35 * (1 - t)),
+                  color: color.withOpacity(0.35 * (1 - t)),
                 ),
               ),
               Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white,
+                  color: color,
                 ),
               ),
             ],

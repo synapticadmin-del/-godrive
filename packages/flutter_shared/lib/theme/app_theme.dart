@@ -42,13 +42,6 @@ class AppTokens {
   static const primarySoft = Color(0xFFEAF5E3);
   static const headerAccent = Color(0xFFDDF2D1);
 
-  /// Deep forest end-stop for the account header field in dark mode.
-  ///
-  /// Light mode runs [primary] → [primaryDark]. On a near-black page that
-  /// same ramp still reads as a lit panel rather than a surface, so the dark
-  /// presentation drops one step further. White on this value is ~11.6:1.
-  static const primaryDeep = Color(0xFF22400F);
-
   // ---------------------------------------------------------------------
   // Semantic
   // ---------------------------------------------------------------------
@@ -59,15 +52,15 @@ class AppTokens {
   static const sos = Color(0xFFDC2626); // 4.83:1 on white
   static const info = Color(0xFF1D6DBE);
 
-  /// Rating stars. Previously an inline hex inside the rider's bids sheet —
-  /// tokenised so every star in either app is the same amber.
-  static const star = Color(0xFFF5B301);
-
   /// Full-bleed emergency backdrop — a near-black red that keeps the SOS
   /// screen unmistakable even in peripheral vision, day or night.
   static const sosBackdrop = Color(0xFF1A0000);
 
   // Badge pairs — dark text on a light tint, all >= 6:1.
+  //
+  // These are tuned for a WHITE card and are correct there. Do not read them
+  // directly from a screen: use [GoBadgeColors.of], which picks these in
+  // daylight and the night pairs below after dark.
   static const badgePendingText = Color(0xFF78350F);
   static const badgePendingBg = Color(0xFFFEF3C7);
   static const badgeApprovedText = Color(0xFF14532D);
@@ -76,6 +69,21 @@ class AppTokens {
   static const badgeStoppedBg = Color(0xFFFEE2E2);
   static const badgeCompletedText = Color(0xFF166534);
   static const badgeCompletedBg = Color(0xFFF3F9EC);
+
+  // ── Badge pairs for night surfaces ──
+  // The light pairs invert badly after dark: a #FEF3C7 tint on a #1A1A1D card
+  // is a bright sticker stuck onto the panel, and it pulls the eye harder than
+  // the fare does. At night the relationship flips — a low-alpha wash of the
+  // tone, with a light foreground — so the chip sits *inside* the card. Each
+  // foreground clears 9:1 on `nightPanel`.
+  static const badgePendingTextNight = Color(0xFFFCD34D);
+  static const badgePendingBgNight = Color(0x2EF59E0B);
+  static const badgeApprovedTextNight = Color(0xFF86EFAC);
+  static const badgeApprovedBgNight = Color(0x2E22C55E);
+  static const badgeStoppedTextNight = Color(0xFFFCA5A5);
+  static const badgeStoppedBgNight = Color(0x2EEF4444);
+  static const badgeCompletedTextNight = Color(0xFF86EFAC);
+  static const badgeCompletedBgNight = Color(0x2422C55E);
 
   // ---------------------------------------------------------------------
   // Light surfaces — warm off-white canvas, pure-white cards
@@ -210,28 +218,6 @@ class AppTokens {
           offset: const Offset(0, 6),
         ),
       ];
-
-  // ---------------------------------------------------------------------
-  // Gradients
-  // ---------------------------------------------------------------------
-  /// The account header field behind the rider's name, phone and avatar.
-  ///
-  /// Light runs the green ramp [primary] → [primaryDark]; white foregrounds
-  /// clear 4.5:1 even at the lightest stop, so the name, phone and balance
-  /// stay legible across the whole field. Dark shifts down to [primaryDark] →
-  /// [primaryDeep] so the header reads as a deep surface against near-black
-  /// rather than a lit panel.
-  ///
-  /// Runs topRight → bottomLeft: in the RTL layout that puts the lighter stop
-  /// behind the avatar and carries the darker stop away from it, so the eye
-  /// lands on the portrait first.
-  static LinearGradient headerGradient(bool isDark) => LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: isDark
-            ? const [primaryDark, primaryDeep]
-            : const [primary, primaryDark],
-      );
 
   // ---------------------------------------------------------------------
   // Map
@@ -503,6 +489,110 @@ class MapTiles {
       urlFor(Theme.of(context).brightness);
 }
 
+/// Semantic tone of a status badge or status banner.
+enum GoBadgeTone {
+  /// Awaiting review.
+  pending,
+
+  /// Verified / accepted.
+  approved,
+
+  /// Rejected, blocked, or otherwise halted.
+  stopped,
+
+  /// Finished successfully.
+  completed,
+}
+
+/// A status badge's colours, resolved for the active brightness.
+///
+/// Screens used to read [AppTokens.badgeApprovedBg] and friends directly. That
+/// worked in daylight — those pairs are tuned for a white card — but it meant
+/// every status chip in the product rendered a light-mode sticker on a
+/// near-black panel after dark. Going through this resolver keeps the two
+/// ramps in one place and makes the dark case impossible to forget.
+///
+/// ```dart
+/// final badge = GoBadgeColors.of(go, GoBadgeTone.approved);
+/// Container(color: badge.bg, child: Text('...', style: TextStyle(color: badge.fg)));
+/// ```
+@immutable
+class GoBadgeColors {
+  const GoBadgeColors({
+    required this.bg,
+    required this.fg,
+    required this.accent,
+  });
+
+  /// Chip / banner fill.
+  final Color bg;
+
+  /// Label colour, legible on [bg].
+  final Color fg;
+
+  /// Icon and border colour — saturated enough to carry meaning on its own,
+  /// for the colour-blind captain who reads the glyph rather than the hue.
+  final Color accent;
+
+  static GoBadgeColors of(GoTheme go, GoBadgeTone tone) {
+    if (go.isDark) {
+      switch (tone) {
+        case GoBadgeTone.pending:
+          return const GoBadgeColors(
+            bg: AppTokens.badgePendingBgNight,
+            fg: AppTokens.badgePendingTextNight,
+            accent: AppTokens.badgePendingTextNight,
+          );
+        case GoBadgeTone.approved:
+          return const GoBadgeColors(
+            bg: AppTokens.badgeApprovedBgNight,
+            fg: AppTokens.badgeApprovedTextNight,
+            accent: AppTokens.badgeApprovedTextNight,
+          );
+        case GoBadgeTone.stopped:
+          return const GoBadgeColors(
+            bg: AppTokens.badgeStoppedBgNight,
+            fg: AppTokens.badgeStoppedTextNight,
+            accent: AppTokens.badgeStoppedTextNight,
+          );
+        case GoBadgeTone.completed:
+          return const GoBadgeColors(
+            bg: AppTokens.badgeCompletedBgNight,
+            fg: AppTokens.badgeCompletedTextNight,
+            accent: AppTokens.badgeCompletedTextNight,
+          );
+      }
+    }
+
+    switch (tone) {
+      case GoBadgeTone.pending:
+        return const GoBadgeColors(
+          bg: AppTokens.badgePendingBg,
+          fg: AppTokens.badgePendingText,
+          accent: AppTokens.warning,
+        );
+      case GoBadgeTone.approved:
+        return const GoBadgeColors(
+          bg: AppTokens.badgeApprovedBg,
+          fg: AppTokens.badgeApprovedText,
+          accent: AppTokens.success,
+        );
+      case GoBadgeTone.stopped:
+        return const GoBadgeColors(
+          bg: AppTokens.badgeStoppedBg,
+          fg: AppTokens.badgeStoppedText,
+          accent: AppTokens.danger,
+        );
+      case GoBadgeTone.completed:
+        return const GoBadgeColors(
+          bg: AppTokens.badgeCompletedBg,
+          fg: AppTokens.badgeCompletedText,
+          accent: AppTokens.success,
+        );
+    }
+  }
+}
+
 class AppTheme {
   const AppTheme._();
 
@@ -513,23 +603,13 @@ class AppTheme {
     final isDark = brightness == Brightness.dark;
     final go = GoTheme.forBrightness(brightness);
 
-    // Every widget-level theme below reads from `go`, the same extension the
-    // screens read. Previously these locals came from the `dark*` slate-blue
-    // ramp (#0B1220/#1E293B/#334155) while `go` supplied the neutral `night*`
-    // ramp (#0E0E10/#26262B/#34343B), so in dark mode Material's own widgets
-    // — inputs, chips, dialog copy, hairlines — rendered slate-blue on top of
-    // a neutral near-black page. Two dark palettes, one screen. Sourcing both
-    // from `go` collapses them into one ramp.
-    //
-    // In light mode this is a no-op: go.text/muted/border already resolve to
-    // lightText/lightMuted/lightBorder, and go.surface to inputFill.
-    //
-    // The `dark*` tokens stay defined — the Admin and Captain apps still
-    // reference them, so removing them would be a breaking change.
-    final text = go.text;
-    final muted = go.muted;
-    final border = go.border;
-    final fill = go.surface;
+    // `bg` and `panel` used to be derived here too, but every consumer below
+    // reads `go.bg` / `go.panel` instead — the locals were dead and the two
+    // ramps had already drifted apart (`darkBg` vs the night ramp `go` uses).
+    final text = isDark ? AppTokens.darkText : AppTokens.lightText;
+    final muted = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
+    final border = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final fill = isDark ? AppTokens.darkSurface : AppTokens.inputFill;
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppTokens.primary,
@@ -633,7 +713,7 @@ class AppTheme {
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: go.action,
+          foregroundColor: isDark ? go.action : AppTokens.primary,
           textStyle: AppTokens.font(fontWeight: FontWeight.w600, fontSize: 15),
         ),
       ),
@@ -664,8 +744,19 @@ class AppTheme {
         contentTextStyle: AppTokens.font(fontSize: 14, color: muted, height: 1.6),
       ),
 
+      // ── Date & time pickers ───────────────────────────────────────────
+      // These two were the only Material surfaces in the product with no
+      // theme at all, so the calendar fell through to raw M3 defaults: a
+      // surface tint laid over `go.panel`, day chips coloured from the
+      // *seeded* tonal palette rather than the brand ramp, and — at night —
+      // pale numerals on a pale header. A captain picking a licence expiry
+      // or a birth date got a dialog that visibly belonged to another app.
+      // Both now read from the same GoTheme ramp as every other surface.
+      datePickerTheme: _datePickerTheme(go, isDark),
+      timePickerTheme: _timePickerTheme(go, isDark),
+
       chipTheme: ChipThemeData(
-        backgroundColor: go.elevated,
+        backgroundColor: isDark ? AppTokens.darkSurface : AppTokens.lightSurface,
         side: BorderSide(color: border),
         labelStyle: AppTokens.font(fontSize: 12, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(
@@ -693,10 +784,229 @@ class AppTheme {
       iconTheme: IconThemeData(color: go.text),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: go.panel,
-        selectedItemColor: go.action,
+        selectedItemColor: isDark ? go.action : AppTokens.primary,
         unselectedItemColor: go.muted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+      ),
+    );
+  }
+
+  /// The calendar dialog, wired to the [GoTheme] ramp.
+  ///
+  /// Every colour resolves from tokens rather than from the seeded
+  /// [ColorScheme]. That matters: `ColorScheme.fromSeed` derives a tonal
+  /// palette from the brand green, and those tones are what Material hands
+  /// the calendar by default — a lilac-tinted selection chip in light mode,
+  /// and in dark mode a header that lands within a few percent luminance of
+  /// its own text. Neither is recoverable by nudging the seed, so the
+  /// picker is dressed explicitly.
+  ///
+  /// Kept deliberately within the Flutter 3.22 surface (the revision pinned
+  /// in `.metadata`): no `dayShape`, no `subHeaderForegroundColor`, no
+  /// `toggleButtonTextStyle` — all of those arrived in 3.27+.
+  static DatePickerThemeData _datePickerTheme(GoTheme go, bool isDark) {
+    // A selected day is a filled brand chip. Everything else stays flat, so
+    // the month grid reads as a table the eye can scan rather than as forty
+    // competing buttons.
+    final dayForeground = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) return go.onAction;
+      if (states.contains(WidgetState.disabled)) {
+        return go.muted.withOpacity(0.38);
+      }
+      return go.text;
+    });
+
+    final dayBackground = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) return go.action;
+      return Colors.transparent;
+    });
+
+    // Touch feedback strong enough to confirm a tap on a moving vehicle,
+    // without leaving a permanent-looking tint behind.
+    final overlay = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.pressed)) {
+        return go.action.withOpacity(0.24);
+      }
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return go.action.withOpacity(0.10);
+      }
+      return Colors.transparent;
+    });
+
+    // Today is outlined, not filled — otherwise it competes with the actual
+    // selection and the captain cannot tell which date is committed.
+    final todayForeground = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) return go.onAction;
+      if (states.contains(WidgetState.disabled)) {
+        return go.muted.withOpacity(0.38);
+      }
+      return go.action;
+    });
+
+    final todayBackground = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) return go.action;
+      return Colors.transparent;
+    });
+
+    // The year grid carries the birth-date flow, so it gets the same
+    // treatment as the day grid instead of Material's default flat list.
+    final yearForeground = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) return go.onAction;
+      if (states.contains(WidgetState.disabled)) {
+        return go.muted.withOpacity(0.38);
+      }
+      return go.text;
+    });
+
+    final yearBackground = WidgetStateProperty.resolveWith<Color>((states) {
+      if (states.contains(WidgetState.selected)) return go.action;
+      return Colors.transparent;
+    });
+
+    return DatePickerThemeData(
+      backgroundColor: go.panel,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black.withOpacity(isDark ? 0.55 : 0.16),
+      // At night a hairline border separates the dialog from the page; in
+      // daylight a real shadow does that job better.
+      elevation: isDark ? 0 : 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+        side: isDark ? BorderSide(color: go.border) : BorderSide.none,
+      ),
+
+      // Header: a solid brand band. `action`/`onAction` is the one pairing
+      // the token ramp guarantees is legible in both brightnesses — green
+      // on white, and near-black on lime.
+      headerBackgroundColor: go.action,
+      headerForegroundColor: go.onAction,
+      headerHelpStyle: AppTokens.font(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: go.onAction.withOpacity(0.82),
+      ),
+      headerHeadlineStyle: AppTokens.font(
+        fontSize: 26,
+        fontWeight: FontWeight.w800,
+        color: go.onAction,
+        height: 1.25,
+      ),
+
+      weekdayStyle: AppTokens.font(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: go.muted,
+      ),
+      dayStyle: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w600),
+      dayForegroundColor: dayForeground,
+      dayBackgroundColor: dayBackground,
+      dayOverlayColor: overlay,
+
+      todayForegroundColor: todayForeground,
+      todayBackgroundColor: todayBackground,
+      todayBorder: BorderSide(color: go.action, width: 1.4),
+
+      yearStyle: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w600),
+      yearForegroundColor: yearForeground,
+      yearBackgroundColor: yearBackground,
+      yearOverlayColor: overlay,
+
+      dividerColor: go.border,
+
+      // Keyboard-entry mode ("أدخل التاريخ") shares the app's field styling
+      // so switching modes is not a visual context switch.
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: go.surface,
+        labelStyle: AppTokens.font(color: go.muted, fontSize: 14),
+        hintStyle: AppTokens.font(color: go.muted, fontSize: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceMd,
+          vertical: AppTokens.spaceSm,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          borderSide: BorderSide(color: go.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          borderSide: BorderSide(color: go.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+          borderSide: BorderSide(color: go.action, width: 1.8),
+        ),
+      ),
+
+      cancelButtonStyle: TextButton.styleFrom(
+        foregroundColor: go.muted,
+        textStyle: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+      confirmButtonStyle: TextButton.styleFrom(
+        foregroundColor: isDark ? go.action : AppTokens.primary,
+        textStyle: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w800),
+      ),
+
+      // Range selection is unused by the Captain app today, but leaving it
+      // on Material defaults would reintroduce exactly the mismatch this
+      // method exists to remove the moment someone adds a date filter.
+      rangePickerBackgroundColor: go.panel,
+      rangePickerSurfaceTintColor: Colors.transparent,
+      rangePickerElevation: isDark ? 0 : 6,
+      rangePickerHeaderBackgroundColor: go.action,
+      rangePickerHeaderForegroundColor: go.onAction,
+      rangePickerShadowColor: Colors.black.withOpacity(isDark ? 0.55 : 0.16),
+      rangeSelectionBackgroundColor: go.action.withOpacity(isDark ? 0.28 : 0.16),
+      rangeSelectionOverlayColor: overlay,
+    );
+  }
+
+  /// The clock dialog. Unused by the Captain app right now, but it shares
+  /// the calendar's failure mode — unthemed, it renders the seeded palette
+  /// over `go.panel` — so it is dressed here rather than left as a trap.
+  static TimePickerThemeData _timePickerTheme(GoTheme go, bool isDark) {
+    return TimePickerThemeData(
+      backgroundColor: go.panel,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTokens.radiusXl),
+        side: isDark ? BorderSide(color: go.border) : BorderSide.none,
+      ),
+      hourMinuteColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? go.action.withOpacity(isDark ? 0.26 : 0.14)
+              : go.surface),
+      hourMinuteTextColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? go.text : go.muted),
+      hourMinuteTextStyle: AppTokens.font(
+        fontSize: 34,
+        fontWeight: FontWeight.w800,
+      ),
+      dayPeriodColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? go.action.withOpacity(isDark ? 0.26 : 0.14)
+              : Colors.transparent),
+      dayPeriodTextColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? go.text : go.muted),
+      dayPeriodBorderSide: BorderSide(color: go.border),
+      dialBackgroundColor: go.surface,
+      dialHandColor: go.action,
+      dialTextColor: WidgetStateColor.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? go.onAction : go.text),
+      entryModeIconColor: go.muted,
+      helpTextStyle: AppTokens.font(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: go.muted,
+      ),
+      cancelButtonStyle: TextButton.styleFrom(
+        foregroundColor: go.muted,
+        textStyle: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+      confirmButtonStyle: TextButton.styleFrom(
+        foregroundColor: isDark ? go.action : AppTokens.primary,
+        textStyle: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w800),
       ),
     );
   }

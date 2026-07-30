@@ -264,7 +264,9 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 value: state.themeMode == ThemeMode.dark ||
                     (state.themeMode == ThemeMode.system && go.isDark),
-                activeColor: AppTokens.primary,
+                // go.action resolves lime in dark mode; AppTokens.primary would stay
+                // green on a near-black surface where lime is the expected action colour.
+                activeColor: GoTheme.of(context).action,
                 onChanged: (val) =>
                     state.setThemeMode(val ? ThemeMode.dark : ThemeMode.light),
               ),
@@ -367,27 +369,31 @@ class SettingsScreen extends StatelessWidget {
     final strings = AppStrings.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          strings.logout,
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          strings.logoutConfirmMessage,
-          style: AppTokens.font(fontSize: 14, height: 1.6),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              strings.cancelAction,
-              style: AppTokens.font(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppTokens.primary,
+      builder: (ctx) {
+        // Read GoTheme inside the dialog builder so the cancel label resolves
+        // lime in dark mode instead of staying green (rule 3 — interactive label).
+        final dialogGo = GoTheme.of(ctx);
+        return AlertDialog(
+          title: Text(
+            strings.logout,
+            style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            strings.logoutConfirmMessage,
+            style: AppTokens.font(fontSize: 14, height: 1.6),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                strings.cancelAction,
+                style: AppTokens.font(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: dialogGo.action,
+                ),
               ),
             ),
-          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
@@ -400,7 +406,8 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
+      );
+      },
     );
 
     if (confirmed == true) {

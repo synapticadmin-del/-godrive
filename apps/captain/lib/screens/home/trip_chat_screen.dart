@@ -244,9 +244,11 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                           // From the captain's perspective, mine == captain.
                           final isMine = msg['sender_role'] == 'captain';
                           return Align(
+                            // AlignmentDirectional mirrors correctly in RTL:
+                            // outgoing (mine) → end, incoming → start.
                             alignment: isMine
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
+                                ? AlignmentDirectional.centerEnd
+                                : AlignmentDirectional.centerStart,
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.symmetric(
@@ -258,7 +260,9 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                                     MediaQuery.of(context).size.width * 0.74,
                               ),
                               decoration: BoxDecoration(
-                                color: isMine ? AppTokens.primary : go.surface,
+                                // go.action: lime in dark mode — white-on-lime
+                                // is ~1.8:1 (near-illegible); go.onAction fixes this.
+                                color: isMine ? go.action : go.surface,
                                 borderRadius: BorderRadius.circular(
                                   AppTokens.radiusMd,
                                 ),
@@ -269,7 +273,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                               child: Text(
                                 msg['body']?.toString() ?? '',
                                 style: AppTokens.font(
-                                  color: isMine ? Colors.white : go.text,
+                                  color: isMine ? go.onAction : go.text,
                                   fontSize: 14.5,
                                 ),
                               ),
@@ -322,15 +326,17 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusMd),
-                          borderSide:
-                              const BorderSide(color: AppTokens.primary),
+                          // go.action for the focus ring — lime in dark mode
+                          // so the outline is visible on near-black surfaces.
+                          borderSide: BorderSide(color: go.action),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: AppTokens.spaceXs),
                   Material(
-                    color: AppTokens.primary,
+                    // go.action: lime in dark mode — white-on-lime is ~1.8:1.
+                    color: go.action,
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
@@ -339,16 +345,16 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         width: AppTokens.tapTarget,
                         height: AppTokens.tapTarget,
                         child: _sending
-                            ? const Padding(
-                                padding: EdgeInsets.all(12),
+                            ? Padding(
+                                padding: const EdgeInsets.all(12),
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.2,
-                                  color: Colors.white,
+                                  color: go.onAction,
                                 ),
                               )
-                            : const Icon(
+                            : Icon(
                                 Icons.send_rounded,
-                                color: Colors.white,
+                                color: go.onAction,
                                 size: 20,
                               ),
                       ),
@@ -381,7 +387,8 @@ class _TypingBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
     return Align(
-      alignment: Alignment.centerLeft,
+      // Incoming bubble must sit on the start edge in RTL (right side in Arabic).
+      alignment: AlignmentDirectional.centerStart,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

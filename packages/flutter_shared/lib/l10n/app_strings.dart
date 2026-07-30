@@ -1436,6 +1436,41 @@ abstract class AppStrings {
 
   /// Studio name on the splash attribution badge.
   String get synapticStudioLabel;
+
+
+  /// Age echoed back under the date-of-birth field, so a mis-tapped year is
+  /// caught before submission (1998 vs 1988 is invisible in a date, obvious
+  /// in an age).
+  String docBirthDateAge(int years);
+
+  /// Hint inside the date-of-birth field.
+  String get docBirthDateHint;
+
+  /// Label for the date-of-birth field on identity documents.
+  String get docBirthDateLabel;
+
+  /// Validation error when the date of birth is required but missing.
+  String get docBirthDateRequired;
+
+  /// Validation error when the captain is under the legal minimum age.
+  String get docBirthDateTooYoung;
+
+  /// Guidance under the photo preview, naming the things that actually get a
+  /// document rejected — glare, soft focus, a cropped corner.
+  String get docPhotoCheckHint;
+
+  /// Title of the sheet that shows a freshly captured document back to the
+  /// captain before it uploads.
+  String get docPhotoCheckTitle;
+
+  /// Action that accepts the previewed photo and moves on to the details form.
+  String get docPhotoUseAction;
+
+  /// Section heading above the date fields (date of birth, expiry).
+  String get docSectionDates;
+
+  /// Section heading above the identity fields (legal name, ID number).
+  String get docSectionIdentity;
 }
 
 /// Egyptian-Arabic copy — the app's primary language.
@@ -3025,6 +3060,39 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get confirm => 'تأكيد';
+
+
+  @override
+  String docBirthDateAge(int years) => 'العمر: $years سنة';
+
+  @override
+  String get docBirthDateHint => 'اختر تاريخ ميلادك';
+
+  @override
+  String get docBirthDateLabel => 'تاريخ الميلاد';
+
+  @override
+  String get docBirthDateRequired => 'يرجى اختيار تاريخ الميلاد';
+
+  @override
+  String get docBirthDateTooYoung =>
+      'يجب أن يكون عمرك 18 سنة على الأقل للتسجيل كسائق';
+
+  @override
+  String get docPhotoCheckHint =>
+      'تأكد أن الاسم والأرقام واضحة، وأن الصورة بلا انعكاس ولا أطراف مقطوعة';
+
+  @override
+  String get docPhotoCheckTitle => 'تحقّق من الصورة';
+
+  @override
+  String get docPhotoUseAction => 'استخدام هذه الصورة';
+
+  @override
+  String get docSectionDates => 'التواريخ';
+
+  @override
+  String get docSectionIdentity => 'بيانات المستند';
 }
 
 /// English copy.
@@ -4619,4 +4687,37 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get confirm => 'Confirm';
+
+
+  @override
+  String docBirthDateAge(int years) => 'Age: $years';
+
+  @override
+  String get docBirthDateHint => 'Pick your date of birth';
+
+  @override
+  String get docBirthDateLabel => 'Date of birth';
+
+  @override
+  String get docBirthDateRequired => 'Please pick your date of birth';
+
+  @override
+  String get docBirthDateTooYoung =>
+      'You must be at least 18 years old to register as a captain';
+
+  @override
+  String get docPhotoCheckHint =>
+      'Make sure the name and numbers are sharp, with no glare and no cropped edges';
+
+  @override
+  String get docPhotoCheckTitle => 'Check the photo';
+
+  @override
+  String get docPhotoUseAction => 'Use this photo';
+
+  @override
+  String get docSectionDates => 'Dates';
+
+  @override
+  String get docSectionIdentity => 'Document details';
 }

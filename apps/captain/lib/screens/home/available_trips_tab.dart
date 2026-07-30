@@ -95,12 +95,13 @@ class _OffersBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
     if (offers.isEmpty && error != null) {
       return ErrorState(message: error!, onRetry: () => _refresh(context));
     }
 
     return RefreshIndicator(
-      color: AppTokens.primary,
+      color: go.action,
       onRefresh: () => _refresh(context),
       child: offers.isEmpty
           ? const _WaitingForOffers()
@@ -211,6 +212,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
     final n = count;
 
     return Container(
@@ -257,7 +259,7 @@ class _Header extends StatelessWidget {
           ),
           if (online)
             Tooltip(
-              message: connected ? 'الاتصال المباشر يعمل' : 'إعادة الاتصال…',
+              message: connected ? strings.homeSocketLive : strings.homeSocketReconnecting,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppTokens.spaceXs,

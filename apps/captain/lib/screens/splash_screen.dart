@@ -201,12 +201,17 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Widget _buildFooter() {
+    // ConstrainedBox ensures the tap area meets the 48dp minimum even though
+    // the visible studio badge renders at ~33dp (rule 6).
     return GestureDetector(
       onTap: _openSynaptic,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: AppTokens.tapTarget),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
           Text(
             'Created by',
             style: AppTokens.font(
@@ -257,6 +262,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ],
           ),
         ],
+        ),
       ),
     ).animate().fadeIn(delay: 700.ms, duration: 600.ms).slideY(begin: 0.3, end: 0);
   }

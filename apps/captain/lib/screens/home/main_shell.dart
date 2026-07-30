@@ -650,7 +650,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
           child: Row(
             children: [
-              Icon(Icons.navigation_rounded, color: AppTokens.primary, size: 20),
+              // go.action because this is an interactive indicator, not a brand mark
+              Icon(Icons.navigation_rounded, color: go.action, size: 20),
               const SizedBox(width: AppTokens.spaceSm),
               Expanded(
                 child: Text(
@@ -687,6 +688,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   /// phone in a dashboard mount, rather than in the far top corner.
   Widget _buildMapControls(CaptainState state) {
     final hasTrip = state.activeTrip != null;
+    final go = GoTheme.of(context);
 
     return PositionedDirectional(
       end: AppTokens.spaceMd,
@@ -721,7 +723,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           MapCircleButton(
             icon: _followMe ? Icons.my_location_rounded : Icons.location_searching_rounded,
             tooltip: 'موقعي',
-            iconColor: _followMe ? AppTokens.primary : null,
+            // go.action for active/selected state, not a brand mark
+            iconColor: _followMe ? go.action : null,
             onTap: _recenter,
           ),
         ],

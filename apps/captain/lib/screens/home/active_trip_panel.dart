@@ -155,7 +155,6 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
     final state = context.read<CaptainState>();
     final go = GoTheme.of(context);
 
@@ -165,7 +164,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
         0;
 
     final heading = _headingFor(status);
-    final action = _actionFor(status, state, fare);
+    final action = _actionFor(status, state, fare, go);
 
     return Container(
       width: double.infinity,
@@ -262,18 +261,20 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   onPressed: _busy ? null : action.onPressed,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: action.color,
-                    foregroundColor: Colors.white,
+                    // go.onAction is guaranteed legible on the action surface
+                    // (black on lime in dark mode — white-on-lime ≈ 1.8:1).
+                    foregroundColor: go.onAction,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                     ),
                   ),
                   child: _busy
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
-                            color: Colors.white,
+                            color: go.onAction,
                           ),
                         )
                       : Row(
@@ -286,7 +287,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                               style: AppTokens.font(
                                 fontSize: 16.5,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                                color: go.onAction,
                               ),
                             ),
                           ],
@@ -375,15 +376,17 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
             // A phone call is the captain's escape hatch when the pickup pin
             // is wrong, so it gets a real 48dp target rather than a text link.
             Material(
-              color: AppTokens.primary,
+              // go.action used here so the call button matches the primary CTA
+              // surface; go.onAction ensures legibility (black on lime in dark).
+              color: go.action,
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: () => _callRider(phone),
-                child: const SizedBox(
+                child: SizedBox(
                   width: AppTokens.tapTarget,
                   height: AppTokens.tapTarget,
-                  child: Icon(Icons.call_rounded, color: Colors.white, size: 21),
+                  child: Icon(Icons.call_rounded, color: go.onAction, size: 21),
                 ),
               ),
             ),
@@ -435,14 +438,16 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
     };
   }
 
-  _TripAction _actionFor(String? status, CaptainState state, double fare) {
+  _TripAction _actionFor(String? status, CaptainState state, double fare, GoTheme go) {
     final strings = AppStrings.of(context);
     switch (status) {
       case 'assigned':
         return _TripAction(
           label: strings.arrivedAtPickupAction,
           icon: Icons.place_rounded,
-          color: AppTokens.primary,
+          // go.action so the CTA uses lime in dark mode instead of green,
+          // which would produce near-1:1 contrast on a near-black surface.
+          color: go.action,
           onPressed: () => _runAction(state.arrived),
         );
       case 'arrived':
@@ -463,7 +468,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
         return _TripAction(
           label: strings.tripUpdatingAction,
           icon: Icons.hourglass_top_rounded,
-          color: AppTokens.primary,
+          color: go.action,
           onPressed: null,
         );
     }

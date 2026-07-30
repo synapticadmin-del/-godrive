@@ -136,7 +136,7 @@ class _TripsTabState extends State<TripsTab> {
                               subtitle: strings.noTripsYetSubtitle,
                             )
                           : RefreshIndicator(
-                              color: AppTokens.primary,
+                              color: go.action,
                               onRefresh: _load,
                               child: ListView.builder(
                                 padding: const EdgeInsets.fromLTRB(

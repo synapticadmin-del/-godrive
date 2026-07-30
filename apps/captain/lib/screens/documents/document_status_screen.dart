@@ -162,14 +162,17 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
             )
           : RefreshIndicator(
               onRefresh: _load,
-              color: AppTokens.primary,
+              // The spinner is an interactive affordance, so it follows the
+              // action ramp ΓÇö lime at night, green in daylight.
+              color: go.action,
+              backgroundColor: go.panel,
               child: ListView(
                 padding: const EdgeInsets.all(AppTokens.spaceMd),
                 children: [
-                  _buildAccountBanner(approval, go.text, go.muted, strings),
+                  _buildAccountBanner(approval, go, strings),
                   if (_rejectedDocs.isNotEmpty) ...[
                     const SizedBox(height: AppTokens.spaceMd),
-                    _buildRejectionAlert(go.text, go.muted, strings),
+                    _buildRejectionAlert(go, strings),
                   ],
                   const SizedBox(height: AppTokens.spaceMd),
                   ..._docTypes.map((d) => _buildStatusRow(
@@ -187,43 +190,44 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
 
   /// Where the whole application stands — the one line a captain opens this
   /// screen to see.
-  Widget _buildAccountBanner(String? approval, Color text, Color muted, AppStrings strings) {
-    final Color tone;
-    final Color toneBg;
+  Widget _buildAccountBanner(String? approval, GoTheme go, AppStrings strings) {
+    final GoBadgeTone toneKind;
     final IconData icon;
     final String title;
     final String subtitle;
     switch (approval) {
       case 'approved':
-        tone = AppTokens.success;
-        toneBg = AppTokens.badgeApprovedBg;
+        toneKind = GoBadgeTone.approved;
         icon = Icons.verified_rounded;
         title = strings.accountApprovedTitle;
         subtitle = strings.accountApprovedSubtitle;
       case 'rejected':
-        tone = AppTokens.danger;
-        toneBg = AppTokens.badgeStoppedBg;
+        toneKind = GoBadgeTone.stopped;
         icon = Icons.gpp_bad_rounded;
         title = strings.accountRejectedTitle;
         subtitle = strings.accountRejectedSubtitle;
       default:
-        tone = AppTokens.warning;
-        toneBg = AppTokens.badgePendingBg;
+        toneKind = GoBadgeTone.pending;
         icon = Icons.hourglass_top_rounded;
         title = strings.accountUnderReviewTitle;
         subtitle = strings.accountUnderReviewSubtitle;
     }
 
+    // Resolved per brightness: the banner used to hardcode the light tints, so
+    // at night this ΓÇö the single most important line on the screen ΓÇö rendered
+    // as a pale block that outshone everything around it.
+    final badge = GoBadgeColors.of(go, toneKind);
+
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceMd),
       decoration: BoxDecoration(
-        color: toneBg,
+        color: badge.bg,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: tone.withOpacity(0.3)),
+        border: Border.all(color: badge.accent.withOpacity(0.3)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: tone, size: 26),
+          Icon(icon, color: badge.accent, size: 26),
           const SizedBox(width: AppTokens.spaceSm),
           Expanded(
             child: Column(
@@ -234,13 +238,22 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                   style: AppTokens.font(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: text,
+                    // Tone-on-tint, matching the rejection alert below. The
+                    // neutral `go.text` that used to be here was fine, but
+                    // `go.muted` on the subtitle was not: grey #6B7280 on the
+                    // pale approved tint is about 3.9:1, under the 4.5:1 floor
+                    // for 12.5px type.
+                    color: badge.fg,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppTokens.space2xs / 2),
                 Text(
                   subtitle,
-                  style: AppTokens.font(fontSize: 12.5, color: muted, height: 1.5),
+                  style: AppTokens.font(
+                    fontSize: 12.5,
+                    color: badge.fg.withOpacity(0.85),
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),
@@ -252,21 +265,22 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
 
   /// Aggregate rejection summary with the exact admin reason per document and a
   /// single, unmissable path back to re-uploading.
-  Widget _buildRejectionAlert(Color text, Color muted, AppStrings strings) {
+  Widget _buildRejectionAlert(GoTheme go, AppStrings strings) {
     final rejected = _rejectedDocs;
+    final badge = GoBadgeColors.of(go, GoBadgeTone.stopped);
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceMd),
       decoration: BoxDecoration(
-        color: AppTokens.badgeStoppedBg,
+        color: badge.bg,
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: AppTokens.danger.withOpacity(0.35)),
+        border: Border.all(color: badge.accent.withOpacity(0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.error_rounded, color: AppTokens.danger, size: 22),
+              Icon(Icons.error_rounded, color: badge.accent, size: 22),
               const SizedBox(width: AppTokens.spaceXs),
               Expanded(
                 child: Text(
@@ -276,7 +290,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                   style: AppTokens.font(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: AppTokens.badgeStoppedText,
+                    color: badge.fg,
                   ),
                 ),
               ),
@@ -297,15 +311,15 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                     style: AppTokens.font(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
-                      color: text,
+                      color: badge.fg,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppTokens.space2xs / 2),
                   Text(
                     reason ?? strings.docNoReasonFallback,
                     style: AppTokens.font(
                       fontSize: 12.5,
-                      color: AppTokens.badgeStoppedText,
+                      color: badge.fg.withOpacity(0.85),
                       height: 1.5,
                     ),
                   ),
@@ -351,6 +365,10 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
   ) {
     final status = _docStatus(type);
 
+    // Also used by the per-document rejection-reason box further down, so it is
+    // resolved once here rather than twice with two chances to drift.
+    final stoppedTone = GoBadgeColors.of(go, GoBadgeTone.stopped);
+
     final Color badgeText;
     final Color badgeBg;
     final String statusLabel;
@@ -358,24 +376,28 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
     final Color cardBorder;
     switch (status) {
       case 'approved':
-        badgeText = AppTokens.badgeApprovedText;
-        badgeBg = AppTokens.badgeApprovedBg;
+        final badge = GoBadgeColors.of(go, GoBadgeTone.approved);
+        badgeText = badge.fg;
+        badgeBg = badge.bg;
         statusLabel = strings.docStatusApproved;
         statusIcon = Icons.check_circle_rounded;
-        cardBorder = AppTokens.success.withOpacity(0.25);
+        cardBorder = badge.accent.withOpacity(0.25);
       case 'pending':
-        badgeText = AppTokens.badgePendingText;
-        badgeBg = AppTokens.badgePendingBg;
+        final badge = GoBadgeColors.of(go, GoBadgeTone.pending);
+        badgeText = badge.fg;
+        badgeBg = badge.bg;
         statusLabel = strings.docStatusPending;
         statusIcon = Icons.hourglass_top_rounded;
         cardBorder = go.border;
       case 'rejected':
-        badgeText = AppTokens.badgeStoppedText;
-        badgeBg = AppTokens.badgeStoppedBg;
+        badgeText = stoppedTone.fg;
+        badgeBg = stoppedTone.bg;
         statusLabel = strings.docStatusRejected;
         statusIcon = Icons.error_rounded;
-        cardBorder = AppTokens.danger.withOpacity(0.3);
+        cardBorder = stoppedTone.accent.withOpacity(0.3);
       default:
+        // "Missing" is deliberately neutral ΓÇö it is the absence of a status,
+        // not a status, and colouring it would imply something went wrong.
         badgeText = go.muted;
         badgeBg = go.surface;
         statusLabel = strings.docStatusMissing;
@@ -457,9 +479,12 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                     icon: Icon(
                       Icons.upload_rounded,
                       size: 16,
+                      // `AppTokens.primary` here was brand green on a
+                      // near-black card at night ΓÇö about 2.6:1. The action ramp
+                      // resolves to lime instead.
                       color: status == 'rejected'
                           ? AppTokens.danger
-                          : AppTokens.primary,
+                          : go.action,
                     ),
                     label: Text(
                       status == 'rejected' ? strings.docReuploadAction : strings.docUploadAction,
@@ -468,8 +493,13 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                         fontWeight: FontWeight.w700,
                         color: status == 'rejected'
                             ? AppTokens.danger
-                            : AppTokens.primary,
+                            : go.action,
                       ),
+                    ),
+                    // A captain re-uploading papers is often doing it one-handed
+                    // at a kerb; 13px text alone was a ~30dp target.
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, AppTokens.tapTarget),
                     ),
                   ),
                 ),
@@ -483,21 +513,21 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(AppTokens.spaceSm),
               decoration: BoxDecoration(
-                color: AppTokens.badgeStoppedBg,
+                color: stoppedTone.bg,
                 borderRadius: BorderRadius.circular(AppTokens.radiusMd),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      size: 16, color: AppTokens.danger),
+                  Icon(Icons.info_outline_rounded,
+                      size: 16, color: stoppedTone.accent),
                   const SizedBox(width: AppTokens.spaceXs),
                   Expanded(
                     child: Text(
                       reason ?? strings.docNoReasonFallback,
                       style: AppTokens.font(
                         fontSize: 12.5,
-                        color: AppTokens.badgeStoppedText,
+                        color: stoppedTone.fg,
                         height: 1.5,
                       ),
                     ),

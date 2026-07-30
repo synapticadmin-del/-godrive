@@ -35,9 +35,9 @@ class NavCenterDestination {
 /// optional live badge — without touching the other three fixed slots.
 ///
 /// The Captain app uses this to put "رحلات متاحة" (the browsable queue of
-/// nearby requests, with its waiting-count badge) in the first slot; the Rider
-/// app uses it to put "وجهاتي" (saved destinations) there. Null keeps the
-/// original "الخريطة" first tab untouched.
+/// nearby requests, with its waiting-count badge) in the first slot. Null
+/// keeps the default "الأماكن" (saved places) first tab, which is what the
+/// Rider app uses — the map is one tap away on the centre crest.
 @immutable
 class NavFirstDestination {
   const NavFirstDestination({
@@ -64,6 +64,10 @@ class NavFirstDestination {
   /// selected — a sheet is not a destination you are "in".
   final VoidCallback? onTap;
 }
+
+/// The first slot is the rider's saved places by default: the map itself is
+/// one tap away on the centre button, so the corner slot earns its keep as
+/// the quick-reorder surface (Home, Work, …) rather than duplicating the map.
 
 /// The app's primary navigation.
 ///
@@ -128,7 +132,7 @@ class MainBottomNav extends StatelessWidget {
   /// Opt in to a real centre destination. Null keeps the shortcut behaviour.
   final NavCenterDestination? centerDestination;
 
-  /// Opt in to overriding the first destination. Null keeps "الخريطة".
+  /// Opt in to overriding the first destination. Null keeps "الأماكن".
   final NavFirstDestination? firstDestination;
 
   /// Optional image to paint in the crest *instead of* the live wordmark.
@@ -141,20 +145,18 @@ class MainBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAr = Localizations.localeOf(context).languageCode == 'ar';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTokens.darkPanel : Colors.white;
-    final borderColor = isDark ? AppTokens.darkBorder : AppTokens.lightBorder;
+    final go = GoTheme.of(context);
+    final bg = go.panel;
+    final borderColor = go.border;
     final center = centerDestination;
     final first = firstDestination;
 
     final crest = center == null
         ? _CrestButton(
-            isDark: isDark,
             logoAsset: centerLogoAsset,
             onTap: onCenterTap,
           )
         : _CrestDestination(
-            isDark: isDark,
             destination: center,
             logoAsset: centerLogoAsset,
             active: currentIndex == center.index,
@@ -169,7 +171,7 @@ class MainBottomNav extends StatelessWidget {
         fill: bg,
         border: borderColor,
         // Casts upward, like the sheet lip token it replaces.
-        shadow: Colors.black.withOpacity(isDark ? 0.34 : 0.13),
+        shadow: Colors.black.withOpacity(go.isDark ? 0.34 : 0.13),
         humpRise: _humpRise,
         humpHalfWidth: _humpHalfWidth,
       ),
@@ -196,9 +198,9 @@ class MainBottomNav extends StatelessWidget {
                     Expanded(
                       child: first == null
                           ? _NavItem(
-                              icon: Icons.map_outlined,
-                              activeIcon: Icons.map_rounded,
-                              label: isAr ? 'الخريطة' : 'Map',
+                              icon: Icons.bookmark_outline_rounded,
+                              activeIcon: Icons.bookmark_rounded,
+                              label: isAr ? 'الأماكن' : 'Places',
                               active: currentIndex == 0,
                               onTap: () => onTap(0),
                             )
@@ -351,12 +353,10 @@ class _NavSurfacePainter extends CustomPainter {
 /// what makes it look like it is floating in the bar instead of bolted to it.
 class _CrestShell extends StatelessWidget {
   const _CrestShell({
-    required this.isDark,
     required this.logoAsset,
     this.active = false,
   });
 
-  final bool isDark;
   final String? logoAsset;
 
   /// When the crest is a real destination and currently selected, the rim and
@@ -365,7 +365,8 @@ class _CrestShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = isDark ? AppTokens.primaryLight : AppTokens.primary;
+    final go = GoTheme.of(context);
+    final accent = go.action;
     final asset = logoAsset;
 
     return AnimatedContainer(
@@ -380,9 +381,9 @@ class _CrestShell extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: isDark
-              ? const [AppTokens.darkSurface, AppTokens.darkPanel]
-              : const [Colors.white, AppTokens.primarySoft],
+          colors: go.isDark
+              ? [go.surface, go.panel]
+              : [Colors.white, AppTokens.primarySoft],
         ),
         border: Border.all(
           color: accent.withOpacity(active ? 0.55 : 0.32),
@@ -461,12 +462,10 @@ class _CrestPressableState extends State<_CrestPressable> {
 /// state.
 class _CrestButton extends StatelessWidget {
   const _CrestButton({
-    required this.isDark,
     required this.logoAsset,
     required this.onTap,
   });
 
-  final bool isDark;
   final String? logoAsset;
   final VoidCallback? onTap;
 
@@ -477,7 +476,7 @@ class _CrestButton extends StatelessWidget {
       label: 'العودة إلى الخريطة وتوسيط موقعي',
       child: _CrestPressable(
         onTap: onTap,
-        child: _CrestShell(isDark: isDark, logoAsset: logoAsset),
+        child: _CrestShell(logoAsset: logoAsset),
       ),
     );
   }
@@ -487,14 +486,12 @@ class _CrestButton extends StatelessWidget {
 /// state beneath it, plus the waiting-count badge above.
 class _CrestDestination extends StatelessWidget {
   const _CrestDestination({
-    required this.isDark,
     required this.destination,
     required this.logoAsset,
     required this.active,
     required this.onTap,
   });
 
-  final bool isDark;
   final NavCenterDestination destination;
   final String? logoAsset;
   final bool active;
@@ -502,10 +499,13 @@ class _CrestDestination extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inactive = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final labelColor = active ? AppTokens.primary : inactive;
+    final go = GoTheme.of(context);
+    // The selected label used to be brand green on the legacy dark panel —
+    // #4E842D on #121A2B is about 3.86:1, under the 4.5:1 floor for an 11px
+    // label. On the GoTheme ramp the dark action is lime, which clears 13:1.
+    final labelColor = active ? go.action : go.muted;
     final count = destination.badgeCount;
-    final haloColor = isDark ? AppTokens.darkPanel : Colors.white;
+    final haloColor = go.panel;
 
     return Semantics(
       button: true,
@@ -521,7 +521,6 @@ class _CrestDestination extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 _CrestShell(
-                  isDark: isDark,
                   logoAsset: logoAsset,
                   active: active,
                 ),
@@ -597,10 +596,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inactive = isDark ? AppTokens.darkMuted : AppTokens.lightMuted;
-    final color = active ? AppTokens.primary : inactive;
-    final badgeColor = isDark ? AppTokens.darkPanel : Colors.white;
+    final go = GoTheme.of(context);
+    final color = active ? go.action : go.muted;
+    final badgeColor = go.panel;
 
     return Semantics(
       button: true,
@@ -620,7 +618,7 @@ class _NavItem extends StatelessWidget {
               width: active ? 20 : 0,
               margin: const EdgeInsets.only(bottom: 6),
               decoration: BoxDecoration(
-                color: AppTokens.primary,
+                color: go.action,
                 borderRadius: BorderRadius.circular(AppTokens.radiusPill),
               ),
             ),
