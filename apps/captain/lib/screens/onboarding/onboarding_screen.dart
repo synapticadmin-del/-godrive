@@ -144,7 +144,10 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           [];
 
       _prefill();
-      setState(() => _loading = false);
+      setState(() {
+        _step = _firstIncompleteStep();
+        _loading = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -165,6 +168,22 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     _vehicleColor.text = p['vehicle_color']?.toString() ?? '';
     _vehiclePlate.text = p['vehicle_plate']?.toString() ?? '';
     _vehicleYear.text = p['vehicle_year']?.toString() ?? '';
+  }
+
+  /// The first step that still fails validation.
+  ///
+  /// Must be called only after the catalog, the documents and the profile have
+  /// loaded and _prefill() has populated the controllers — _validForStep reads
+  /// all three.
+  ///
+  /// Settles on the last step when everything already validates, rather than
+  /// running past the end, so a returning captain gets a review-and-submit view
+  /// instead of an out-of-range index.
+  int _firstIncompleteStep() {
+    for (var i = 0; i < _totalSteps; i++) {
+      if (!_validForStep(i)) return i;
+    }
+    return _totalSteps - 1;
   }
 
   Map<String, dynamic>? _docFor(String type) {
