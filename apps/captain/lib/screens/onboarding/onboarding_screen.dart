@@ -189,6 +189,26 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     return def?.required ?? fallback;
   }
 
+  /// True when the catalog loaded and [typeId] is not in it — i.e. an admin
+  /// deactivated the type. GET /captain/document-types filters `active = 1`,
+  /// so a switched-off type simply never arrives.
+  ///
+  /// The `isNotEmpty` guard matters: an empty catalog means the fetch failed,
+  /// not that every type was deactivated. In that case this returns false so
+  /// [_docMissing] falls through to _isRequired's strict `fallback: true`.
+  /// Degrading to permissive on a network error is the wrong default for
+  /// compliance documents.
+  bool _deactivated(String typeId) =>
+      _catalog.isNotEmpty && !_catalog.any((t) => t.id == typeId);
+
+  /// True when [typeId] should block the current step.
+  ///
+  /// The single source of truth for both the Next gate and the validation
+  /// toast. The tiles badge themselves from _isRequired, so anything that
+  /// gates on a different rule can contradict what the captain is looking at.
+  bool _docMissing(String typeId) =>
+      !_deactivated(typeId) && _isRequired(typeId) && !_hasDoc(typeId);
+
   // ------------------------------------------------------------------
   // Upload
   // ------------------------------------------------------------------
@@ -342,18 +362,18 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   bool _validForStep(int step) {
     switch (step) {
       case 0:
-        return _firstName.text.trim().isNotEmpty &&
-            _fatherName.text.trim().isNotEmpty &&
-            _hasDoc('profile_photo');
+        return !_docMissing('profile_photo') &&
+            _firstName.text.trim().isNotEmpty &&
+            _fatherName.text.trim().isNotEmpty;
       case 1:
-        return _hasDoc('license');
+        return !_docMissing('license');
       case 2:
-        return _hasDoc('national_id') &&
-            _hasDoc('criminal_record') &&
+        return !_docMissing('national_id') &&
+            !_docMissing('criminal_record') &&
             (!_isRequired('national_id', fallback: false) ||
                 _nationalId.text.trim().isNotEmpty);
       case 3:
-        return _hasDoc('vehicle_reg') &&
+        return !_docMissing('vehicle_reg') &&
             _vehicleMake.text.trim().isNotEmpty &&
             _vehicleModel.text.trim().isNotEmpty &&
             _vehiclePlate.text.trim().isNotEmpty;
@@ -409,19 +429,19 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   String _validationMessage() {
     switch (_step) {
       case 0:
-        return !_hasDoc('profile_photo')
+        return _docMissing('profile_photo')
             ? 'ارفع صورتك الشخصية أولاً'
             : 'اكتب الاسم الأول واسم الأب على الأقل';
       case 1:
         return 'ارفع صورة رخصة القيادة أولاً';
       case 2:
-        if (!_hasDoc('national_id')) return 'ارفع صورة البطاقة الشخصية أولاً';
-        if (!_hasDoc('criminal_record')) {
+        if (_docMissing('national_id')) return 'ارفع صورة البطاقة الشخصية أولاً';
+        if (_docMissing('criminal_record')) {
           return 'ارفع صحيفة الحالة الجنائية أولاً';
         }
         return 'اكتب رقم الهوية';
       default:
-        return !_hasDoc('vehicle_reg')
+        return _docMissing('vehicle_reg')
             ? 'ارفع رخصة السيارة أولاً'
             : 'أكمل بيانات السيارة (الماركة والطراز ورقم اللوحة)';
     }
