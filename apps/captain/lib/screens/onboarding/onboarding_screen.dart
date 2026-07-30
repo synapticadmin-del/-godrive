@@ -471,25 +471,24 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   }
 
   String _validationMessage() {
+    final strings = AppStrings.of(context);
     switch (_step) {
       case 0:
         return _docMissing('profile_photo')
-            ? 'ارفع صورتك الشخصية أولاً'
-            : 'اكتب الاسم الأول واسم الأب على الأقل';
+            ? strings.onbNeedProfilePhoto
+            : strings.onbNeedNames;
       case 1:
-        return 'ارفع صورة رخصة القيادة أولاً';
+        return strings.onbNeedLicense;
       case 2:
-        if (_docMissing('national_id')) return 'ارفع صورة البطاقة الشخصية أولاً';
-        if (_docMissing('criminal_record')) {
-          return 'ارفع صحيفة الحالة الجنائية أولاً';
-        }
-        return 'اكتب رقم الهوية';
+        if (_docMissing('national_id')) return strings.onbNeedNationalId;
+        if (_docMissing('criminal_record')) return strings.onbNeedCriminalRecord;
+        return strings.onbNeedNationalIdNumber;
       default:
-        if (_docMissing('vehicle_reg')) return 'ارفع رخصة السيارة أولاً';
+        if (_docMissing('vehicle_reg')) return strings.onbNeedVehicleReg;
         if (!_vehicleYearValid()) {
-          return 'أدخل سنة إنتاج صحيحة (من $_minVehicleYear إلى $_maxVehicleYear)';
+          return strings.onbYearRange(_minVehicleYear, _maxVehicleYear);
         }
-        return 'أكمل بيانات السيارة (الماركة والطراز ورقم اللوحة)';
+        return strings.onbNeedVehicleFields;
     }
   }
 
@@ -564,10 +563,10 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     final muted = go.muted;
 
     final titles = [
-      'المعلومات الشخصية',
-      'رخصة القيادة',
+      strings.onbStep1Title,
+      strings.onbStep2Title,
       strings.docOnboardingTitle,
-      'معلومات السيارة',
+      strings.onbStep4Title,
     ];
 
     return Scaffold(
@@ -621,7 +620,8 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   Future<void> _showHelp() async {
     final go = GoTheme.of(context);
     final badge = GoBadgeColors.of(go, GoBadgeTone.pending);
-    final optionalLabel = AppStrings.of(context).docOptionalBadge;
+    final strings = AppStrings.of(context);
+    final optionalLabel = strings.docOptionalBadge;
     final blocker = _validForStep(_step) ? null : _validationMessage();
 
     await showModalBottomSheet<void>(
@@ -659,7 +659,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                   ),
                 ),
                 Text(
-                  'كيف تُكمل التسجيل؟',
+                  strings.onbHelpTitle,
                   style: AppTokens.font(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -681,7 +681,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                         const SizedBox(width: AppTokens.spaceXs),
                         Expanded(
                           child: Text(
-                            'المطلوب الآن: $blocker',
+                            strings.onbHelpBlocker(blocker),
                             style: AppTokens.font(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
@@ -696,13 +696,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                   const SizedBox(height: AppTokens.spaceMd),
                 ],
                 Text(
-                  'التسجيل أربع خطوات: المعلومات الشخصية، رخصة القيادة، '
-                  'المستندات الشخصية، ثم معلومات السيارة.\n\n'
-                  'كل ما تكتبه وكل صورة ترفعها تُحفظ فوراً، فيمكنك إغلاق '
-                  'التطبيق والعودة لاحقاً دون فقدان ما أدخلته.\n\n'
-                  'المربّعات المكتوب عليها «$optionalLabel» ليست شرطاً '
-                  'للمتابعة، لكن رفعها يسرّع مراجعة حسابك.\n\n'
-                  'لرفع صورة اضغط على المربّع، ولحذفها اضغط «×» في زاويته.',
+                  strings.onbHelpBody(optionalLabel),
                   style: AppTokens.font(
                     fontSize: 13.5,
                     color: go.muted,
@@ -723,7 +717,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                       ),
                     ),
                     child: Text(
-                      'فهمت',
+                      strings.onbHelpDismiss,
                       style: AppTokens.font(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -741,6 +735,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   }
 
   Widget _topBar(Color text) {
+    final strings = AppStrings.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceMd,
@@ -752,7 +747,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             onPressed: _showHelp,
             icon: Icon(Icons.help_outline_rounded, size: 18, color: text),
             label: Text(
-              'المساعدة',
+              strings.onbHelpAction,
               style: AppTokens.font(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -772,6 +767,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 1: المعلومات الشخصية ─────────────────────────────────────
   Widget _stepPersonalInfo(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -780,7 +776,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           children: [
             _uploadTile(
               type: 'profile_photo',
-              label: _titleFor('profile_photo', 'صورة شخصية'),
+              label: _titleFor('profile_photo', strings.onbDocProfilePhoto),
               isDark: isDark,
               width: 110,
               height: 110,
@@ -788,20 +784,22 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_firstName, 'الاسم الأول', fieldBg, text, muted, required: true),
+        _field(_firstName, strings.onbFirstName, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
         // This field was missing entirely while _validForStep(0) still
         // required it, so the step could never be completed: the captain
         // filled every visible box and the wizard still refused to advance.
-        _field(_fatherName, 'اسم الأب', fieldBg, text, muted, required: true),
+        _field(_fatherName, strings.onbFatherName, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_grandfatherName, 'اسم الجد', fieldBg, text, muted),
+        _field(_grandfatherName, strings.onbGrandfatherName, fieldBg, text, muted),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_familyName, 'اسم العائلة', fieldBg, text, muted),
+        _field(_familyName, strings.onbFamilyName, fieldBg, text, muted),
         const SizedBox(height: AppTokens.spaceSm),
         _dateField(
           value: _birthDate,
-          hint: 'تاريخ الميلاد',
+          hint: strings.onbBirthDate,
           fieldBg: fieldBg,
           text: text,
           muted: muted,
@@ -816,6 +814,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 2: رخصة القيادة ──────────────────────────────────────────
   Widget _stepLicence(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -824,7 +823,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           children: [
             _uploadTile(
               type: 'license',
-              label: _titleFor('license', 'رخصة القيادة'),
+              label: _titleFor('license', strings.onbDocLicense),
               isDark: isDark,
               width: 130,
               height: 130,
@@ -834,7 +833,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         const SizedBox(height: AppTokens.spaceMd),
         _dateField(
           value: _licenseExpiry,
-          hint: 'تاريخ انتهاء الصلاحية',
+          hint: strings.onbLicenseExpiry,
           fieldBg: fieldBg,
           text: text,
           muted: muted,
@@ -849,6 +848,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 3: المستندات الشخصية ─────────────────────────────────────
   Widget _stepDocuments(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -858,8 +858,8 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'criminal_record_back',
-                label: _titleFor(
-                    'criminal_record_back', 'الجانب الخلفي لصحيفة الحالة الجنائية'),
+                label: _titleFor('criminal_record_back',
+                    strings.onbDocCriminalRecordBack),
                 isDark: isDark,
                 optionalBadge: !_isRequired('criminal_record_back', fallback: false),
                 height: 120,
@@ -869,7 +869,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'criminal_record',
-                label: _titleFor('criminal_record', 'صحيفة الحالة الجنائية'),
+                label: _titleFor('criminal_record', strings.onbDocCriminalRecord),
                 isDark: isDark,
                 optionalBadge: !_isRequired('criminal_record'),
                 height: 120,
@@ -881,7 +881,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'national_id',
-                label: _titleFor('national_id', 'البطاقة الشخصية'),
+                label: _titleFor('national_id', strings.onbDocNationalId),
                 isDark: isDark,
                 optionalBadge: !_isRequired('national_id'),
                 height: 120,
@@ -890,13 +890,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_nationalId, 'رقم الهوية', fieldBg, text, muted,
+        _field(_nationalId, strings.onbNationalIdNumber, fieldBg, text, muted,
             keyboardType: TextInputType.number, maxLength: 14),
         const SizedBox(height: AppTokens.spaceXs),
         Text(
-          _isArabic
-              ? 'المستندات الاختيارية تسرّع المراجعة لكنها ليست شرطاً.'
-              : 'Optional documents speed up review but are not required.',
+          strings.onbOptionalDocsNote,
           style: AppTokens.font(fontSize: 12, color: muted, height: 1.5),
         ),
         const SizedBox(height: AppTokens.spaceLg),
@@ -906,6 +904,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 4: معلومات السيارة ───────────────────────────────────────
   Widget _stepVehicle(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -915,7 +914,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'vehicle_reg_back',
-                label: _titleFor('vehicle_reg_back', 'الجانب الخلفي للشهادة'),
+                label: _titleFor('vehicle_reg_back', strings.onbDocVehicleRegBack),
                 isDark: isDark,
                 optionalBadge: !_isRequired('vehicle_reg_back', fallback: false),
                 height: 120,
@@ -925,7 +924,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'vehicle_reg',
-                label: _titleFor('vehicle_reg', 'رخصة السيارة'),
+                label: _titleFor('vehicle_reg', strings.onbDocVehicleReg),
                 isDark: isDark,
                 optionalBadge: !_isRequired('vehicle_reg'),
                 height: 120,
@@ -935,7 +934,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'vehicle_photo',
-                label: _titleFor('vehicle_photo', 'صورة المركبة'),
+                label: _titleFor('vehicle_photo', strings.onbDocVehiclePhoto),
                 isDark: isDark,
                 optionalBadge: !_isRequired('vehicle_photo', fallback: false),
                 height: 120,
@@ -944,15 +943,18 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_vehicleMake, 'العلامة التجارية للسيارة', fieldBg, text, muted, required: true),
+        _field(_vehicleMake, strings.onbVehicleMake, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehicleModel, 'طراز المركبة', fieldBg, text, muted, required: true),
+        _field(_vehicleModel, strings.onbVehicleModel, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehicleColor, 'لون المركبة', fieldBg, text, muted),
+        _field(_vehicleColor, strings.onbVehicleColor, fieldBg, text, muted),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehiclePlate, 'رقم اللوحة', fieldBg, text, muted, required: true),
+        _field(_vehiclePlate, strings.onbVehiclePlate, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehicleYear, 'سنة الانتاج', fieldBg, text, muted,
+        _field(_vehicleYear, strings.onbVehicleYear, fieldBg, text, muted,
             keyboardType: TextInputType.number, maxLength: 4),
         const SizedBox(height: AppTokens.spaceLg),
       ],
@@ -1265,7 +1267,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                             color: ink,
                           ),
                     label: Text(
-                      isLast ? 'إرسال للمراجعة' : strings.nextAction,
+                      isLast ? strings.onbSubmitForReview : strings.nextAction,
                       style: AppTokens.font(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -1326,7 +1328,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
               ),
               const SizedBox(width: AppTokens.spaceSm),
               Text(
-                '${_step + 1} من $_totalSteps',
+                strings.onbStepCounter(_step + 1, _totalSteps),
                 style: AppTokens.font(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,

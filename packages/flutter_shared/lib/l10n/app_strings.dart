@@ -1480,6 +1480,135 @@ abstract class AppStrings {
 
   /// Section heading above the identity fields (legal name, ID number).
   String get docSectionIdentity;
+
+  // ──────────────────────────────────────────────────────────────────
+  // Captain — Onboarding wizard (four-step registration)
+  //
+  // This screen shipped with its titles, field hints and validation
+  // messages hardcoded in Arabic while the app advertises
+  // supportedLocales [ar_EG, en_US], so an English captain saw a mostly
+  // Arabic wizard with a single translated heading in the middle of it.
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Wizard step 1 heading — personal information.
+  String get onbStep1Title;
+
+  /// Wizard step 2 heading — driving licence.
+  String get onbStep2Title;
+
+  /// Wizard step 4 heading — vehicle information.
+  String get onbStep4Title;
+
+  /// Top-bar action that opens the onboarding help sheet.
+  String get onbHelpAction;
+
+  /// Footer action on the final step — sends the file to admin review.
+  String get onbSubmitForReview;
+
+  /// Footer progress counter, e.g. "2 of 4".
+  String onbStepCounter(int step, int total);
+
+  /// Hint: captain first name.
+  String get onbFirstName;
+
+  /// Hint: captain father's name.
+  String get onbFatherName;
+
+  /// Hint: captain grandfather's name.
+  String get onbGrandfatherName;
+
+  /// Hint: captain family name.
+  String get onbFamilyName;
+
+  /// Hint: date of birth picker.
+  String get onbBirthDate;
+
+  /// Hint: driving licence expiry date picker.
+  String get onbLicenseExpiry;
+
+  /// Hint: national ID number.
+  String get onbNationalIdNumber;
+
+  /// Hint: vehicle make / brand.
+  String get onbVehicleMake;
+
+  /// Hint: vehicle model.
+  String get onbVehicleModel;
+
+  /// Hint: vehicle colour.
+  String get onbVehicleColor;
+
+  /// Hint: licence plate number.
+  String get onbVehiclePlate;
+
+  /// Hint: vehicle model year.
+  String get onbVehicleYear;
+
+  /// Tile fallback label: personal photo.
+  String get onbDocProfilePhoto;
+
+  /// Tile fallback label: driving licence.
+  String get onbDocLicense;
+
+  /// Tile fallback label: national ID card.
+  String get onbDocNationalId;
+
+  /// Tile fallback label: criminal record certificate.
+  String get onbDocCriminalRecord;
+
+  /// Tile fallback label: criminal record certificate, back side.
+  String get onbDocCriminalRecordBack;
+
+  /// Tile fallback label: vehicle registration.
+  String get onbDocVehicleReg;
+
+  /// Tile fallback label: vehicle registration, back side.
+  String get onbDocVehicleRegBack;
+
+  /// Tile fallback label: photo of the vehicle.
+  String get onbDocVehiclePhoto;
+
+  /// Validation: profile photo not uploaded yet.
+  String get onbNeedProfilePhoto;
+
+  /// Validation: first and father name are the minimum.
+  String get onbNeedNames;
+
+  /// Validation: driving licence photo missing.
+  String get onbNeedLicense;
+
+  /// Validation: national ID card photo missing.
+  String get onbNeedNationalId;
+
+  /// Validation: criminal record certificate missing.
+  String get onbNeedCriminalRecord;
+
+  /// Validation: national ID number field empty.
+  String get onbNeedNationalIdNumber;
+
+  /// Validation: vehicle registration photo missing.
+  String get onbNeedVehicleReg;
+
+  /// Validation: mandatory vehicle text fields incomplete.
+  String get onbNeedVehicleFields;
+
+  /// Validation: model year outside the accepted range.
+  String onbYearRange(int min, int max);
+
+  /// Note under step 3 explaining what the optional badge means.
+  String get onbOptionalDocsNote;
+
+  /// Help sheet heading.
+  String get onbHelpTitle;
+
+  /// Help sheet callout naming what currently blocks the step.
+  String onbHelpBlocker(String what);
+
+  /// Help sheet body. [optionalLabel] is the badge word used on optional tiles.
+  String onbHelpBody(String optionalLabel);
+
+  /// Help sheet dismiss action.
+  String get onbHelpDismiss;
 }
 
 /// Egyptian-Arabic copy — the app's primary language.
@@ -3114,6 +3243,142 @@ class AppStringsAr extends AppStrings {
 
   @override
   String get docSectionIdentity => 'بيانات المستند';
+
+  // ──────────────────────────────────────────────────────────────────
+  // Captain — Onboarding wizard (four-step registration)
+  //
+  // This screen shipped with its titles, field hints and validation
+  // messages hardcoded in Arabic while the app advertises
+  // supportedLocales [ar_EG, en_US], so an English captain saw a mostly
+  // Arabic wizard with a single translated heading in the middle of it.
+  // ──────────────────────────────────────────────────────────────────
+
+  @override
+  String get onbStep1Title => 'المعلومات الشخصية';
+
+  @override
+  String get onbStep2Title => 'رخصة القيادة';
+
+  @override
+  String get onbStep4Title => 'معلومات السيارة';
+
+  @override
+  String get onbHelpAction => 'المساعدة';
+
+  @override
+  String get onbSubmitForReview => 'إرسال للمراجعة';
+
+  @override
+  String onbStepCounter(int step, int total) => '$step من $total';
+
+  @override
+  String get onbFirstName => 'الاسم الأول';
+
+  @override
+  String get onbFatherName => 'اسم الأب';
+
+  @override
+  String get onbGrandfatherName => 'اسم الجد';
+
+  @override
+  String get onbFamilyName => 'اسم العائلة';
+
+  @override
+  String get onbBirthDate => 'تاريخ الميلاد';
+
+  @override
+  String get onbLicenseExpiry => 'تاريخ انتهاء الصلاحية';
+
+  @override
+  String get onbNationalIdNumber => 'رقم الهوية';
+
+  @override
+  String get onbVehicleMake => 'العلامة التجارية للسيارة';
+
+  @override
+  String get onbVehicleModel => 'طراز المركبة';
+
+  @override
+  String get onbVehicleColor => 'لون المركبة';
+
+  @override
+  String get onbVehiclePlate => 'رقم اللوحة';
+
+  @override
+  String get onbVehicleYear => 'سنة الانتاج';
+
+  @override
+  String get onbDocProfilePhoto => 'صورة شخصية';
+
+  @override
+  String get onbDocLicense => 'رخصة القيادة';
+
+  @override
+  String get onbDocNationalId => 'البطاقة الشخصية';
+
+  @override
+  String get onbDocCriminalRecord => 'صحيفة الحالة الجنائية';
+
+  @override
+  String get onbDocCriminalRecordBack => 'الجانب الخلفي لصحيفة الحالة الجنائية';
+
+  @override
+  String get onbDocVehicleReg => 'رخصة السيارة';
+
+  @override
+  String get onbDocVehicleRegBack => 'الجانب الخلفي للشهادة';
+
+  @override
+  String get onbDocVehiclePhoto => 'صورة المركبة';
+
+  @override
+  String get onbNeedProfilePhoto => 'ارفع صورتك الشخصية أولاً';
+
+  @override
+  String get onbNeedNames => 'اكتب الاسم الأول واسم الأب على الأقل';
+
+  @override
+  String get onbNeedLicense => 'ارفع صورة رخصة القيادة أولاً';
+
+  @override
+  String get onbNeedNationalId => 'ارفع صورة البطاقة الشخصية أولاً';
+
+  @override
+  String get onbNeedCriminalRecord => 'ارفع صحيفة الحالة الجنائية أولاً';
+
+  @override
+  String get onbNeedNationalIdNumber => 'اكتب رقم الهوية';
+
+  @override
+  String get onbNeedVehicleReg => 'ارفع رخصة السيارة أولاً';
+
+  @override
+  String get onbNeedVehicleFields => 'أكمل بيانات السيارة (الماركة والطراز ورقم اللوحة)';
+
+  @override
+  String onbYearRange(int min, int max) => 'أدخل سنة إنتاج صحيحة (من $min إلى $max)';
+
+  @override
+  String get onbOptionalDocsNote => 'المستندات الاختيارية تسرّع المراجعة لكنها ليست شرطاً.';
+
+  @override
+  String get onbHelpTitle => 'كيف تُكمل التسجيل؟';
+
+  @override
+  String onbHelpBlocker(String what) => 'المطلوب الآن: $what';
+
+  @override
+  String onbHelpBody(String optionalLabel) =>
+      'التسجيل أربع خطوات: المعلومات الشخصية، رخصة القيادة، '
+      'المستندات الشخصية، ثم معلومات السيارة.\n\n'
+      'كل ما تكتبه وكل صورة ترفعها تُحفظ فوراً، فيمكنك إغلاق التطبيق '
+      'والعودة لاحقاً دون فقدان ما أدخلته.\n\n'
+      'المربّعات المكتوب عليها «$optionalLabel» ليست شرطاً للمتابعة، '
+      'لكن رفعها يسرّع مراجعة حسابك.\n\n'
+      'لرفع صورة اضغط على المربّع، ولحذفها اضغط «×» في زاويته.';
+
+  @override
+  String get onbHelpDismiss => 'فهمت';
 }
 
 /// English copy.
@@ -4753,4 +5018,141 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get docSectionIdentity => 'Document details';
+
+  // ──────────────────────────────────────────────────────────────────
+  // Captain — Onboarding wizard (four-step registration)
+  //
+  // This screen shipped with its titles, field hints and validation
+  // messages hardcoded in Arabic while the app advertises
+  // supportedLocales [ar_EG, en_US], so an English captain saw a mostly
+  // Arabic wizard with a single translated heading in the middle of it.
+  // ──────────────────────────────────────────────────────────────────
+
+  @override
+  String get onbStep1Title => 'Personal information';
+
+  @override
+  String get onbStep2Title => 'Driving licence';
+
+  @override
+  String get onbStep4Title => 'Vehicle information';
+
+  @override
+  String get onbHelpAction => 'Help';
+
+  @override
+  String get onbSubmitForReview => 'Submit for review';
+
+  @override
+  String onbStepCounter(int step, int total) => '$step of $total';
+
+  @override
+  String get onbFirstName => 'First name';
+
+  @override
+  String get onbFatherName => 'Father name';
+
+  @override
+  String get onbGrandfatherName => 'Grandfather name';
+
+  @override
+  String get onbFamilyName => 'Family name';
+
+  @override
+  String get onbBirthDate => 'Date of birth';
+
+  @override
+  String get onbLicenseExpiry => 'Expiry date';
+
+  @override
+  String get onbNationalIdNumber => 'National ID number';
+
+  @override
+  String get onbVehicleMake => 'Vehicle make';
+
+  @override
+  String get onbVehicleModel => 'Vehicle model';
+
+  @override
+  String get onbVehicleColor => 'Vehicle colour';
+
+  @override
+  String get onbVehiclePlate => 'Plate number';
+
+  @override
+  String get onbVehicleYear => 'Model year';
+
+  @override
+  String get onbDocProfilePhoto => 'Personal photo';
+
+  @override
+  String get onbDocLicense => 'Driving licence';
+
+  @override
+  String get onbDocNationalId => 'National ID';
+
+  @override
+  String get onbDocCriminalRecord => 'Criminal record';
+
+  @override
+  String get onbDocCriminalRecordBack => 'Criminal record (back side)';
+
+  @override
+  String get onbDocVehicleReg => 'Vehicle registration';
+
+  @override
+  String get onbDocVehicleRegBack => 'Vehicle certificate (back)';
+
+  @override
+  String get onbDocVehiclePhoto => 'Vehicle photo';
+
+  @override
+  String get onbNeedProfilePhoto => 'Upload your personal photo first';
+
+  @override
+  String get onbNeedNames => 'Enter at least your first and father name';
+
+  @override
+  String get onbNeedLicense => 'Upload your driving licence first';
+
+  @override
+  String get onbNeedNationalId => 'Upload your national ID first';
+
+  @override
+  String get onbNeedCriminalRecord => 'Upload your criminal record first';
+
+  @override
+  String get onbNeedNationalIdNumber => 'Enter your national ID number';
+
+  @override
+  String get onbNeedVehicleReg => 'Upload the vehicle registration first';
+
+  @override
+  String get onbNeedVehicleFields => 'Complete the vehicle details (make, model and plate)';
+
+  @override
+  String onbYearRange(int min, int max) => 'Enter a valid model year ($min to $max)';
+
+  @override
+  String get onbOptionalDocsNote => 'Optional documents speed up review but are not required.';
+
+  @override
+  String get onbHelpTitle => 'How do I finish registering?';
+
+  @override
+  String onbHelpBlocker(String what) => 'Needed now: $what';
+
+  @override
+  String onbHelpBody(String optionalLabel) =>
+      'Registration has four steps: personal information, driving licence, '
+      'personal documents, then vehicle information.\n\n'
+      'Everything you type and every photo you upload is saved immediately, '
+      'so you can close the app and come back without losing your progress.'
+      '\n\n'
+      'Tiles marked "$optionalLabel" are not required to continue, but '
+      'uploading them speeds up the review of your account.\n\n'
+      'To upload a photo tap the tile; to remove it tap the × in its corner.';
+
+  @override
+  String get onbHelpDismiss => 'Got it';
 }
