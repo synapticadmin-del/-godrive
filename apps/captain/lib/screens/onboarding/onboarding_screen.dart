@@ -199,11 +199,17 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
       _localPreviews[type] != null ||
       (_docFor(type)?['r2_key']?.toString().isNotEmpty ?? false);
 
+  /// Whether the active locale is Arabic.
+  ///
+  /// Read from Localizations, never inferred by comparing a translated string
+  /// to a literal: that breaks the instant a translation is reworded, and it
+  /// breaks silently.
+  bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
+
   String _titleFor(String typeId, String fallback) {
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final def = _catalog.where((t) => t.id == typeId).firstOrNull;
     if (def == null) return fallback;
-    if (isArabic) return def.titleAr.isNotEmpty ? def.titleAr : fallback;
+    if (_isArabic) return def.titleAr.isNotEmpty ? def.titleAr : fallback;
     return def.titleEn.isNotEmpty ? def.titleEn : def.titleAr;
   }
 
@@ -843,7 +849,6 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 3: المستندات الشخصية ─────────────────────────────────────
   Widget _stepDocuments(Color fieldBg, Color text, Color muted, bool isDark) {
-    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -889,7 +894,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             keyboardType: TextInputType.number, maxLength: 14),
         const SizedBox(height: AppTokens.spaceXs),
         Text(
-          strings.docOptionalBadge == 'اختياري'
+          _isArabic
               ? 'المستندات الاختيارية تسرّع المراجعة لكنها ليست شرطاً.'
               : 'Optional documents speed up review but are not required.',
           style: AppTokens.font(fontSize: 12, color: muted, height: 1.5),
