@@ -1349,6 +1349,15 @@ abstract class AppStrings {
   /// Button in the avatar picker to choose a new photo.
   String get chooseNewPhotoAction;
 
+  /// Destructive action in the avatar picker that clears the current photo.
+  String get removeProfilePictureAction;
+
+  /// SnackBar shown after a new profile photo uploads successfully.
+  String get profilePhotoUpdatedMessage;
+
+  /// SnackBar shown after the profile photo is removed.
+  String get profilePhotoRemovedMessage;
+
   /// Fallback display name when the profile has no name or email.
   String get fallbackUserName;
 
@@ -2941,6 +2950,18 @@ class AppStringsAr extends AppStrings {
   /// Button in the avatar picker to choose a new photo.
   @override
   String get chooseNewPhotoAction => 'اختيار صورة جديدة';
+
+  /// Destructive action in the avatar picker that clears the current photo.
+  @override
+  String get removeProfilePictureAction => 'إزالة الصورة الحالية';
+
+  /// SnackBar shown after a new profile photo uploads successfully.
+  @override
+  String get profilePhotoUpdatedMessage => 'تم تحديث صورتك الشخصية';
+
+  /// SnackBar shown after the profile photo is removed.
+  @override
+  String get profilePhotoRemovedMessage => 'تم إزالة الصورة';
 
   /// Fallback display name when the profile has no name or email.
   @override
@@ -4568,6 +4589,18 @@ class AppStringsEn extends AppStrings {
   /// Button in the avatar picker to choose a new photo.
   @override
   String get chooseNewPhotoAction => 'Choose New Photo';
+
+  /// Destructive action in the avatar picker that clears the current photo.
+  @override
+  String get removeProfilePictureAction => 'Remove current photo';
+
+  /// SnackBar shown after a new profile photo uploads successfully.
+  @override
+  String get profilePhotoUpdatedMessage => 'Profile photo updated';
+
+  /// SnackBar shown after the profile photo is removed.
+  @override
+  String get profilePhotoRemovedMessage => 'Photo removed';
 
   /// Fallback display name when the profile has no name or email.
   @override

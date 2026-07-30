@@ -318,6 +318,63 @@ class CaptainState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // -------------------------------------------------------------------
+  // Profile photo
+  // -------------------------------------------------------------------
+  //
+  // Backed by the same POST/GET/DELETE /user/avatar endpoints the rider app
+  // uses (apps/api/src/routes/user.ts) — the column and the route live on
+  // `users`, not `captains`, so any authenticated role can use them. Unlike
+  // the rider app's AppState, `user` here is always repopulated verbatim
+  // from the server on every verifyOtp/login/register/refreshMe call (see
+  // above), so `avatar_url` is already the live snake_case column with no
+  // separate camelCase key to keep in sync — one less place for the photo to
+  // silently fall out of the cached state.
+
+  ImageProvider? get avatarImage {
+    final raw = user?['avatar_url'];
+    if (raw is! String || raw.isEmpty) return null;
+    if (raw.startsWith('http')) return NetworkImage(raw);
+    return NetworkImage(
+      '$baseUrl$raw',
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
+    );
+  }
+
+  Future<void> uploadAvatar(String filePath) async {
+    final res = await _executeWithAuthInterceptor(() async {
+      final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/user/avatar'))
+        ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'})
+        ..files.add(await http.MultipartFile.fromPath('file', filePath));
+      final streamed = await req.send().timeout(const Duration(seconds: 45));
+      return http.Response.fromStream(streamed);
+    });
+
+    final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
+    if (res.statusCode >= 400) {
+      throw Exception(
+        data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}',
+      );
+    }
+
+    // The upload response itself is camelCase (`avatarUrl`), but everything
+    // else in this class reads the user row's own `avatar_url` column, so the
+    // locally patched copy is stored under that same key for consistency.
+    final url = data is Map ? data['avatarUrl'] : null;
+    user = {...?user, 'avatar_url': url is String && url.isNotEmpty ? url : null};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', jsonEncode(user));
+    notifyListeners();
+  }
+
+  Future<void> removeAvatar() async {
+    await apiDelete('/user/avatar');
+    user = {...?user, 'avatar_url': null};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', jsonEncode(user));
+    notifyListeners();
+  }
+
   Future<Position> _position() async {
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
