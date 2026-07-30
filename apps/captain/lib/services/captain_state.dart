@@ -17,6 +17,14 @@ class CaptainState extends ChangeNotifier {
   Map<String, dynamic>? user;
   Map<String, dynamic>? captain;
   Map<String, dynamic>? activeTrip;
+
+  /// The captain's current approval state ('pending' | 'approved' | 'rejected'),
+  /// read from the latest /auth/me payload. MainShell and the onboarding
+  /// wizard watch this so an admin decision flips the app from the document
+  /// queue to the live map without a cold restart.
+  String? get approvalStatus =>
+      (captain?['approval_status'] ?? captain?['status'])?.toString();
+  bool get isApproved => approvalStatus == 'approved';
   List<Map<String, dynamic>> offers = [];
   String? error;
 
@@ -35,6 +43,13 @@ class CaptainState extends ChangeNotifier {
   Timer? offersTimer;
   OffersWebSocketService? offersWs;
   String offersWsStatus = 'idle';
+
+  /// Periodic /auth/me refresh so an admin approval (or rejection) reaches
+  /// the app without the captain force-quitting. Runs only while a token is
+  /// present; 30s is cheap (a single small JSON row) and the latency is the
+  /// difference between "stuck on the waiting screen" and "the map opens".
+  Timer? _approvalPollTimer;
+  static const Duration _approvalPollInterval = Duration(seconds: 30);
 
   /// Live room socket for the active trip. Opened as soon as a trip is
   /// assigned so status changes, cancellations and chat events reach the
@@ -594,6 +609,25 @@ class CaptainState extends ChangeNotifier {
     _restartOffersTimer();
     refreshOffers();
     _connectOffersWs();
+    _startApprovalPolling();
+  }
+
+  /// Arm the periodic /auth/me refresh that delivers admin approval decisions.
+  /// Idempotent — re-arming is safe because the timer is cancelled first.
+  void _startApprovalPolling() {
+    _approvalPollTimer?.cancel();
+    _approvalPollTimer = Timer.periodic(_approvalPollInterval, (_) async {
+      if (token == null || _lifecyclePaused) return;
+      try {
+        await refreshMe();
+      } catch (_) {}
+    });
+  }
+
+  /// Stop the approval poll (logout / dispose).
+  void _stopApprovalPolling() {
+    _approvalPollTimer?.cancel();
+    _approvalPollTimer = null;
   }
 
   /// (Re)arm the periodic REST poll at the cadence appropriate for the
@@ -928,6 +962,7 @@ class CaptainState extends ChangeNotifier {
 
   Future<void> logout() async {
     _stopLocationStream();
+    _stopApprovalPolling();
     offersTimer?.cancel();
     offersTimer = null;
     _wsDebounce?.cancel();
@@ -960,6 +995,7 @@ class CaptainState extends ChangeNotifier {
   @override
   void dispose() {
     _stopLocationStream();
+    _stopApprovalPolling();
     _positionCtrl.close();
     offersTimer?.cancel();
     _wsDebounce?.cancel();

@@ -136,8 +136,16 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
     final state = context.watch<CaptainState>();
     final go = GoTheme.of(context);
 
-    final approval =
-        (state.captain?['approval_status'] ?? state.captain?['status'])?.toString();
+    final approval = state.approvalStatus;
+
+    // The approval poll flips this screen to the live app the moment the
+    // admin approves — pop back to MainShell (which now renders the map)
+    // rather than leaving the captain on a stale "under review" page.
+    if (state.isApproved) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      });
+    }
 
     return Scaffold(
       backgroundColor: go.bg,

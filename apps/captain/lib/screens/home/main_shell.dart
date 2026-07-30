@@ -16,6 +16,7 @@ import 'package:synaptic_go_captain/screens/safety/sos_screen.dart';
 import 'home_tab.dart';
 import 'nearby_requests_screen.dart';
 import 'trips_tab.dart';
+import '../login_screen.dart';
 
 /// The captain's main shell: a full-bleed map with floating chrome.
 ///
@@ -366,12 +367,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<CaptainState>();
-    final isApproved =
-        (state.captain?['approval_status'] ?? state.captain?['status']) == 'approved';
+
+    // Logout from any nested screen clears the token; without this check the
+    // shell kept rendering the last frame over a dead session — the black
+    // screen captains hit after signing out from the documents page.
+    if (state.token == null) return const LoginScreen();
 
     // A captain who has not been approved yet cannot receive work, so the
-    // document queue is the only meaningful screen for them.
-    if (!isApproved) return const CaptainOnboardingScreen();
+    // document queue is the only meaningful screen for them. isApproved is
+    // polled by CaptainState every 30s, so an admin approval flips this
+    // without a cold restart.
+    if (!state.isApproved) return const CaptainOnboardingScreen();
 
     final go = GoTheme.of(context);
     final onMapTab = _tabIndex == _mapIndex;

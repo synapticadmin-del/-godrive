@@ -824,6 +824,17 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
+    final state = context.watch<CaptainState>();
+
+    // Approval landed while the captain was mid-upload: leave the queue for
+    // the live app. A cleared token (logout from another screen) also pops
+    // back to the root so MainShell's LoginScreen branch takes over instead
+    // of hanging on a dead session.
+    if (state.isApproved || state.token == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      });
+    }
 
     return Scaffold(
       backgroundColor: go.bg,
