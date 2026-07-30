@@ -315,113 +315,163 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  /// The balance hero is the most important number on screen — it gets a
-  /// gradient card, an oversized numeral via AppTokens.money, and the single
-  /// primary action at exactly primaryActionHeight.
+  /// The balance hero is the most important number on screen — it mirrors the
+  /// rider wallet's card so the two apps read as one product: a gradient held
+  /// inside the brand's dark ramp (deepening after dark) so white text never
+  /// lands on a pale stop, soft light pools for physicality, the GoDrive
+  /// wordmark where an issuer mark would sit, an oversized numeral via
+  /// AppTokens.money, and the primary action as a white pill at
+  /// primaryActionHeight.
   Widget _buildBalanceHero() {
     final strings = AppStrings.of(context);
+    final go = GoTheme.of(context);
     final nextPayout = _wallet?['nextPayoutWindow']?.toString();
     final weekTrips = (_wallet?['weekTrips'] as num?)?.toInt();
     final weekCommission = (_wallet?['weekCommission'] as num?)?.toDouble();
 
     return Container(
-      padding: const EdgeInsets.all(AppTokens.spaceLg),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTokens.primary, AppTokens.primaryDark],
+        // Both stops stay in the dark half of the brand ramp so the white
+        // numeral survives the full sweep; dark mode drops a step deeper so
+        // the card does not glare at night. Same ramp as the rider card.
+        gradient: LinearGradient(
+          colors: go.isDark
+              ? const [AppTokens.primaryDark, AppTokens.primaryDeep]
+              : const [AppTokens.primary, AppTokens.primaryDark],
           begin: AlignmentDirectional.topStart,
           end: AlignmentDirectional.bottomEnd,
         ),
         borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        boxShadow: AppTokens.glow(AppTokens.primary, opacity: 0.28),
+        boxShadow: AppTokens.glow(
+          AppTokens.primary,
+          opacity: go.isDark ? 0.16 : 0.30,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            strings.availableBalanceHero,
-            style: AppTokens.font(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        child: Stack(
+          children: [
+            // Two clipped light pools give the panel physicality so it reads
+            // as a card rather than a coloured rectangle (rider parity).
+            const PositionedDirectional(
+              top: -52,
+              end: -34,
+              child: _Bloom(size: 176, opacity: 0.13),
             ),
-          ),
-          const SizedBox(height: AppTokens.spaceXs),
-          // Money uses w900 and tight tracking — readable in a glance at any
-          // screen brightness or viewing angle.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                _balance.toStringAsFixed(2),
-                style: AppTokens.money(fontSize: 44, color: Colors.white),
-              ),
-              const SizedBox(width: AppTokens.spaceXs),
-              Text(
-                strings.egp,
-                style: AppTokens.font(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white.withOpacity(0.85),
-                ),
-              ),
-            ],
-          ),
-          if (nextPayout != null) ...[
-            const SizedBox(height: AppTokens.space2xs),
-            Text(
-              strings.payoutWindowLine(nextPayout),
-              style: AppTokens.font(
-                fontSize: 12,
-                color: Colors.white.withOpacity(0.7),
+            const PositionedDirectional(
+              bottom: -64,
+              end: 44,
+              child: _Bloom(size: 140, opacity: 0.08),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppTokens.spaceLg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          strings.availableBalanceHero,
+                          style: AppTokens.font(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.82),
+                          ),
+                        ),
+                      ),
+                      // The lockup sits where an issuer mark would, in two-tone
+                      // white that keeps its own hierarchy without competing
+                      // with the balance.
+                      GoDriveWordmark(
+                        fontSize: 13,
+                        goColor: Colors.white.withOpacity(0.92),
+                        driveColor: Colors.white.withOpacity(0.55),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTokens.spaceXs),
+                  // Money uses w900 and tight tracking — readable in a glance at any
+                  // screen brightness or viewing angle. Baseline alignment stops
+                  // the currency suffix floating against the tall numerals.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        _balance.toStringAsFixed(2),
+                        style: AppTokens.money(fontSize: 44, color: Colors.white),
+                      ),
+                      const SizedBox(width: AppTokens.spaceXs),
+                      Text(
+                        strings.egp,
+                        style: AppTokens.font(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (nextPayout != null) ...[
+                    const SizedBox(height: AppTokens.space2xs),
+                    Text(
+                      strings.payoutWindowLine(nextPayout),
+                      style: AppTokens.font(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                  // Weekly summary chips give context — how much of that balance
+                  // arrived this week versus sitting from before.
+                  if (weekTrips != null || weekCommission != null) ...[
+                    const SizedBox(height: AppTokens.spaceMd),
+                    Wrap(
+                      spacing: AppTokens.spaceXs,
+                      children: [
+                        if (weekTrips != null)
+                          _HeroChip(label: strings.weekTripsChip(weekTrips)),
+                        if (weekCommission != null)
+                          _HeroChip(
+                            label: strings.weekCommissionChip(weekCommission.toStringAsFixed(0)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppTokens.spaceMd),
+                  ] else
+                    const SizedBox(height: AppTokens.spaceLg),
+                  // Primary action at the required 56dp touch target height — a
+                  // white pill so it does not read brand-green on brand-green.
+                  SizedBox(
+                    width: double.infinity,
+                    height: AppTokens.primaryActionHeight,
+                    child: ElevatedButton.icon(
+                      onPressed: _requestPayout,
+                      icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
+                      label: Text(
+                        strings.withdrawNowAction,
+                        style: AppTokens.font(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppTokens.primary,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppTokens.primary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-          // Weekly summary chips give context — how much of that balance
-          // arrived this week versus sitting from before.
-          if (weekTrips != null || weekCommission != null) ...[
-            const SizedBox(height: AppTokens.spaceMd),
-            Wrap(
-              spacing: AppTokens.spaceXs,
-              children: [
-                if (weekTrips != null)
-                  _HeroChip(label: strings.weekTripsChip(weekTrips)),
-                if (weekCommission != null)
-                  _HeroChip(
-                    label: strings.weekCommissionChip(weekCommission.toStringAsFixed(0)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppTokens.spaceMd),
-          ] else
-            const SizedBox(height: AppTokens.spaceLg),
-          // Primary action at the required 56dp touch target height.
-          SizedBox(
-            width: double.infinity,
-            height: AppTokens.primaryActionHeight,
-            child: ElevatedButton.icon(
-              onPressed: _requestPayout,
-              icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
-              label: Text(
-                strings.withdrawNowAction,
-                style: AppTokens.font(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppTokens.primary,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppTokens.primary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -598,6 +648,26 @@ class _HeroChip extends StatelessWidget {
           fontWeight: FontWeight.w600,
           color: Colors.white,
         ),
+      ),
+    );
+  }
+}
+
+/// Soft light pool used behind the balance hero's gradient (rider parity).
+class _Bloom extends StatelessWidget {
+  const _Bloom({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(opacity),
+        shape: BoxShape.circle,
       ),
     );
   }
