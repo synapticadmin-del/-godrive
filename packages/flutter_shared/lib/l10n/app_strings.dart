@@ -1682,8 +1682,6 @@ abstract class AppStrings {
   /// Tooltip for the fit-whole-trip map button.
   String get showFullTripTooltip;
 
-  /// Tooltip for the recenter map button.
-  String get myLocationTooltip;
 
   // ── SOS screen ───────────────────────────────────────────────────
   /// SOS screen AppBar title.
@@ -1739,18 +1737,12 @@ abstract class AppStrings {
   String get loginModeSignIn;
   /// Sign-in / sign-up segmented control — sign-up label.
   String get loginModeSignUp;
-  /// Full-name field hint.
-  String get loginFullNameHint;
   /// Full-name validation error.
   String get loginFullNameError;
-  /// Email field hint.
-  String get loginEmailHint;
   /// Email required validation error.
   String get loginEmailRequired;
   /// Email format validation error.
   String get loginEmailInvalid;
-  /// Password field hint.
-  String get loginPasswordHint;
   /// Password required validation error.
   String get loginPasswordRequired;
   /// Password too-short validation error.
@@ -1771,16 +1763,12 @@ abstract class AppStrings {
   String get loginJoinSubmit;
   /// Submit button in sign-in mode.
   String get loginSubmit;
-  /// Divider label between the form and social buttons.
-  String get loginOrContinueWith;
   /// Google sign-in coming-soon toast.
   String get loginGoogleSoon;
   /// Apple sign-in coming-soon toast.
   String get loginAppleSoon;
   /// Footer prefix when the user already has an account.
   String get loginHaveAccount;
-  /// Footer prefix when the user has no account.
-  String get loginNoAccount;
   /// Footer action to switch to sign-up mode.
   String get loginJoinAsCaptain;
 }
@@ -3633,8 +3621,6 @@ class AppStringsAr extends AppStrings {
   @override
   String get showFullTripTooltip => 'عرض الرحلة كاملة';
 
-  @override
-  String get myLocationTooltip => 'موقعي';
 
   // ── SOS screen ───────────────────────────────────────────────────
   @override
@@ -3696,17 +3682,11 @@ class AppStringsAr extends AppStrings {
   @override
   String get loginModeSignUp => 'انضمام';
   @override
-  String get loginFullNameHint => 'الاسم بالكامل';
-  @override
   String get loginFullNameError => 'اكتب اسمك الكامل';
-  @override
-  String get loginEmailHint => 'البريد الإلكتروني';
   @override
   String get loginEmailRequired => 'أدخل بريدك الإلكتروني';
   @override
   String get loginEmailInvalid => 'صيغة البريد غير صحيحة';
-  @override
-  String get loginPasswordHint => 'كلمة السر';
   @override
   String get loginPasswordRequired => 'أدخل كلمة السر';
   @override
@@ -3728,15 +3708,11 @@ class AppStringsAr extends AppStrings {
   @override
   String get loginSubmit => 'تسجيل الدخول';
   @override
-  String get loginOrContinueWith => 'أو المتابعة بواسطة';
-  @override
   String get loginGoogleSoon => 'تسجيل الدخول عبر Google قريباً';
   @override
   String get loginAppleSoon => 'تسجيل الدخول عبر Apple قريباً';
   @override
   String get loginHaveAccount => 'لديك حساب بالفعل؟ ';
-  @override
-  String get loginNoAccount => 'ليس لديك حساب؟ ';
   @override
   String get loginJoinAsCaptain => 'انضم ككابتن';
 }
@@ -5591,8 +5567,6 @@ class AppStringsEn extends AppStrings {
   @override
   String get showFullTripTooltip => 'Show the whole trip';
 
-  @override
-  String get myLocationTooltip => 'My location';
 
   // ── SOS screen ───────────────────────────────────────────────────
   @override
@@ -5654,17 +5628,11 @@ class AppStringsEn extends AppStrings {
   @override
   String get loginModeSignUp => 'Join';
   @override
-  String get loginFullNameHint => 'Full name';
-  @override
   String get loginFullNameError => 'Enter your full name';
-  @override
-  String get loginEmailHint => 'Email address';
   @override
   String get loginEmailRequired => 'Enter your email address';
   @override
   String get loginEmailInvalid => 'Invalid email format';
-  @override
-  String get loginPasswordHint => 'Password';
   @override
   String get loginPasswordRequired => 'Enter your password';
   @override
@@ -5686,15 +5654,11 @@ class AppStringsEn extends AppStrings {
   @override
   String get loginSubmit => 'Sign in';
   @override
-  String get loginOrContinueWith => 'Or continue with';
-  @override
   String get loginGoogleSoon => 'Google sign-in coming soon';
   @override
   String get loginAppleSoon => 'Apple sign-in coming soon';
   @override
   String get loginHaveAccount => 'Already have an account? ';
-  @override
-  String get loginNoAccount => 'No account? ';
   @override
   String get loginJoinAsCaptain => 'Join as a captain';
 }

@@ -212,6 +212,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
 
   Widget _buildBody(CaptainState state, bool isApproved) {
     final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
     // Guard first: nothing below this point is meaningful while offline.
     if (!state.online) {
       return ListView(

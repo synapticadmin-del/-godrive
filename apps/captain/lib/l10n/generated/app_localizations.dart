@@ -228,13 +228,13 @@ abstract class AppLocalizations {
   /// No description provided for @arrivingToPickup.
   ///
   /// In ar, this message translates to:
-  /// **'في الطريق للموقف'**
+  /// **'في الطريق لموقف الراكب'**
   String get arrivingToPickup;
 
   /// No description provided for @arrivedAtPickup.
   ///
   /// In ar, this message translates to:
-  /// **'وصلت لموقف النزول'**
+  /// **'وصلت لموقف الراكب'**
   String get arrivedAtPickup;
 
   /// No description provided for @startTrip.
