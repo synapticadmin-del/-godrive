@@ -582,7 +582,12 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_firstName, 'الاسم الأول واسم الأب', fieldBg, text, muted, required: true),
+        _field(_firstName, 'الاسم الأول', fieldBg, text, muted, required: true),
+        const SizedBox(height: AppTokens.spaceSm),
+        // This field was missing entirely while _validForStep(0) still
+        // required it, so the step could never be completed: the captain
+        // filled every visible box and the wizard still refused to advance.
+        _field(_fatherName, 'اسم الأب', fieldBg, text, muted, required: true),
         const SizedBox(height: AppTokens.spaceSm),
         _field(_grandfatherName, 'اسم الجد', fieldBg, text, muted),
         const SizedBox(height: AppTokens.spaceSm),
@@ -773,8 +778,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusLg),
           borderSide: BorderSide(
+            // Both arms of this were Colors.transparent, so a required
+            // field that was still empty looked exactly like a satisfied
+            // one. A hairline now marks what is blocking the step.
             color: required && controller.text.trim().isEmpty
-                ? Colors.transparent
+                ? AppTokens.nightBorder
                 : Colors.transparent,
           ),
         ),
@@ -865,7 +873,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     final hasImage = _hasDoc(type);
     final status = doc?['status']?.toString();
 
-    return Column(
+    final tile = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Stack(
@@ -980,11 +988,30 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         ),
       ],
     );
+
+    // A `Column(crossAxisAlignment: stretch)` handed straight to a Row is
+    // given an UNBOUNDED width constraint, and stretch resolves that to an
+    // infinite tile width. The Row then overflows and clips the tile away
+    // completely — which is the empty space captains saw where the photo
+    // picker should be on steps 1 and 2. (Steps 3 and 4 wrap their tiles in
+    // Expanded, so those constraints were bounded and rendered fine.)
+    // An explicit width makes the tile safe in either kind of parent.
+    return width == null ? tile : SizedBox(width: width, child: tile);
   }
 
   Widget _footer(AppStrings strings, Color text) {
     final valid = _validForStep(_step);
     final isLast = _step == _totalSteps - 1;
+
+    // The action is always present, always full-width, and always tappable.
+    // Previously the incomplete state painted an onLime (#101010) label on a
+    // nightSurface (#26262B) fill — a ~1.05:1 contrast ratio, i.e. an empty
+    // grey slab with no readable text on a near-black page, which captains
+    // reasonably read as "there is no Next button". Tapping it while the step
+    // is incomplete raises the Arabic validation toast naming exactly what is
+    // still missing, so the flow is never a dead end.
+    final Color fill = valid ? AppTokens.lime : AppTokens.nightSurface;
+    final Color ink = valid ? AppTokens.onLime : AppTokens.nightText;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -998,46 +1025,52 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         children: [
           Row(
             children: [
-              SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _saving ? null : _next,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTokens.onLime,
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _saving ? null : _next,
+                    icon: _saving
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: ink,
+                            ),
+                          )
+                        : Icon(
+                            isLast
+                                ? Icons.check_rounded
+                                : Icons.chevron_left_rounded,
+                            size: 20,
+                            color: ink,
                           ),
-                        )
-                      : Icon(
-                          isLast ? Icons.check_rounded : Icons.chevron_left_rounded,
-                          size: 20,
-                        ),
-                  label: Text(
-                    isLast ? 'إرسال للمراجعة' : strings.nextAction,
-                    style: AppTokens.font(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: valid ? AppTokens.onLime : AppTokens.nightMuted,
+                    label: Text(
+                      isLast ? 'إرسال للمراجعة' : strings.nextAction,
+                      style: AppTokens.font(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    // While the step is incomplete this button used to paint
-                    // nightSurface-on-nightBg with an onLime (#101010) label —
-                    // a dark pill on a dark page, which captains read as
-                    // "there is no button at all". It now renders a legible
-                    // muted state instead: still visibly a button, visibly
-                    // not the active action, and still tappable so _next()
-                    // can surface the Arabic validation toast saying exactly
-                    // what is missing (profile photo, name fields, ...).
-                    backgroundColor: valid ? AppTokens.lime : AppTokens.nightElevated,
-                    foregroundColor: valid ? AppTokens.onLime : AppTokens.nightMuted,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: fill,
+                      foregroundColor: ink,
+                      disabledBackgroundColor: AppTokens.nightSurface,
+                      disabledForegroundColor: AppTokens.nightMuted,
+                      elevation: 0,
+                      // A hairline keeps the incomplete state legible as a
+                      // button against the near-black canvas.
+                      side: valid
+                          ? BorderSide.none
+                          : const BorderSide(color: AppTokens.nightBorder),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTokens.spaceLg,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                      ),
                     ),
                   ),
                 ),
@@ -1068,7 +1101,8 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                     value: (_step + 1) / _totalSteps,
                     minHeight: 5,
                     backgroundColor: AppTokens.nightSurface,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.lime),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(AppTokens.lime),
                   ),
                 ),
               ),
