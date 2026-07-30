@@ -43,6 +43,11 @@ const fallbackDocTypeLabels: Record<string, string> = {
   vehicle_reg: 'رخصة السيارة',
 };
 
+const docTypeLabel = (doc: Doc) => {
+  const typeKey = doc.type || (doc as any).document_type || '';
+  return fallbackDocTypeLabels[typeKey] || typeKey;
+};
+
 /**
  * Fetch a protected document as an authenticated blob URL and manage its
  * lifecycle: the object URL is revoked whenever the doc changes or the caller
