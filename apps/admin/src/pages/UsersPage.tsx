@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, resolveAvatarUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDate } from '../lib/utils';
 import { StatusBadge } from '../components/ui/Badge';
@@ -7,7 +7,7 @@ import { User as UserIcon, Loader2 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 
 interface User {
-  id: string; email: string; name: string | null; phone: string | null; role: string; status: string; created_at: string;
+  id: string; email: string; name: string | null; phone: string | null; role: string; status: string; avatar_url?: string | null; created_at: string;
 }
 
 export default function UsersPage() {
@@ -41,16 +41,30 @@ export default function UsersPage() {
                 <th className="px-4 py-3 text-right text-sm font-medium text-text-secondary">الانضمام</th>
               </tr></thead>
               <tbody className="divide-y divide-border-primary/50">
-                {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-4 py-3 text-sm text-text-primary">{u.name || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-text-secondary">{u.email}</td>
-                    <td className="px-4 py-3 text-sm text-text-secondary">{u.phone || '—'}</td>
-                    <td className="px-4 py-3"><span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-500/10 text-primary-500 capitalize">{u.role}</span></td>
-                    <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
-                    <td className="px-4 py-3 text-sm text-text-tertiary">{formatDate(u.created_at)}</td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  const avatarSrc = resolveAvatarUrl(u.avatar_url);
+                  return (
+                    <tr key={u.id} className="hover:bg-surface-hover transition-colors">
+                      <td className="px-4 py-3 text-sm text-text-primary">
+                        <div className="flex items-center gap-3">
+                          {avatarSrc ? (
+                            <img src={avatarSrc} alt="" className="w-9 h-9 rounded-lg object-cover border border-border-primary shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-primary-500/10 text-primary-500 font-bold flex items-center justify-center text-sm shrink-0">
+                              {(u.name || u.email).trim().charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span>{u.name || '—'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-text-secondary">{u.email}</td>
+                      <td className="px-4 py-3 text-sm text-text-secondary">{u.phone || '—'}</td>
+                      <td className="px-4 py-3"><span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary-500/10 text-primary-500 capitalize">{u.role}</span></td>
+                      <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
+                      <td className="px-4 py-3 text-sm text-text-tertiary">{formatDate(u.created_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

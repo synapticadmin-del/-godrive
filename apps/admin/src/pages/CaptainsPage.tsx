@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { api } from '../lib/api';
+import { api, resolveAvatarUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { StatusBadge } from '../components/ui/Badge';
 import { DataTable, type Column } from '../components/ui/DataTable';
@@ -29,6 +29,7 @@ interface Captain {
   email: string;
   name: string | null;
   phone: string | null;
+  avatar_url?: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_plate: string | null;
@@ -369,17 +370,24 @@ export default function CaptainsPage() {
       key: 'name',
       header: 'الكابتن',
       sortable: true,
-      accessor: (c) => (
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary-500/10 text-primary-500 font-bold flex items-center justify-center text-sm shrink-0">
-            {initialOf(c.name)}
+      accessor: (c) => {
+        const avatarSrc = resolveAvatarUrl(c.avatar_url);
+        return (
+          <div className="flex items-center gap-3">
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="" className="w-9 h-9 rounded-lg object-cover border border-border-primary shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-primary-500/10 text-primary-500 font-bold flex items-center justify-center text-sm shrink-0">
+                {initialOf(c.name)}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="font-medium text-text-primary text-sm truncate">{c.name || 'كابتن'}</p>
+              <p className="text-xs text-text-tertiary font-mono">{c.user_id.slice(0, 8)}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="font-medium text-text-primary text-sm truncate">{c.name || 'كابتن'}</p>
-            <p className="text-xs text-text-tertiary font-mono">{c.user_id.slice(0, 8)}</p>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'phone',

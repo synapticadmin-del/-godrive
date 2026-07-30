@@ -13,6 +13,12 @@ export function getApiUrl() {
   return API_URL;
 }
 
+export function resolveAvatarUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 /**
  * Fetch a protected document/file as an authenticated Blob URL.
  * The file endpoint requires the JWT in the Authorization header — it must NOT

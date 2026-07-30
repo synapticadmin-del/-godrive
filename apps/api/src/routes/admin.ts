@@ -243,7 +243,7 @@ adminRoutes.get("/captains", async (c) => {
              WHEN c.is_online = 1 AND (c.last_seen_at IS NOT NULL AND datetime(c.last_seen_at) >= datetime('now', '-5 minutes')) THEN 1
              ELSE 0
            END as is_online,
-           u.email, u.name, u.phone, u.status as user_status, u.created_at as user_created_at
+           u.email, u.name, u.phone, u.avatar_url as avatar_url, u.status as user_status, u.created_at as user_created_at
     FROM captains c JOIN users u ON u.id = c.user_id
   `;
   const binds: string[] = [];
@@ -279,7 +279,7 @@ adminRoutes.post("/captains/:id/approve", async (c) => {
   });
 
   const captain = await c.env.DB.prepare(
-    `SELECT c.*, u.email, u.name FROM captains c JOIN users u ON u.id = c.user_id WHERE c.user_id = ?`,
+    `SELECT c.*, u.email, u.name, u.phone, u.avatar_url as avatar_url FROM captains c JOIN users u ON u.id = c.user_id WHERE c.user_id = ?`,
   )
     .bind(userId)
     .first();
@@ -325,7 +325,7 @@ adminRoutes.get("/trips", async (c) => {
 
 adminRoutes.get("/users", async (c) => {
   const res = await c.env.DB.prepare(
-    `SELECT id, email, name, phone, role, status, created_at FROM users ORDER BY created_at DESC LIMIT 200`,
+    `SELECT id, email, name, phone, role, status, avatar_url, created_at FROM users ORDER BY created_at DESC LIMIT 200`,
   ).all<DbUser>();
   return c.json({ users: res.results ?? [] });
 });
@@ -409,7 +409,7 @@ adminRoutes.get("/documents", async (c) => {
   // (holder_full_name, national_id_number, expires_at), so the verification UI
   // can render it beside each document image with no extra query.
   let sql = `
-    SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone,
+    SELECT d.*, u.name as captain_name, u.email as captain_email, u.phone as captain_phone, u.avatar_url as captain_avatar_url,
            COALESCE(t.title_ar, d.type) as type_title_ar,
            COALESCE(t.title_en, '') as type_title_en
     FROM driver_documents d
@@ -657,7 +657,7 @@ adminRoutes.get("/documents/:id/file", async (c) => {
 // GET /admin/online-captains — list online captains with live locations
 adminRoutes.get("/online-captains", async (c) => {
   const res = await c.env.DB.prepare(
-    `SELECT u.id, u.name, u.email, u.phone, c.is_online, c.last_lat, c.last_lng,
+    `SELECT u.id, u.name, u.email, u.phone, u.avatar_url as avatar_url, c.is_online, c.last_lat, c.last_lng,
             c.vehicle_make, c.vehicle_model, c.vehicle_plate, c.rating_avg, c.approval_status,
             c.last_seen_at
      FROM captains c

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { api, fetchDocumentBlobUrl } from '../lib/api';
+import { api, fetchDocumentBlobUrl, resolveAvatarUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import {
   ShieldCheck, Loader2, FileText, Check, X, Eye, ChevronDown, ChevronUp,
@@ -23,6 +23,7 @@ interface Doc {
   captain_name?: string;
   captain_email?: string;
   captain_phone?: string;
+  captain_avatar_url?: string;
 }
 
 interface CaptainGroup {
@@ -30,6 +31,7 @@ interface CaptainGroup {
   captainName: string;
   captainEmail: string;
   captainPhone: string;
+  captainAvatarUrl?: string | null;
   documents: Doc[];
   pendingCount: number;
   approvedCount: number;
@@ -341,6 +343,7 @@ export default function CaptainVerificationPage() {
           captainName: doc.captain_name || 'كابتن مجهول',
           captainEmail: doc.captain_email || '',
           captainPhone: doc.captain_phone || '',
+          captainAvatarUrl: doc.captain_avatar_url || null,
           documents: [],
           pendingCount: 0,
           approvedCount: 0,
@@ -604,9 +607,17 @@ export default function CaptainVerificationPage() {
                   <div className="flex items-center gap-4">
                     {/* Avatar with gradient ring */}
                     <div className="relative">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-extrabold text-xl shadow-md shadow-primary-500/20 shrink-0">
-                        {group.captainName.charAt(0).toUpperCase()}
-                      </div>
+                      {resolveAvatarUrl(group.captainAvatarUrl) ? (
+                        <img
+                          src={resolveAvatarUrl(group.captainAvatarUrl)!}
+                          alt=""
+                          className="w-14 h-14 rounded-2xl object-cover border-2 border-primary-500/20 shadow-md shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-extrabold text-xl shadow-md shadow-primary-500/20 shrink-0">
+                          {group.captainName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       {/* Status dot */}
                       <div className={`absolute -bottom-0.5 -left-0.5 w-4 h-4 rounded-full border-2 border-surface-primary ${
                         group.pendingCount > 0 ? 'bg-warning-main' : group.rejectedCount > 0 ? 'bg-error-main' : 'bg-success-main'
