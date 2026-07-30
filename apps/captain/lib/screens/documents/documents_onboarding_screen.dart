@@ -120,10 +120,10 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
       // fall back to the four classic types so the screen never renders empty.
       if (types.isEmpty) {
         types = const [
-          _DocType(id: 'license', titleAr: 'رخصة القيادة', titleEn: '', required: true),
-          _DocType(id: 'national_id', titleAr: 'البطاقة الشخصية', titleEn: '', required: true),
-          _DocType(id: 'vehicle_reg', titleAr: 'رخصة السيارة', titleEn: '', required: true),
-          _DocType(id: 'criminal_record', titleAr: 'فيش جنائي', titleEn: '', required: true),
+          _DocType(id: 'license', titleAr: 'رخصة القيادة', titleEn: 'Driving license', required: true),
+          _DocType(id: 'national_id', titleAr: 'البطاقة الشخصية', titleEn: 'National ID card', required: true),
+          _DocType(id: 'vehicle_reg', titleAr: 'رخصة السيارة', titleEn: 'Vehicle registration', required: true),
+          _DocType(id: 'criminal_record', titleAr: 'فيش جنائي', titleEn: 'Criminal record check', required: true),
         ];
       }
 
@@ -266,7 +266,7 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text(strings.docUploadedToast(type.titleAr)),
+          content: Text(strings.docUploadedToast(_titleFor(type))),
           backgroundColor: AppTokens.success,
         ),
       );
@@ -351,7 +351,7 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
                   TextButton(
                     onPressed: () {},
                     child: Text(
-                      'المساعدة',
+                      AppStrings.of(context).helpAction,
                       style: AppTokens.font(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -443,14 +443,14 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
           Icon(Icons.cloud_off_rounded, size: 40, color: muted),
           const SizedBox(height: AppTokens.spaceSm),
           Text(
-            'تعذر تحميل المستندات',
+            AppStrings.of(context).docsLoadFailed,
             style: AppTokens.font(fontSize: 15, fontWeight: FontWeight.w700, color: muted),
           ),
           const SizedBox(height: AppTokens.spaceSm),
           TextButton.icon(
             onPressed: _loadAll,
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('إعادة المحاولة'),
+            label: Text(AppStrings.of(context).retryAction),
           ),
         ],
       ),
@@ -656,7 +656,7 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
               ),
               const SizedBox(width: AppTokens.spaceSm),
               Text(
-                '${widget.step} من ${widget.totalSteps}',
+                strings.stepOfTotal(widget.step, widget.totalSteps),
                 style: AppTokens.font(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,

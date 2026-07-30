@@ -174,7 +174,7 @@ class _SplashScreenState extends State<SplashScreen> {
             border: Border.all(color: AppTokens.primaryLight.withOpacity(0.45)),
           ),
           child: Text(
-            'تطبيق الكابتن',
+            AppStrings.of(context).captainAppBadge,
             style: AppTokens.font(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -213,7 +213,7 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
           Text(
-            'Created by',
+            AppStrings.of(context).createdByLabel,
             style: AppTokens.font(
               fontSize: 11,
               fontWeight: FontWeight.w500,

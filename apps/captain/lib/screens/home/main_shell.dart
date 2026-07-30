@@ -337,12 +337,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.gps_off_rounded, color: AppTokens.warning, size: 32),
-        title: const Text('تعذّر تحديد الموقع'),
+        title: Text(AppStrings.of(ctx).gpsErrorDialogTitle),
         content: Text(message, textAlign: TextAlign.center),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('حسنًا'),
+            child: Text(AppStrings.of(ctx).gpsErrorOkAction),
           ),
           ElevatedButton(
             onPressed: () {
@@ -352,7 +352,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(120, AppTokens.tapTarget),
             ),
-            child: const Text('فتح الإعدادات'),
+            child: Text(AppStrings.of(ctx).gpsOpenSettingsAction),
           ),
         ],
       ),
@@ -433,7 +433,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           // itself (index 4), which is where a ride-hailing map belongs.
           firstDestination: NavFirstDestination(
             index: 0,
-            label: 'رحلات متاحة',
+            label: AppStrings.of(context).availableTripsTitle,
             icon: Icons.explore_rounded,
             activeIcon: Icons.explore,
             // Live count of waiting offers, shown only while online — offline
@@ -441,9 +441,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             // would mislead. CaptainState clears `offers` when going offline.
             badgeCount: state.online ? state.offers.length : 0,
           ),
-          centerDestination: const NavCenterDestination(
+          centerDestination: NavCenterDestination(
             index: _mapIndex,
-            label: 'الخريطة',
+            label: AppStrings.of(context).mapNavLabel,
             icon: Icons.map_rounded,
           ),
         ),
@@ -606,7 +606,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: AppTokens.spaceSm),
                   Text(
-                    'جارٍ تحديد موقعك…',
+                    AppStrings.of(context).locatingYou,
                     style: AppTokens.font(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -628,7 +628,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Widget _buildNavigationBanner(CaptainState state, GoTheme go) {
     final target = state.navigationTarget!;
     final toPickup = target['toPickup'] == true;
-    final label = toPickup ? 'الطريق إلى الراكب' : 'الطريق إلى الوجهة';
+    final strings = AppStrings.of(context);
+    final label = toPickup ? strings.navBannerToRider : strings.navBannerToDestination;
 
     return PositionedDirectional(
       top: AppTokens.spaceMd,
@@ -668,7 +669,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   setState(() => _navigating = false);
                 },
                 child: Text(
-                  'إنهاء',
+                  strings.navEndAction,
                   style: AppTokens.font(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -697,7 +698,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         children: [
           MapCircleButton(
             icon: Icons.sos_rounded,
-            tooltip: 'الطوارئ',
+            tooltip: AppStrings.of(context).sosTooltip,
             background: AppTokens.sos,
             iconColor: Colors.white,
             size: 50,
@@ -714,14 +715,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           if (hasTrip) ...[
             MapCircleButton(
               icon: Icons.route_rounded,
-              tooltip: 'عرض الرحلة كاملة',
+              tooltip: AppStrings.of(context).showFullTripTooltip,
               onTap: () => _fitActiveTrip(state),
             ),
             const SizedBox(height: AppTokens.spaceSm),
           ],
           MapCircleButton(
             icon: _followMe ? Icons.my_location_rounded : Icons.location_searching_rounded,
-            tooltip: 'موقعي',
+            tooltip: AppStrings.of(context).myLocationTooltip,
             // go.action for active/selected state, not a brand mark
             iconColor: _followMe ? go.action : null,
             onTap: _recenter,

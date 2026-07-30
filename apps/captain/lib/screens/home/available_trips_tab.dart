@@ -69,10 +69,10 @@ class AvailableTripsTab extends StatelessWidget {
                       enabled: isApproved,
                       onToggleOnline: onToggleOnline,
                       title: isApproved
-                          ? 'اتصل بالإنترنت لعرض الرحلات المتاحة'
+                          ? AppStrings.of(context).offlineTripsTitle
                           : null,
                       message: isApproved
-                          ? 'الرحلات القريبة تظهر هنا فور اتصالك.'
+                          ? AppStrings.of(context).offlineTripsMessage
                           : null,
                     )
                   : _OffersBody(offers: offers, error: state.error),
@@ -164,7 +164,7 @@ class _WaitingForOffers extends StatelessWidget {
                       ),
                   const SizedBox(height: AppTokens.spaceMd),
                   Text(
-                    'لا توجد رحلات متاحة الآن',
+                    AppStrings.of(context).noOffersNow,
                     style: AppTokens.font(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
@@ -173,7 +173,7 @@ class _WaitingForOffers extends StatelessWidget {
                   ),
                   const SizedBox(height: AppTokens.space2xs),
                   Text(
-                    'نبحث لك باستمرار — ابقَ في منطقة مزدحمة لزيادة الطلبات',
+                    AppStrings.of(context).searchingConstantly,
                     textAlign: TextAlign.center,
                     style: AppTokens.font(
                       fontSize: 13,
@@ -234,7 +234,7 @@ class _Header extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'رحلات متاحة',
+                  strings.availableTripsTitle,
                   style: AppTokens.font(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -245,8 +245,8 @@ class _Header extends StatelessWidget {
                   const SizedBox(height: AppTokens.space2xs),
                   Text(
                     n == 0
-                        ? 'لا توجد طلبات حالياً'
-                        : '$n ${n == 1 ? 'رحلة متاحة' : 'رحلات متاحة'} بالقرب منك',
+                        ? strings.noRequestsNow
+                        : strings.requestsNearbyCount(n),
                     style: AppTokens.font(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -283,7 +283,7 @@ class _Header extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      connected ? 'مباشر' : 'جارٍ الاتصال',
+                      connected ? strings.liveConnected : strings.liveConnecting,
                       style: AppTokens.font(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,

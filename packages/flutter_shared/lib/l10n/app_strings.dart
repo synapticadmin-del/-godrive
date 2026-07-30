@@ -1609,6 +1609,122 @@ abstract class AppStrings {
 
   /// Help sheet dismiss action.
   String get onbHelpDismiss;
+
+  // ── Splash / brand ───────────────────────────────────────────────
+  /// Badge under the GoDrive wordmark naming this the captain app.
+  String get captainAppBadge;
+
+  // ── Available trips tab / nearby requests ────────────────────────
+  /// Title of the available-trips queue (header, AppBar, nav label).
+  String get availableTripsTitle;
+
+  /// Offline placeholder title on the available-trips tab.
+  String get offlineTripsTitle;
+
+  /// Offline placeholder message on the available-trips tab.
+  String get offlineTripsMessage;
+
+  /// Empty state while online with no offers yet.
+  String get noOffersNow;
+
+  /// Encouragement under the empty-online state.
+  String get searchingConstantly;
+
+  /// Header subtitle when there are zero nearby requests.
+  String get noRequestsNow;
+
+  /// Header subtitle with the live nearby-request count (Arabic plural rules).
+  String requestsNearbyCount(int count);
+
+  /// Live-connection pill label while the offers socket is connected.
+  String get liveConnected;
+
+  /// Live-connection pill label while the offers socket is reconnecting.
+  String get liveConnecting;
+
+  /// Label above the search-radius chips.
+  String get searchRadiusLabel;
+
+  /// Kilometre unit suffix for the radius chips, e.g. "15 كم".
+  String radiusKm(int km);
+
+  /// Empty-state subtitle on the nearby-requests screen.
+  String get nearbyEmptySubtitle;
+
+  // ── Main shell / map chrome ──────────────────────────────────────
+  /// Bottom-nav label for the map destination.
+  String get mapNavLabel;
+
+  /// Title of the GPS-unavailable alert dialog.
+  String get gpsErrorDialogTitle;
+
+  /// Acknowledge button on the GPS-unavailable alert dialog.
+  String get gpsErrorOkAction;
+
+  /// Open-location-settings button on the GPS-unavailable alert dialog.
+  String get gpsOpenSettingsAction;
+
+  /// Locating veil text over the map while the first fix resolves.
+  String get locatingYou;
+
+  /// Navigation banner while heading to the rider's pickup point.
+  String get navBannerToRider;
+
+  /// Navigation banner while heading to the trip destination.
+  String get navBannerToDestination;
+
+  /// Exit-navigation button on the navigation banner.
+  String get navEndAction;
+
+  /// Tooltip for the SOS map button.
+  String get sosTooltip;
+
+  /// Tooltip for the fit-whole-trip map button.
+  String get showFullTripTooltip;
+
+  /// Tooltip for the recenter map button.
+  String get myLocationTooltip;
+
+  // ── SOS screen ───────────────────────────────────────────────────
+  /// SOS screen AppBar title.
+  String get sosTitle;
+
+  /// Close-button tooltip on the SOS screen.
+  String get sosCloseTooltip;
+
+  /// Headline after the SOS alert has been dispatched.
+  String get sosSentTitle;
+
+  /// Body copy after the SOS alert has been dispatched.
+  String get sosSentBody;
+
+  /// Return button after the SOS alert has been dispatched.
+  String get sosReturnAction;
+
+  /// Headline on the active SOS view.
+  String get sosActiveTitle;
+
+  /// Warning body on the active SOS view (use only in real danger).
+  String get sosActiveBody;
+
+  /// Cancel button on the active SOS view.
+  String get sosCancelAction;
+
+  /// SnackBar error when no GPS fix is available for the SOS alert.
+  String get sosNoLocationError;
+
+  // ── Documents screens ────────────────────────────────────────────
+  /// Tooltip for the grid-view toggle on the upload screen.
+  String get gridViewTooltip;
+
+  /// Help button on the documents onboarding top bar.
+  String get helpAction;
+
+  /// Error state when the documents catalog fails to load.
+  String get docsLoadFailed;
+
+  /// Step counter connector, e.g. "3 من 4".
+  String stepOfTotal(int step, int total);
 }
 
 /// Egyptian-Arabic copy — the app's primary language.
@@ -3378,7 +3494,133 @@ class AppStringsAr extends AppStrings {
       'لرفع صورة اضغط على المربّع، ولحذفها اضغط «×» في زاويته.';
 
   @override
-  String get onbHelpDismiss => 'فهمت';
+  String get onbHelpDismiss => 'تم';
+
+  // ── Splash / brand ───────────────────────────────────────────────
+  @override
+  String get captainAppBadge => 'تطبيق الكابتن';
+
+  // ── Available trips tab / nearby requests ────────────────────────
+  @override
+  String get availableTripsTitle => 'رحلات متاحة';
+
+  @override
+  String get offlineTripsTitle => 'اتصل بالإنترنت لعرض الرحلات المتاحة';
+
+  @override
+  String get offlineTripsMessage => 'الرحلات القريبة تظهر هنا فور اتصالك.';
+
+  @override
+  String get noOffersNow => 'لا توجد رحلات متاحة الآن';
+
+  @override
+  String get searchingConstantly =>
+      'نبحث لك باستمرار — ابقَ في منطقة مزدحمة لزيادة الطلبات';
+
+  @override
+  String get noRequestsNow => 'لا توجد طلبات حالياً';
+
+  @override
+  String requestsNearbyCount(int count) {
+    if (count == 1) return 'رحلة واحدة متاحة بالقرب منك';
+    if (count == 2) return 'رحلتان متاحتان بالقرب منك';
+    if (count <= 10) return '$count رحلات متاحة بالقرب منك';
+    return '$count رحلة متاحة بالقرب منك';
+  }
+
+  @override
+  String get liveConnected => 'مباشر';
+
+  @override
+  String get liveConnecting => 'جارٍ الاتصال';
+
+  @override
+  String get searchRadiusLabel => 'نطاق البحث';
+
+  @override
+  String radiusKm(int km) => '$km كم';
+
+  @override
+  String get nearbyEmptySubtitle =>
+      'أنت متصل وجاهز — ستظهر الطلبات القريبة هنا فور وصولها. جرّب توسيع نطاق البحث أو البقاء في منطقة مزدحمة.';
+
+  // ── Main shell / map chrome ──────────────────────────────────────
+  @override
+  String get mapNavLabel => 'الخريطة';
+
+  @override
+  String get gpsErrorDialogTitle => 'تعذّر تحديد الموقع';
+
+  @override
+  String get gpsErrorOkAction => 'حسنًا';
+
+  @override
+  String get gpsOpenSettingsAction => 'فتح الإعدادات';
+
+  @override
+  String get locatingYou => 'جارٍ تحديد موقعك…';
+
+  @override
+  String get navBannerToRider => 'الطريق إلى الراكب';
+
+  @override
+  String get navBannerToDestination => 'الطريق إلى الوجهة';
+
+  @override
+  String get navEndAction => 'إنهاء';
+
+  @override
+  String get sosTooltip => 'الطوارئ';
+
+  @override
+  String get showFullTripTooltip => 'عرض الرحلة كاملة';
+
+  @override
+  String get myLocationTooltip => 'موقعي';
+
+  // ── SOS screen ───────────────────────────────────────────────────
+  @override
+  String get sosTitle => 'طلب استغاثة';
+
+  @override
+  String get sosCloseTooltip => 'إغلاق';
+
+  @override
+  String get sosSentTitle => 'تم إرسال طلب الاستغاثة';
+
+  @override
+  String get sosSentBody =>
+      'فريق الدعم سيتواصل معك فوراً وسيتم إبلاغ السلطات المختصة بموقعك.';
+
+  @override
+  String get sosReturnAction => 'العودة';
+
+  @override
+  String get sosActiveTitle => 'هل أنت في حالة طوارئ؟';
+
+  @override
+  String get sosActiveBody =>
+      'استخدم هذا الزر فقط في حالات الخطر الحقيقي\n(حوادث، سرقة، اعتداء).';
+
+  @override
+  String get sosCancelAction => 'إلغاء — لست في خطر';
+
+  @override
+  String get sosNoLocationError =>
+      'تعذّر تحديد موقعك. فعّل خدمة الموقع وحاول مرة أخرى.';
+
+  // ── Documents screens ────────────────────────────────────────────
+  @override
+  String get gridViewTooltip => 'عرض الشبكة';
+
+  @override
+  String get helpAction => 'المساعدة';
+
+  @override
+  String get docsLoadFailed => 'تعذر تحميل المستندات';
+
+  @override
+  String stepOfTotal(int step, int total) => '$step من $total';
 }
 
 /// English copy.
@@ -5155,4 +5397,126 @@ class AppStringsEn extends AppStrings {
 
   @override
   String get onbHelpDismiss => 'Got it';
+
+  // ── Splash / brand ───────────────────────────────────────────────
+  @override
+  String get captainAppBadge => 'Captain app';
+
+  // ── Available trips tab / nearby requests ────────────────────────
+  @override
+  String get availableTripsTitle => 'Available trips';
+
+  @override
+  String get offlineTripsTitle => 'Go online to see available trips';
+
+  @override
+  String get offlineTripsMessage => 'Nearby requests appear here once you are online.';
+
+  @override
+  String get noOffersNow => 'No trips available right now';
+
+  @override
+  String get searchingConstantly =>
+      'Searching for you continuously — stay in a busy area to get more requests';
+
+  @override
+  String get noRequestsNow => 'No requests right now';
+
+  @override
+  String requestsNearbyCount(int count) =>
+      count == 1 ? '1 trip available near you' : '$count trips available near you';
+
+  @override
+  String get liveConnected => 'Live';
+
+  @override
+  String get liveConnecting => 'Connecting';
+
+  @override
+  String get searchRadiusLabel => 'Search radius';
+
+  @override
+  String radiusKm(int km) => '$km km';
+
+  @override
+  String get nearbyEmptySubtitle =>
+      'You are online and ready — nearby requests will appear here as they arrive. Try widening the search radius or staying in a busy area.';
+
+  // ── Main shell / map chrome ──────────────────────────────────────
+  @override
+  String get mapNavLabel => 'Map';
+
+  @override
+  String get gpsErrorDialogTitle => 'Location unavailable';
+
+  @override
+  String get gpsErrorOkAction => 'OK';
+
+  @override
+  String get gpsOpenSettingsAction => 'Open settings';
+
+  @override
+  String get locatingYou => 'Locating you…';
+
+  @override
+  String get navBannerToRider => 'Heading to the rider';
+
+  @override
+  String get navBannerToDestination => 'Heading to the destination';
+
+  @override
+  String get navEndAction => 'End';
+
+  @override
+  String get sosTooltip => 'Emergency';
+
+  @override
+  String get showFullTripTooltip => 'Show the whole trip';
+
+  @override
+  String get myLocationTooltip => 'My location';
+
+  // ── SOS screen ───────────────────────────────────────────────────
+  @override
+  String get sosTitle => 'Emergency SOS';
+
+  @override
+  String get sosCloseTooltip => 'Close';
+
+  @override
+  String get sosSentTitle => 'SOS alert sent';
+
+  @override
+  String get sosSentBody =>
+      'The support team will contact you immediately and the relevant authorities will be notified of your location.';
+
+  @override
+  String get sosReturnAction => 'Back';
+
+  @override
+  String get sosActiveTitle => 'Are you in an emergency?';
+
+  @override
+  String get sosActiveBody =>
+      'Use this button only in real danger\n(accidents, theft, assault).';
+
+  @override
+  String get sosCancelAction => 'Cancel — I am not in danger';
+
+  @override
+  String get sosNoLocationError =>
+      'Could not determine your location. Enable location services and try again.';
+
+  // ── Documents screens ────────────────────────────────────────────
+  @override
+  String get gridViewTooltip => 'Grid view';
+
+  @override
+  String get helpAction => 'Help';
+
+  @override
+  String get docsLoadFailed => 'Could not load documents';
+
+  @override
+  String stepOfTotal(int step, int total) => '$step of $total';
 }

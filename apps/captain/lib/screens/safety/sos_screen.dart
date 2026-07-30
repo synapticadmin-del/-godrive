@@ -80,7 +80,7 @@ class _SosScreenState extends State<SosScreen>
       }
 
       if (lat == null || lng == null) {
-        throw Exception('تعذّر تحديد موقعك. فعّل خدمة الموقع وحاول مرة أخرى.');
+        throw Exception(AppStrings.of(context).sosNoLocationError);
       }
 
       await state.apiPost('/safety/sos', {
@@ -121,7 +121,7 @@ class _SosScreenState extends State<SosScreen>
         elevation: 0,
         foregroundColor: Colors.white70,
         title: Text(
-          'طلب استغاثة',
+          AppStrings.of(context).sosTitle,
           style: AppTokens.font(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -131,7 +131,7 @@ class _SosScreenState extends State<SosScreen>
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.pop(context),
-          tooltip: 'إغلاق',
+          tooltip: AppStrings.of(context).sosCloseTooltip,
         ),
       ),
       body: SafeArea(
@@ -157,7 +157,7 @@ class _SosScreenState extends State<SosScreen>
             ).animate().scale(duration: 500.ms, curve: Curves.elasticOut),
             const SizedBox(height: AppTokens.spaceLg),
             Text(
-              'تم إرسال طلب الاستغاثة',
+              AppStrings.of(context).sosSentTitle,
               style: AppTokens.font(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
@@ -167,7 +167,7 @@ class _SosScreenState extends State<SosScreen>
             ),
             const SizedBox(height: AppTokens.spaceMd),
             Text(
-              'فريق الدعم سيتواصل معك فوراً وسيتم إبلاغ السلطات المختصة بموقعك.',
+              AppStrings.of(context).sosSentBody,
               style: AppTokens.font(
                 fontSize: 15,
                 color: Colors.white70,
@@ -189,7 +189,7 @@ class _SosScreenState extends State<SosScreen>
                   ),
                 ),
                 child: Text(
-                  'العودة',
+                  AppStrings.of(context).sosReturnAction,
                   style: AppTokens.font(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -216,7 +216,7 @@ class _SosScreenState extends State<SosScreen>
           // Warning text at top so the captain reads context before tapping.
           const SizedBox(height: AppTokens.spaceLg),
           Text(
-            'هل أنت في حالة طوارئ؟',
+            AppStrings.of(context).sosActiveTitle,
             style: AppTokens.font(
               fontSize: 26,
               fontWeight: FontWeight.w900,
@@ -227,7 +227,7 @@ class _SosScreenState extends State<SosScreen>
           ),
           const SizedBox(height: AppTokens.spaceMd),
           Text(
-            'استخدم هذا الزر فقط في حالات الخطر الحقيقي\\n(حوادث، سرقة، اعتداء).',
+            AppStrings.of(context).sosActiveBody,
             style: AppTokens.font(
               fontSize: 15,
               color: Colors.white70,
@@ -255,7 +255,7 @@ class _SosScreenState extends State<SosScreen>
                 ),
               ),
               child: Text(
-                'إلغاء — لست في خطر',
+                AppStrings.of(context).sosCancelAction,
                 style: AppTokens.font(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,

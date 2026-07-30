@@ -27,13 +27,15 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
   /// Checklist from the admin-managed catalog (GET /captain/document-types),
   /// with the classic four as a fallback for backends predating migration 0013.
   static const _fallbackDocTypes = [
-    {'type': 'license', 'title': 'رخصة القيادة', 'icon': Icons.card_membership_rounded},
-    {'type': 'national_id', 'title': 'البطاقة الشخصية', 'icon': Icons.badge_rounded},
-    {'type': 'vehicle_reg', 'title': 'رخصة السيارة', 'icon': Icons.directions_car_rounded},
-    {'type': 'criminal_record', 'title': 'فيش جنائي', 'icon': Icons.fact_check_rounded},
+    {'type': 'license', 'title': 'رخصة القيادة', 'titleEn': 'Driving license', 'icon': Icons.card_membership_rounded},
+    {'type': 'national_id', 'title': 'البطاقة الشخصية', 'titleEn': 'National ID card', 'icon': Icons.badge_rounded},
+    {'type': 'vehicle_reg', 'title': 'رخصة السيارة', 'titleEn': 'Vehicle registration', 'icon': Icons.directions_car_rounded},
+    {'type': 'criminal_record', 'title': 'فيش جنائي', 'titleEn': 'Criminal record check', 'icon': Icons.fact_check_rounded},
   ];
 
-  List<Map<String, dynamic>> _docTypes = _fallbackDocTypes;
+  List<Map<String, dynamic>> _docTypes = _fallbackDocTypes
+      .map((d) => Map<String, dynamic>.from(d))
+      .toList();
 
   static const _iconByName = <String, IconData>{
     'card_membership': Icons.card_membership_rounded,
@@ -63,11 +65,15 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
       if (typesRaw.isNotEmpty) {
         _docTypes = typesRaw.whereType<Map>().map((e) {
           final t = Map<String, dynamic>.from(e);
+          final isArabic =
+              Localizations.localeOf(context).languageCode == 'ar';
+          final titleAr = t['title_ar']?.toString() ?? '';
+          final titleEn = t['title_en']?.toString() ?? '';
           return {
             'type': t['id']?.toString() ?? '',
-            'title': (t['title_ar']?.toString().isNotEmpty ?? false)
-                ? t['title_ar'].toString()
-                : (t['title_en']?.toString() ?? t['id']?.toString() ?? ''),
+            'title': isArabic
+                ? (titleAr.isNotEmpty ? titleAr : (titleEn.isNotEmpty ? titleEn : t['id']?.toString() ?? ''))
+                : (titleEn.isNotEmpty ? titleEn : (titleAr.isNotEmpty ? titleAr : t['id']?.toString() ?? '')),
             'icon': _iconByName[t['icon']?.toString()] ?? Icons.description_rounded,
           };
         }).where((t) => (t['type'] as String).isNotEmpty).toList();

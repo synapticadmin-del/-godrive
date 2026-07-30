@@ -165,7 +165,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
       backgroundColor: go.bg,
       appBar: AppBar(
         title: Text(
-          'رحلات متاحة',
+          strings.availableTripsTitle,
           style: AppTokens.font(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -248,11 +248,10 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
               children: [
                 _buildRadiusSelector(),
                 SizedBox(height: MediaQuery.of(context).size.height * 0.06),
-                const EmptyState(
+                EmptyState(
                   icon: Icons.radar_rounded,
-                  title: 'لا توجد رحلات متاحة الآن',
-                  subtitle:
-                      'أنت متصل وجاهز — ستظهر الطلبات القريبة هنا فور وصولها. جرّب توسيع نطاق البحث أو البقاء في منطقة مزدحمة.',
+                  title: strings.noOffersNow,
+                  subtitle: strings.nearbyEmptySubtitle,
                 ),
               ],
             )
@@ -296,7 +295,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
           Icon(Icons.radar_rounded, size: 18, color: go.muted),
           const SizedBox(width: AppTokens.spaceSm),
           Text(
-            'نطاق البحث',
+            AppStrings.of(context).searchRadiusLabel,
             style: AppTokens.font(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -316,7 +315,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                   final km = _radiusOptions[i];
                   final selected = km == _radiusKm;
                   return ChoiceChip(
-                    label: Text('${km.round()} كم'),
+                    label: Text(AppStrings.of(context).radiusKm(km.round())),
                     selected: selected,
                     onSelected: (_) {
                       setState(() => _radiusKm = km);
