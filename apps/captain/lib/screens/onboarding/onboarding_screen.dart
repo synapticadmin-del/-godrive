@@ -14,7 +14,8 @@ import '../documents/document_status_screen.dart';
 ///
 ///   1. المعلومات الشخصية  — profile photo + four-part name + birth date
 ///   2. رخصة القيادة        — licence photo + expiry date
-///   3. المستندات الشخصية   — criminal record (front + optional back) + national ID number
+///   3. المستندات الشخصية   — national ID card + criminal record
+///                            (front + optional back) + national ID number
 ///   4. معلومات السيارة     — vehicle photo + registration (front + optional back) + make/model/colour/plate/year
 ///
 /// Design language follows the screenshots exactly: a near-black canvas, dark
@@ -58,6 +59,10 @@ class _DocTypeDef {
 
 class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   static const int _totalSteps = 4;
+
+  /// Earliest accepted vehicle model year — same floor the birth-date picker
+  /// uses, so the two date-ish inputs on this screen agree.
+  static const int _minVehicleYear = 1950;
   int _step = 0; // 0..3
   bool _loading = true;
   bool _saving = false;
@@ -143,7 +148,10 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           [];
 
       _prefill();
-      setState(() => _loading = false);
+      setState(() {
+        _step = _firstIncompleteStep();
+        _loading = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -166,6 +174,22 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     _vehicleYear.text = p['vehicle_year']?.toString() ?? '';
   }
 
+  /// The first step that still fails validation.
+  ///
+  /// Must be called only after the catalog, the documents and the profile have
+  /// loaded and _prefill() has populated the controllers — _validForStep reads
+  /// all three.
+  ///
+  /// Settles on the last step when everything already validates, rather than
+  /// running past the end, so a returning captain gets a review-and-submit view
+  /// instead of an out-of-range index.
+  int _firstIncompleteStep() {
+    for (var i = 0; i < _totalSteps; i++) {
+      if (!_validForStep(i)) return i;
+    }
+    return _totalSteps - 1;
+  }
+
   Map<String, dynamic>? _docFor(String type) {
     final matches = _docs.where((d) => d['type'] == type);
     return matches.isEmpty ? null : matches.first;
@@ -175,11 +199,17 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
       _localPreviews[type] != null ||
       (_docFor(type)?['r2_key']?.toString().isNotEmpty ?? false);
 
+  /// Whether the active locale is Arabic.
+  ///
+  /// Read from Localizations, never inferred by comparing a translated string
+  /// to a literal: that breaks the instant a translation is reworded, and it
+  /// breaks silently.
+  bool get _isArabic => Localizations.localeOf(context).languageCode == 'ar';
+
   String _titleFor(String typeId, String fallback) {
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final def = _catalog.where((t) => t.id == typeId).firstOrNull;
     if (def == null) return fallback;
-    if (isArabic) return def.titleAr.isNotEmpty ? def.titleAr : fallback;
+    if (_isArabic) return def.titleAr.isNotEmpty ? def.titleAr : fallback;
     return def.titleEn.isNotEmpty ? def.titleEn : def.titleAr;
   }
 
@@ -187,6 +217,26 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     final def = _catalog.where((t) => t.id == typeId).firstOrNull;
     return def?.required ?? fallback;
   }
+
+  /// True when the catalog loaded and [typeId] is not in it — i.e. an admin
+  /// deactivated the type. GET /captain/document-types filters `active = 1`,
+  /// so a switched-off type simply never arrives.
+  ///
+  /// The `isNotEmpty` guard matters: an empty catalog means the fetch failed,
+  /// not that every type was deactivated. In that case this returns false so
+  /// [_docMissing] falls through to _isRequired's strict `fallback: true`.
+  /// Degrading to permissive on a network error is the wrong default for
+  /// compliance documents.
+  bool _deactivated(String typeId) =>
+      _catalog.isNotEmpty && !_catalog.any((t) => t.id == typeId);
+
+  /// True when [typeId] should block the current step.
+  ///
+  /// The single source of truth for both the Next gate and the validation
+  /// toast. The tiles badge themselves from _isRequired, so anything that
+  /// gates on a different rule can contradict what the captain is looking at.
+  bool _docMissing(String typeId) =>
+      !_deactivated(typeId) && _isRequired(typeId) && !_hasDoc(typeId);
 
   // ------------------------------------------------------------------
   // Upload
@@ -338,23 +388,39 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   // Step navigation
   // ------------------------------------------------------------------
 
+  /// Latest accepted model year: next calendar year, so a brand-new model year
+  /// is not rejected in December.
+  int get _maxVehicleYear => DateTime.now().year + 1;
+
+  /// The year field is optional, so blank passes. A filled one has to be a
+  /// plausible model year — `maxLength: 4` alone happily accepted 0001.
+  bool _vehicleYearValid() {
+    final raw = _vehicleYear.text.trim();
+    if (raw.isEmpty) return true;
+    final year = int.tryParse(raw);
+    if (year == null) return false;
+    return year >= _minVehicleYear && year <= _maxVehicleYear;
+  }
+
   bool _validForStep(int step) {
     switch (step) {
       case 0:
-        return _firstName.text.trim().isNotEmpty &&
-            _fatherName.text.trim().isNotEmpty &&
-            _hasDoc('profile_photo');
+        return !_docMissing('profile_photo') &&
+            _firstName.text.trim().isNotEmpty &&
+            _fatherName.text.trim().isNotEmpty;
       case 1:
-        return _hasDoc('license');
+        return !_docMissing('license');
       case 2:
-        return _hasDoc('criminal_record') &&
-            (!_isRequired('national_id_number', fallback: false) ||
+        return !_docMissing('national_id') &&
+            !_docMissing('criminal_record') &&
+            (!_isRequired('national_id', fallback: false) ||
                 _nationalId.text.trim().isNotEmpty);
       case 3:
-        return _hasDoc('vehicle_reg') &&
+        return !_docMissing('vehicle_reg') &&
             _vehicleMake.text.trim().isNotEmpty &&
             _vehicleModel.text.trim().isNotEmpty &&
-            _vehiclePlate.text.trim().isNotEmpty;
+            _vehiclePlate.text.trim().isNotEmpty &&
+            _vehicleYearValid();
       default:
         return true;
     }
@@ -405,21 +471,24 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
   }
 
   String _validationMessage() {
+    final strings = AppStrings.of(context);
     switch (_step) {
       case 0:
-        return !_hasDoc('profile_photo')
-            ? 'ارفع صورتك الشخصية أولاً'
-            : 'اكتب الاسم الأول واسم الأب على الأقل';
+        return _docMissing('profile_photo')
+            ? strings.onbNeedProfilePhoto
+            : strings.onbNeedNames;
       case 1:
-        return 'ارفع صورة رخصة القيادة أولاً';
+        return strings.onbNeedLicense;
       case 2:
-        return !_hasDoc('criminal_record')
-            ? 'ارفع صحيفة الحالة الجنائية أولاً'
-            : 'اكتب رقم الهوية';
+        if (_docMissing('national_id')) return strings.onbNeedNationalId;
+        if (_docMissing('criminal_record')) return strings.onbNeedCriminalRecord;
+        return strings.onbNeedNationalIdNumber;
       default:
-        return !_hasDoc('vehicle_reg')
-            ? 'ارفع رخصة السيارة أولاً'
-            : 'أكمل بيانات السيارة (الماركة والطراز ورقم اللوحة)';
+        if (_docMissing('vehicle_reg')) return strings.onbNeedVehicleReg;
+        if (!_vehicleYearValid()) {
+          return strings.onbYearRange(_minVehicleYear, _maxVehicleYear);
+        }
+        return strings.onbNeedVehicleFields;
     }
   }
 
@@ -442,23 +511,31 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           if (fullName.isNotEmpty) 'name': fullName,
         });
       case 1:
-        await state.apiPost('/captain/profile', {
-          if (_licenseExpiry != null) 'licenseExpiry': _licenseExpiry,
-        });
+        // The licence photo is registered by _pickAndUpload on its own, so
+        // with no expiry date there is genuinely nothing to persist here.
+        // This used to collapse to a POST of `{}`.
+        if (_licenseExpiry != null) {
+          await state.apiPost('/captain/profile', {
+            'licenseExpiry': _licenseExpiry,
+          });
+        }
       case 2:
-        await state.apiPost('/captain/profile', {
-          if (_nationalId.text.trim().isNotEmpty)
-            'nationalIdNumber': _nationalId.text.trim(),
-        });
+        final nationalId = _nationalId.text.trim();
+        if (nationalId.isNotEmpty) {
+          await state.apiPost('/captain/profile', {
+            'nationalIdNumber': nationalId,
+          });
+        }
       case 3:
+        final year = int.tryParse(_vehicleYear.text.trim());
         await state.apiPost('/captain/profile', {
           'vehicleMake': _vehicleMake.text.trim(),
           'vehicleModel': _vehicleModel.text.trim(),
           'vehicleColor': _vehicleColor.text.trim(),
           'vehiclePlate': _vehiclePlate.text.trim(),
           'licenseNumber': _vehiclePlate.text.trim(),
-          if (int.tryParse(_vehicleYear.text.trim()) != null)
-            'vehicleYear': int.parse(_vehicleYear.text.trim()),
+          // Range already enforced by _vehicleYearValid() via _validForStep(3).
+          if (year != null) 'vehicleYear': year,
         });
     }
   }
@@ -486,10 +563,10 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     final muted = go.muted;
 
     final titles = [
-      'المعلومات الشخصية',
-      'رخصة القيادة',
+      strings.onbStep1Title,
+      strings.onbStep2Title,
       strings.docOnboardingTitle,
-      'معلومات السيارة',
+      strings.onbStep4Title,
     ];
 
     return Scaffold(
@@ -535,7 +612,130 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     );
   }
 
+  /// The "المساعدة" sheet.
+  ///
+  /// Leads with the concrete blocker for the current step — the same string
+  /// the Next button's toast uses — because "why can I not continue?" is the
+  /// only question a stalled captain is asking. General guidance follows.
+  Future<void> _showHelp() async {
+    final go = GoTheme.of(context);
+    final badge = GoBadgeColors.of(go, GoBadgeTone.pending);
+    final strings = AppStrings.of(context);
+    final optionalLabel = strings.docOptionalBadge;
+    final blocker = _validForStep(_step) ? null : _validationMessage();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Container(
+        decoration: BoxDecoration(
+          color: go.panel,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppTokens.radiusXl),
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceMd,
+              AppTokens.spaceSm,
+              AppTokens.spaceMd,
+              AppTokens.spaceMd,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppTokens.spaceMd),
+                    decoration: BoxDecoration(
+                      color: go.border,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                    ),
+                  ),
+                ),
+                Text(
+                  strings.onbHelpTitle,
+                  style: AppTokens.font(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: go.text,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.spaceSm),
+                if (blocker != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(AppTokens.spaceSm),
+                    decoration: BoxDecoration(
+                      color: badge.bg,
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 18, color: badge.accent),
+                        const SizedBox(width: AppTokens.spaceXs),
+                        Expanded(
+                          child: Text(
+                            strings.onbHelpBlocker(blocker),
+                            style: AppTokens.font(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: badge.fg,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppTokens.spaceMd),
+                ],
+                Text(
+                  strings.onbHelpBody(optionalLabel),
+                  style: AppTokens.font(
+                    fontSize: 13.5,
+                    color: go.muted,
+                    height: 1.7,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.spaceMd),
+                SizedBox(
+                  height: AppTokens.tapTarget,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(sheetCtx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTokens.lime,
+                      foregroundColor: AppTokens.onLime,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                      ),
+                    ),
+                    child: Text(
+                      strings.onbHelpDismiss,
+                      style: AppTokens.font(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppTokens.onLime,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _topBar(Color text) {
+    final strings = AppStrings.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTokens.spaceMd,
@@ -543,14 +743,15 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
       ),
       child: Row(
         children: [
-          TextButton(
-            onPressed: () {},
-            child: Text(
-              'المساعدة',
+          TextButton.icon(
+            onPressed: _showHelp,
+            icon: Icon(Icons.help_outline_rounded, size: 18, color: text),
+            label: Text(
+              strings.onbHelpAction,
               style: AppTokens.font(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppTokens.info,
+                color: text,
               ),
             ),
           ),
@@ -566,6 +767,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 1: المعلومات الشخصية ─────────────────────────────────────
   Widget _stepPersonalInfo(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -574,7 +776,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           children: [
             _uploadTile(
               type: 'profile_photo',
-              label: _titleFor('profile_photo', 'صورة شخصية'),
+              label: _titleFor('profile_photo', strings.onbDocProfilePhoto),
               isDark: isDark,
               width: 110,
               height: 110,
@@ -582,15 +784,22 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_firstName, 'الاسم الأول واسم الأب', fieldBg, text, muted, required: true),
+        _field(_firstName, strings.onbFirstName, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_grandfatherName, 'اسم الجد', fieldBg, text, muted),
+        // This field was missing entirely while _validForStep(0) still
+        // required it, so the step could never be completed: the captain
+        // filled every visible box and the wizard still refused to advance.
+        _field(_fatherName, strings.onbFatherName, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_familyName, 'اسم العائلة', fieldBg, text, muted),
+        _field(_grandfatherName, strings.onbGrandfatherName, fieldBg, text, muted),
+        const SizedBox(height: AppTokens.spaceSm),
+        _field(_familyName, strings.onbFamilyName, fieldBg, text, muted),
         const SizedBox(height: AppTokens.spaceSm),
         _dateField(
           value: _birthDate,
-          hint: 'تاريخ الميلاد',
+          hint: strings.onbBirthDate,
           fieldBg: fieldBg,
           text: text,
           muted: muted,
@@ -605,6 +814,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 2: رخصة القيادة ──────────────────────────────────────────
   Widget _stepLicence(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -613,7 +823,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           children: [
             _uploadTile(
               type: 'license',
-              label: _titleFor('license', 'رخصة القيادة'),
+              label: _titleFor('license', strings.onbDocLicense),
               isDark: isDark,
               width: 130,
               height: 130,
@@ -623,7 +833,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         const SizedBox(height: AppTokens.spaceMd),
         _dateField(
           value: _licenseExpiry,
-          hint: 'تاريخ انتهاء الصلاحية',
+          hint: strings.onbLicenseExpiry,
           fieldBg: fieldBg,
           text: text,
           muted: muted,
@@ -648,32 +858,43 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'criminal_record_back',
-                label: _titleFor('criminal_record_back', 'الجانب الخلفي لصحيفة الحالة الجنائية'),
+                label: _titleFor('criminal_record_back',
+                    strings.onbDocCriminalRecordBack),
                 isDark: isDark,
                 optionalBadge: !_isRequired('criminal_record_back', fallback: false),
-                height: 130,
+                height: 120,
               ),
             ),
             const SizedBox(width: AppTokens.spaceSm),
             Expanded(
               child: _uploadTile(
                 type: 'criminal_record',
-                label: _titleFor('criminal_record', 'صحيفة الحالة الجنائية'),
+                label: _titleFor('criminal_record', strings.onbDocCriminalRecord),
                 isDark: isDark,
                 optionalBadge: !_isRequired('criminal_record'),
-                height: 130,
+                height: 120,
+              ),
+            ),
+            const SizedBox(width: AppTokens.spaceSm),
+            // `national_id` is seeded required in the catalog (migration 0014)
+            // but had no tile in any step, so it could never be supplied.
+            Expanded(
+              child: _uploadTile(
+                type: 'national_id',
+                label: _titleFor('national_id', strings.onbDocNationalId),
+                isDark: isDark,
+                optionalBadge: !_isRequired('national_id'),
+                height: 120,
               ),
             ),
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_nationalId, 'رقم الهوية', fieldBg, text, muted,
+        _field(_nationalId, strings.onbNationalIdNumber, fieldBg, text, muted,
             keyboardType: TextInputType.number, maxLength: 14),
         const SizedBox(height: AppTokens.spaceXs),
         Text(
-          strings.docOptionalBadge == 'اختياري'
-              ? 'المستندات الاختيارية تسرّع المراجعة لكنها ليست شرطاً.'
-              : 'Optional documents speed up review but are not required.',
+          strings.onbOptionalDocsNote,
           style: AppTokens.font(fontSize: 12, color: muted, height: 1.5),
         ),
         const SizedBox(height: AppTokens.spaceLg),
@@ -683,6 +904,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
 
   // ── Step 4: معلومات السيارة ───────────────────────────────────────
   Widget _stepVehicle(Color fieldBg, Color text, Color muted, bool isDark) {
+    final strings = AppStrings.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -692,7 +914,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'vehicle_reg_back',
-                label: _titleFor('vehicle_reg_back', 'الجانب الخلفي للشهادة'),
+                label: _titleFor('vehicle_reg_back', strings.onbDocVehicleRegBack),
                 isDark: isDark,
                 optionalBadge: !_isRequired('vehicle_reg_back', fallback: false),
                 height: 120,
@@ -702,7 +924,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'vehicle_reg',
-                label: _titleFor('vehicle_reg', 'رخصة السيارة'),
+                label: _titleFor('vehicle_reg', strings.onbDocVehicleReg),
                 isDark: isDark,
                 optionalBadge: !_isRequired('vehicle_reg'),
                 height: 120,
@@ -712,7 +934,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
             Expanded(
               child: _uploadTile(
                 type: 'vehicle_photo',
-                label: _titleFor('vehicle_photo', 'صورة المركبة'),
+                label: _titleFor('vehicle_photo', strings.onbDocVehiclePhoto),
                 isDark: isDark,
                 optionalBadge: !_isRequired('vehicle_photo', fallback: false),
                 height: 120,
@@ -721,15 +943,18 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           ],
         ),
         const SizedBox(height: AppTokens.spaceMd),
-        _field(_vehicleMake, 'العلامة التجارية للسيارة', fieldBg, text, muted, required: true),
+        _field(_vehicleMake, strings.onbVehicleMake, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehicleModel, 'طراز المركبة', fieldBg, text, muted, required: true),
+        _field(_vehicleModel, strings.onbVehicleModel, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehicleColor, 'لون المركبة', fieldBg, text, muted),
+        _field(_vehicleColor, strings.onbVehicleColor, fieldBg, text, muted),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehiclePlate, 'رقم اللوحة', fieldBg, text, muted, required: true),
+        _field(_vehiclePlate, strings.onbVehiclePlate, fieldBg, text, muted,
+            required: true),
         const SizedBox(height: AppTokens.spaceSm),
-        _field(_vehicleYear, 'سنة الانتاج', fieldBg, text, muted,
+        _field(_vehicleYear, strings.onbVehicleYear, fieldBg, text, muted,
             keyboardType: TextInputType.number, maxLength: 4),
         const SizedBox(height: AppTokens.spaceLg),
       ],
@@ -773,8 +998,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusLg),
           borderSide: BorderSide(
+            // Both arms of this were Colors.transparent, so a required
+            // field that was still empty looked exactly like a satisfied
+            // one. A hairline now marks what is blocking the step.
             color: required && controller.text.trim().isEmpty
-                ? Colors.transparent
+                ? AppTokens.nightBorder
                 : Colors.transparent,
           ),
         ),
@@ -865,7 +1093,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
     final hasImage = _hasDoc(type);
     final status = doc?['status']?.toString();
 
-    return Column(
+    final tile = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Stack(
@@ -980,11 +1208,30 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         ),
       ],
     );
+
+    // A `Column(crossAxisAlignment: stretch)` handed straight to a Row is
+    // given an UNBOUNDED width constraint, and stretch resolves that to an
+    // infinite tile width. The Row then overflows and clips the tile away
+    // completely — which is the empty space captains saw where the photo
+    // picker should be on steps 1 and 2. (Steps 3 and 4 wrap their tiles in
+    // Expanded, so those constraints were bounded and rendered fine.)
+    // An explicit width makes the tile safe in either kind of parent.
+    return width == null ? tile : SizedBox(width: width, child: tile);
   }
 
   Widget _footer(AppStrings strings, Color text) {
     final valid = _validForStep(_step);
     final isLast = _step == _totalSteps - 1;
+
+    // The action is always present, always full-width, and always tappable.
+    // Previously the incomplete state painted an onLime (#101010) label on a
+    // nightSurface (#26262B) fill — a ~1.05:1 contrast ratio, i.e. an empty
+    // grey slab with no readable text on a near-black page, which captains
+    // reasonably read as "there is no Next button". Tapping it while the step
+    // is incomplete raises the Arabic validation toast naming exactly what is
+    // still missing, so the flow is never a dead end.
+    final Color fill = valid ? AppTokens.lime : AppTokens.nightSurface;
+    final Color ink = valid ? AppTokens.onLime : AppTokens.nightText;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -998,46 +1245,52 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         children: [
           Row(
             children: [
-              SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _saving ? null : _next,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTokens.onLime,
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: _saving ? null : _next,
+                    icon: _saving
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: ink,
+                            ),
+                          )
+                        : Icon(
+                            isLast
+                                ? Icons.check_rounded
+                                : Icons.chevron_left_rounded,
+                            size: 20,
+                            color: ink,
                           ),
-                        )
-                      : Icon(
-                          isLast ? Icons.check_rounded : Icons.chevron_left_rounded,
-                          size: 20,
-                        ),
-                  label: Text(
-                    isLast ? 'إرسال للمراجعة' : strings.nextAction,
-                    style: AppTokens.font(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: valid ? AppTokens.onLime : AppTokens.nightMuted,
+                    label: Text(
+                      isLast ? strings.onbSubmitForReview : strings.nextAction,
+                      style: AppTokens.font(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    // While the step is incomplete this button used to paint
-                    // nightSurface-on-nightBg with an onLime (#101010) label —
-                    // a dark pill on a dark page, which captains read as
-                    // "there is no button at all". It now renders a legible
-                    // muted state instead: still visibly a button, visibly
-                    // not the active action, and still tappable so _next()
-                    // can surface the Arabic validation toast saying exactly
-                    // what is missing (profile photo, name fields, ...).
-                    backgroundColor: valid ? AppTokens.lime : AppTokens.nightElevated,
-                    foregroundColor: valid ? AppTokens.onLime : AppTokens.nightMuted,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: fill,
+                      foregroundColor: ink,
+                      disabledBackgroundColor: AppTokens.nightSurface,
+                      disabledForegroundColor: AppTokens.nightMuted,
+                      elevation: 0,
+                      // A hairline keeps the incomplete state legible as a
+                      // button against the near-black canvas.
+                      side: valid
+                          ? BorderSide.none
+                          : const BorderSide(color: AppTokens.nightBorder),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTokens.spaceLg,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+                      ),
                     ),
                   ),
                 ),
@@ -1068,13 +1321,14 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
                     value: (_step + 1) / _totalSteps,
                     minHeight: 5,
                     backgroundColor: AppTokens.nightSurface,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.lime),
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(AppTokens.lime),
                   ),
                 ),
               ),
               const SizedBox(width: AppTokens.spaceSm),
               Text(
-                '${_step + 1} من $_totalSteps',
+                strings.onbStepCounter(_step + 1, _totalSteps),
                 style: AppTokens.font(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
