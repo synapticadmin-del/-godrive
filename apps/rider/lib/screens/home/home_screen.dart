@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../services/app_state.dart';
 import '../../services/location_service.dart';
 import '../history/history_screen.dart';
+import '../places/saved_places_screen.dart';
 import '../wallet/wallet_screen.dart';
-import '../places/saved_destinations_sheet.dart';
 import '../profile/profile_screen.dart';
 import 'fare_estimate_sheet.dart';
 import 'location_search_sheet.dart';
@@ -32,7 +33,14 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
 
-  int _tabIndex = 0;
+  /// Tab indices: 0 = saved places, 1 = history, 2 = wallet, 3 = profile,
+  /// 4 = the live map overlay. The map used to own slot 0, but the elevated
+  /// centre button already returns to the map from anywhere — so the first
+  /// slot now earns its keep as the quick-reorder surface: one tap on a saved
+  /// place sets it as the destination and jumps straight to the fare.
+  static const int _mapTab = 4;
+
+  int _tabIndex = _mapTab;
   LatLng? _currentLocation;
   LatLng? _pickupLocation;
   LatLng? _dropoffLocation;
@@ -321,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _pickMode = mode;
       _pinAddress = '';
-      _tabIndex = 0;
+      _tabIndex = _mapTab;
     });
 
     if (seed != null) _mapController.move(seed, 16.5);
@@ -426,6 +434,24 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Quick-reorder from the saved-places tab: the tapped place becomes the
+  /// trip destination, the view returns to the map, and the booking flow
+  /// opens with the fare estimate once the route resolves.
+  void _selectSavedPlaceAsDestination(double lat, double lng, String label) {
+    final destination = LatLng(lat, lng);
+    setState(() {
+      _dropoffLocation = destination;
+      _dropoffText = label;
+      // A saved-place reorder always leaves from where the rider is now —
+      // anything else would be a stale pickup from an older session.
+      _pickupLocation = _currentLocation ?? _pickupLocation;
+      _tabIndex = _mapTab;
+    });
+    _refreshRoute(
+      openBooking: _pickupLocation != null && _dropoffLocation != null,
+    );
+  }
+
   void _showBookingFlow() {
     final pickup = _pickupLocation;
     final dropoff = _dropoffLocation;
@@ -446,8 +472,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _onCenterTap() {
-    if (_tabIndex != 0) {
-      setState(() => _tabIndex = 0);
+    if (_tabIndex != _mapTab) {
+      setState(() => _tabIndex = _mapTab);
       return;
     }
     if (_currentLocation != null) {
@@ -455,72 +481,6 @@ class _HomeScreenState extends State<HomeScreen>
     } else {
       _determinePosition();
     }
-  }
-
-  // ─────────────────────── saved destinations ───────────────────────
-
-  /// Opens the "وجهاتي" sheet from the bar's first slot.
-  ///
-  /// A saved place is only worth saving if leaving for it is fast, so this is a
-  /// sheet over the live map rather than a tab swap: the rider picks a place
-  /// and the booking flow opens on top of the route they can already see.
-  void _openSavedDestinations() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => SavedDestinationsSheet(
-        currentLocation: _currentLocation,
-        onSelect: _startTripToSavedPlace,
-      ),
-    );
-  }
-
-  /// Books straight from where the rider is standing to a saved place.
-  ///
-  /// This is the whole point of the slot: pickup is the rider's live position,
-  /// dropoff is the saved place, and the fare sheet opens on the real driving
-  /// route — no searching, no map panning, no typing.
-  Future<void> _startTripToSavedPlace(SavedDestination place) async {
-    final origin = _currentLocation;
-    if (origin == null) {
-      // No fix yet. Say so and retry rather than opening a trip with no origin.
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('جارٍ تحديد موقعك، حاول بعد لحظة')),
-      );
-      _determinePosition();
-      return;
-    }
-
-    setState(() {
-      // A saved destination is always a city ride: drop out of intercity mode
-      // so the four-destination bar and the ride booking flow are the ones on
-      // screen when the sheet opens.
-      _category = 'ride';
-      _travelTab = TravelTab.trip;
-      _tabIndex = 0;
-      _pickMode = PickMode.none;
-
-      _pickupLocation = origin;
-      _pickupText = 'موقعي الحالي';
-      _dropoffLocation = place.point;
-      _dropoffText = place.address.isNotEmpty ? place.address : place.label;
-      _loadingRoute = true;
-    });
-
-    // Resolve the pickup's street name before the fare sheet mounts — it takes
-    // its addresses as plain strings at construction time, so a lookup that
-    // lands afterwards would never reach it and the rider would be staring at
-    // "موقعي الحالي" on the confirmation screen. Failure is fine: the fallback
-    // label is already set above.
-    final resolved = await _locations.reverseGeocode(origin);
-    if (!mounted) return;
-    if (resolved != null && resolved.isNotEmpty && _pickupLocation == origin) {
-      setState(() => _pickupText = resolved);
-    }
-
-    await _refreshRoute(openBooking: true);
   }
 
   // ───────────────────────────── build ─────────────────────────────
@@ -535,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: go.bg,
       body: Stack(
         children: [
-          if (_tabIndex == 0) _buildMap(go),
+          if (_tabIndex == _mapTab) _buildMap(go),
 
           // Tab content sits above the map. The home tab is a transparent
           // overlay so the map stays visible and interactive beneath it.
@@ -543,10 +503,14 @@ class _HomeScreenState extends State<HomeScreen>
             child: IndexedStack(
               index: _tabIndex,
               children: [
-                _buildHomeOverlay(appState, go),
+                SavedPlacesScreen(
+                  embedded: true,
+                  onSelectAsDestination: _selectSavedPlaceAsDestination,
+                ),
                 const HistoryScreen(),
                 const WalletScreen(),
                 const ProfileScreen(),
+                _buildHomeOverlay(appState, go),
               ],
             ),
           ),
@@ -567,32 +531,19 @@ class _HomeScreenState extends State<HomeScreen>
                     _travelTab = tab;
                     // The orders tab reuses the shared history screen, which
                     // lives at index 1 of the IndexedStack; the trip tab is the
-                    // map overlay at index 0.
-                    _tabIndex = tab == TravelTab.orders ? 1 : 0;
+                    // map overlay at index _mapTab.
+                    _tabIndex = tab == TravelTab.orders ? 1 : _mapTab;
                   }),
                   onExitTravelMode: () => setState(() {
                     _category = 'ride';
                     _travelTab = TravelTab.trip;
-                    _tabIndex = 0;
+                    _tabIndex = _mapTab;
                   }),
                 )
               : MainBottomNav(
                   currentIndex: _tabIndex,
                   onTap: (index) => setState(() => _tabIndex = index),
                   onCenterTap: _onCenterTap,
-                  // The first slot used to be a second way to reach the map,
-                  // which the centre crest already does. It now opens saved
-                  // destinations — the shortcut that turns a saved "home" into
-                  // a booked ride in two taps. It never shows a selected state
-                  // because it opens a sheet instead of swapping the body,
-                  // hence the non-tab sentinel index.
-                  firstDestination: NavFirstDestination(
-                    index: -1,
-                    label: 'وجهاتي',
-                    icon: Icons.bookmark_border_rounded,
-                    activeIcon: Icons.bookmark_rounded,
-                    onTap: _openSavedDestinations,
-                  ),
                 ),
     );
   }
@@ -772,7 +723,7 @@ class _HomeScreenState extends State<HomeScreen>
               // to that mode's first destination rather than leaving a stale
               // index selected in a bar that no longer has it.
               _travelTab = TravelTab.trip;
-              _tabIndex = 0;
+              _tabIndex = _mapTab;
             }),
             pickupText: _pickupText,
             dropoffText: _dropoffText,
@@ -828,7 +779,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   child: Text(
                     title,
-                    style: AppTokens.font(
+                    style: GoogleFonts.ibmPlexSansArabic(
                       color: Colors.white,
                       fontSize: 14.5,
                       fontWeight: FontWeight.w700,
@@ -1118,7 +1069,7 @@ class _PillGlassButton extends StatelessWidget {
               const SizedBox(width: 7),
               Text(
                 label,
-                style: AppTokens.font(
+                style: GoogleFonts.ibmPlexSansArabic(
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                   color: go.text,
@@ -1256,7 +1207,7 @@ class _BookingPanel extends StatelessWidget {
                   ),
                   child: Text(
                     isArabic ? 'متابعة' : 'Continue',
-                    style: AppTokens.font(
+                    style: GoogleFonts.ibmPlexSansArabic(
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                     ),
@@ -1300,7 +1251,7 @@ class _RouteSummary extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             isArabic ? 'جارٍ حساب المسار...' : 'Calculating route...',
-            style: AppTokens.font(
+            style: GoogleFonts.ibmPlexSansArabic(
               fontSize: 13,
               color: go.muted,
             ),
@@ -1322,7 +1273,7 @@ class _RouteSummary extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             r.distanceLabel(isArabic: isArabic),
-            style: AppTokens.font(
+            style: GoogleFonts.ibmPlexSansArabic(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: go.text,
@@ -1336,7 +1287,7 @@ class _RouteSummary extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             r.durationLabel(isArabic: isArabic),
-            style: AppTokens.font(
+            style: GoogleFonts.ibmPlexSansArabic(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: go.text,
@@ -1346,7 +1297,7 @@ class _RouteSummary extends StatelessWidget {
           if (r.isApproximate)
             Text(
               isArabic ? 'تقريبي' : 'approx.',
-              style: AppTokens.font(
+              style: GoogleFonts.ibmPlexSansArabic(
                 fontSize: 11.5,
                 color: go.muted,
               ),
@@ -1406,7 +1357,7 @@ class _LocationField extends StatelessWidget {
                   filled ? value : hint,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTokens.font(
+                  style: GoogleFonts.ibmPlexSansArabic(
                     fontSize: 14.5,
                     fontWeight: filled ? FontWeight.w600 : FontWeight.w500,
                     color: filled ? go.text : go.muted,
@@ -1483,7 +1434,7 @@ class _PinConfirmPanel extends StatelessWidget {
                               : address,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTokens.font(
+                          style: GoogleFonts.ibmPlexSansArabic(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: address.isEmpty ? go.muted : go.text,
@@ -1519,7 +1470,7 @@ class _PinConfirmPanel extends StatelessWidget {
                 isPickup
                     ? (isArabic ? 'تأكيد نقطة الانطلاق' : 'Confirm pickup')
                     : (isArabic ? 'تأكيد الوجهة' : 'Confirm destination'),
-                style: AppTokens.font(
+                style: GoogleFonts.ibmPlexSansArabic(
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
                 ),
