@@ -87,22 +87,87 @@ class _RiderAppState extends State<RiderApp> {
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: state.themeMode,
-            home: (state.loading || !_introFinished)
-                ? SplashScreen(
-                    onCompleted: () {
-                      if (!_introFinished) {
-                        setState(() => _introFinished = true);
-                      }
-                    },
-                  )
-                // A restored, non-expired session lands straight on Home;
-                // LoginScreen is only reached when there is no valid session.
-                : state.token == null
-                    ? const LoginScreen()
-                    : const HomeScreen(),
+            home: _RootGate(child: _resolveRoot(state)),
           );
         },
       ),
+    );
+  }
+
+  /// Each destination is wrapped in a keyed subtree so the gate above can tell
+  /// them apart. `KeyedSubtree` rather than a key on the screens themselves:
+  /// identity belongs to the routing decision, not to the widgets, and this
+  /// makes no assumption about the screens' constructors.
+  Widget _resolveRoot(AppState state) {
+    if (state.loading || !_introFinished) {
+      return KeyedSubtree(
+        key: const ValueKey('splash'),
+        child: SplashScreen(
+          onCompleted: () {
+            if (!_introFinished) {
+              setState(() => _introFinished = true);
+            }
+          },
+        ),
+      );
+    }
+    // A restored, non-expired session lands straight on Home; LoginScreen is
+    // only reached when there is no valid session.
+    return state.token == null
+        ? const KeyedSubtree(key: ValueKey('login'), child: LoginScreen())
+        : const KeyedSubtree(key: ValueKey('home'), child: HomeScreen());
+  }
+}
+
+/// Cross-fades between the app's root destinations.
+///
+/// The splash used to be swapped out by a bare `setState` at the `home:` level,
+/// so the brand mark vanished between two frames — a hard cut that threw away
+/// the choreography the splash had just finished playing, and the single most
+/// unfinished-feeling moment in the launch. Routing the swap through an
+/// `AnimatedSwitcher` lets the splash dissolve while the destination settles in
+/// underneath it. Sign-in to Home gets the same treatment for free.
+///
+/// This lives below `MaterialApp` rather than inline in `home:` because it
+/// needs `MediaQuery` to honour the platform's reduce-motion setting, and
+/// nothing above `MaterialApp` provides one.
+class _RootGate extends StatelessWidget {
+  const _RootGate({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    return AnimatedSwitcher(
+      duration: Duration(milliseconds: reduceMotion ? 0 : 560),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      // The default layout builder hands its children loose constraints, which
+      // lets a full-page Scaffold collapse to nothing for the length of the
+      // transition. Expanding the stack keeps both pages at full size while
+      // they cross over.
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        fit: StackFit.expand,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          // A whisper of scale. The outgoing page runs this in reverse, so the
+          // splash eases back as it dissolves and the destination settles
+          // forward — a handoff rather than a zoom.
+          scale: Tween<double>(begin: 0.985, end: 1).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
+      ),
+      child: child,
     );
   }
 }
