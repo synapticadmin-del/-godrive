@@ -614,7 +614,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmed == true) {
       await state.logout();
-      if (context.mounted) Navigator.pop(context);
+      // Collapse back to the app root rather than a bare pop. SettingsScreen
+      // sits inside MainShell's IndexedStack, so popping here removed the
+      // MainShell route itself and left the navigator empty — the black screen
+      // captains saw after signing out. popUntil(isFirst) keeps the root
+      // (which now rebuilds to LoginScreen on the cleared token) and only
+      // drops any screens pushed on top. Matches the rider app's logout.
+      if (context.mounted) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+      }
     }
   }
 }
