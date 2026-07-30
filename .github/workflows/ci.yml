@@ -1,0 +1,152 @@
+name: CI
+
+# Runs on every pull request, on every push to main, and inside a merge queue
+# if one is ever enabled.
+#
+# IMPORTANT: this workflow makes failures VISIBLE, it does not make them
+# BLOCKING. To actually stop a broken merge, both jobs below must be added as
+# required status checks in Settings > Branches > branch protection rule for
+# `main`. Until that is done a red run can still be merged past.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+# A newer push to the same PR cancels the older run; pushes to main are never
+# cancelled so main always has a complete result.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: node (typecheck, build, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The repo declares engines.node >= 20. Pinning to the floor is the
+          # useful test: if it builds on 20 it builds on newer.
+          node-version: '20'
+          cache: npm
+
+      # Deliberately `npm ci`, not `npm install`. `npm ci` fails when
+      # package-lock.json has drifted from the manifests, which is a real fault
+      # this repo has already shipped: the lockfile was missing vitest and
+      # @cloudflare/workers-types entirely, so on a clean clone the test suite
+      # and the API typecheck could not run at all. `npm install` would have
+      # silently papered over that.
+      - name: install (npm ci)
+        run: npm ci
+
+      # Each check runs even if an earlier one failed, so a single run shows the
+      # whole picture instead of stopping at the first error. The Result step
+      # below is what actually fails the job.
+      - name: typecheck @synaptic-go/api
+        id: tc-api
+        continue-on-error: true
+        run: npm run typecheck -w @synaptic-go/api
+
+      - name: typecheck @synaptic-go/admin
+        id: tc-admin
+        continue-on-error: true
+        run: npm run typecheck -w @synaptic-go/admin
+
+      - name: typecheck @synaptic-go/shared
+        id: tc-shared
+        continue-on-error: true
+        run: npm run typecheck -w @synaptic-go/shared
+
+      - name: build @synaptic-go/admin
+        id: build-admin
+        continue-on-error: true
+        run: npm run build -w @synaptic-go/admin
+
+      - name: test @synaptic-go/shared
+        id: test-shared
+        continue-on-error: true
+        run: npm test -w @synaptic-go/shared
+
+      - name: Result
+        if: always()
+        run: |
+          fail=0
+          check() {
+            if [ "$2" = "success" ]; then
+              echo "  PASS  $1"
+            else
+              echo "  FAIL  $1"
+              fail=1
+            fi
+          }
+          check "typecheck @synaptic-go/api"    "${{ steps.tc-api.outcome }}"
+          check "typecheck @synaptic-go/admin"  "${{ steps.tc-admin.outcome }}"
+          check "typecheck @synaptic-go/shared" "${{ steps.tc-shared.outcome }}"
+          check "build @synaptic-go/admin"      "${{ steps.build-admin.outcome }}"
+          check "test @synaptic-go/shared"      "${{ steps.test-shared.outcome }}"
+          echo
+          if [ "$fail" -ne 0 ]; then
+            echo "node job failed - see the individual steps above."
+            exit 1
+          fi
+          echo "node job passed."
+
+  checks:
+    name: checks (migrations, l10n, hygiene)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # All four scripts are stdlib-only: no pip install step, nothing to cache.
+      - name: migrations - naming, ordering, encoding
+        id: mig
+        continue-on-error: true
+        run: python3 scripts/check_migrations.py
+
+      - name: migrations - apply to a fresh database
+        id: mig-apply
+        continue-on-error: true
+        run: python3 scripts/check_migrations_apply.py
+
+      - name: l10n - abstract/locale parity and duplicates
+        id: l10n
+        continue-on-error: true
+        run: python3 scripts/check_l10n_parity.py
+
+      - name: repo hygiene - conflict markers, artifacts, encoding
+        id: hygiene
+        continue-on-error: true
+        run: python3 scripts/check_repo_hygiene.py
+
+      - name: Result
+        if: always()
+        run: |
+          fail=0
+          check() {
+            if [ "$2" = "success" ]; then
+              echo "  PASS  $1"
+            else
+              echo "  FAIL  $1"
+              fail=1
+            fi
+          }
+          check "check_migrations"       "${{ steps.mig.outcome }}"
+          check "check_migrations_apply" "${{ steps.mig-apply.outcome }}"
+          check "check_l10n_parity"      "${{ steps.l10n.outcome }}"
+          check "check_repo_hygiene"     "${{ steps.hygiene.outcome }}"
+          echo
+          if [ "$fail" -ne 0 ]; then
+            echo "checks job failed - see the individual steps above."
+            exit 1
+          fi
+          echo "checks job passed."
