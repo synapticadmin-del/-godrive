@@ -140,7 +140,9 @@ export default function DashboardPage() {
                         <td className="px-4 py-3 text-sm text-text-primary truncate max-w-[120px]" title={t.id}>{t.id.slice(0, 12)}…</td>
                         <td className="px-4 py-3"><StatusBadge status={t.status} /></td>
                         <td className="px-4 py-3 text-sm text-text-primary">{t.city}</td>
-                        <td className="px-4 py-3 text-sm text-text-primary">{t.estimated_fare ?? '—'}</td>
+                        {/* formatCurrency already returns '—' for null, and adds
+                            the currency + ar-EG separator the bare number lacked. */}
+                        <td className="px-4 py-3 text-sm text-text-primary">{formatCurrency(t.estimated_fare)}</td>
                         <td className="px-4 py-3 text-sm text-text-tertiary">{new Date(t.created_at).toLocaleTimeString('ar-EG')}</td>
                       </tr>
                     ))}

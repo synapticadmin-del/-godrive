@@ -15,9 +15,15 @@ const ToastContext = React.createContext<{
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastType[]>([]);
+  // A monotonic counter instead of Math.random(): two toasts raised in the same
+  // tick (e.g. a bulk action reporting several failures) could previously draw
+  // the same 7-char id, and React would then treat them as one list item and
+  // drop all but the first. useId is not usable here because the id has to be
+  // unique per toast, not per component instance.
+  const nextId = useRef(0);
 
   const addToast = (toast: Omit<ToastType, 'id'>): string => {
-    const id = Math.random().toString(36).slice(2, 9);
+    const id = `toast-${nextId.current++}`;
     const newToast: ToastType = { ...toast, id };
     setToasts((prev) => [...prev, newToast]);
 

@@ -35,6 +35,28 @@ export function QuickSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose
     return () => clearTimeout(timer);
   }, [query, token]);
 
+  // The modal renders an "ESC" affordance but never listened for the key.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
+  // Start from a clean slate each time the palette opens, otherwise the previous
+  // search's results flash before the new debounce fires.
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery('');
+      setResults(null);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (

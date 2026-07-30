@@ -18,6 +18,17 @@ interface Promo {
   min_fare?: number;
 }
 
+/** Mirrors the payload of GET/PUT /admin/system-config. */
+interface SystemConfig {
+  defaultCommissionPct: number;
+  searchRadiusKm: number;
+  freeCancelMin: number;
+  cancelFeeEgp: number;
+  supportPhone: string;
+  supportWhatsapp: string;
+  autoAssign: boolean;
+}
+
 export default function SettingsPage() {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<'promos' | 'system'>('promos');
@@ -32,9 +43,10 @@ export default function SettingsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  // Global System Settings State
-  const [sysConfig, setSysConfig] = useState({
-    defaultCommission: 20,
+  // Global System Settings State. Field names match the API payload exactly so
+  // there is no mapping layer to keep in sync.
+  const [sysConfig, setSysConfig] = useState<SystemConfig>({
+    defaultCommissionPct: 20,
     searchRadiusKm: 5,
     freeCancelMin: 3,
     cancelFeeEgp: 15,
@@ -42,6 +54,8 @@ export default function SettingsPage() {
     supportWhatsapp: '+201000000000',
     autoAssign: true,
   });
+  const [sysLoading, setSysLoading] = useState(true);
+  const [sysSaving, setSysSaving] = useState(false);
 
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +76,24 @@ export default function SettingsPage() {
     }
   };
 
+  const loadSystemConfig = async () => {
+    setSysLoading(true);
+    try {
+      const res = await api<{ config: Partial<SystemConfig> }>('/admin/system-config', { token });
+      // Merge rather than replace: a key absent from the response (fresh
+      // database, or a setting whose seed has not shipped yet) keeps its default
+      // instead of turning the matching input into an uncontrolled field.
+      setSysConfig((prev) => ({ ...prev, ...res.config }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'فشل تحميل إعدادات المنصة');
+    } finally {
+      setSysLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadPromos();
+    loadSystemConfig();
   }, [token]);
 
   const generateRandomCode = () => {
@@ -120,9 +150,27 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const handleSaveSystemConfig = (e: FormEvent) => {
+  const handleSaveSystemConfig = async (e: FormEvent) => {
     e.preventDefault();
-    setMessage('تم حفظ الإعدادات العامة للنظام بنجاح');
+    setError(null);
+    setMessage(null);
+    setSysSaving(true);
+    try {
+      // The response echoes the persisted config, so the form reflects what the
+      // database actually stored (including any server-side normalisation of the
+      // phone numbers) rather than what was typed.
+      const res = await api<{ config: Partial<SystemConfig> }>('/admin/system-config', {
+        method: 'PUT',
+        token,
+        body: JSON.stringify(sysConfig),
+      });
+      setSysConfig((prev) => ({ ...prev, ...res.config }));
+      setMessage('تم حفظ الإعدادات العامة للنظام بنجاح');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حفظ إعدادات المنصة');
+    } finally {
+      setSysSaving(false);
+    }
   };
 
   // Stats calculation
@@ -458,14 +506,22 @@ export default function SettingsPage() {
           onSubmit={handleSaveSystemConfig}
           className="bg-surface-primary border border-border-primary rounded-xl p-6 shadow-xs space-y-6 max-w-4xl"
         >
-          <div className="border-b border-border-primary pb-4">
-            <h3 className="text-lg font-extrabold text-text-primary flex items-center gap-2">
-              <Sliders className="w-5 h-5 text-primary-500" />
-              إعدادات وقواعد المنصة الأساسية
-            </h3>
-            <p className="text-xs text-text-tertiary mt-1">
-              التحكم في معايير التوزيع التلقائي، حدود الإلغاء، وأرقام التواصل المباشرة
-            </p>
+          <div className="border-b border-border-primary pb-4 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-extrabold text-text-primary flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-primary-500" />
+                إعدادات وقواعد المنصة الأساسية
+              </h3>
+              <p className="text-xs text-text-tertiary mt-1">
+                التحكم في معايير التوزيع التلقائي، حدود الإلغاء، وأرقام التواصل المباشرة
+              </p>
+            </div>
+            {sysLoading && (
+              <span className="flex items-center gap-1.5 text-xs text-text-tertiary shrink-0">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                جاري التحميل
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -479,9 +535,9 @@ export default function SettingsPage() {
                   step="1"
                   min="0"
                   max="100"
-                  value={sysConfig.defaultCommission}
+                  value={sysConfig.defaultCommissionPct}
                   onChange={(e) =>
-                    setSysConfig({ ...sysConfig, defaultCommission: Number(e.target.value) })
+                    setSysConfig({ ...sysConfig, defaultCommissionPct: Number(e.target.value) })
                   }
                   className="input pl-10 font-mono font-bold"
                 />
@@ -572,10 +628,35 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* autoAssign was already tracked in component state but had no control
+              rendered, so it could never be changed. */}
+          <div className="pt-2">
+            <label className="flex items-start gap-3 p-4 rounded-xl bg-surface-secondary border border-border-primary cursor-pointer hover:border-primary-500/40 transition-colors">
+              <input
+                type="checkbox"
+                checked={sysConfig.autoAssign}
+                onChange={(e) => setSysConfig({ ...sysConfig, autoAssign: e.target.checked })}
+                className="mt-0.5 w-4 h-4 accent-primary-500 shrink-0"
+              />
+              <span>
+                <span className="block text-sm font-bold text-text-primary">
+                  التوزيع التلقائي للرحلات
+                </span>
+                <span className="block text-xs text-text-tertiary mt-0.5 leading-relaxed">
+                  إرسال الطلب تلقائياً لأقرب كابتن متاح. عند التعطيل يحتاج الطلب تعييناً يدوياً.
+                </span>
+              </span>
+            </label>
+          </div>
+
           <div className="pt-4 border-t border-border-primary flex items-center justify-end gap-3">
-            <button type="submit" className="btn-primary px-6 py-2.5 font-bold text-sm gap-2">
-              <Save className="w-4 h-4" />
-              حفظ وتطبيق إعدادات المنصة
+            <button
+              type="submit"
+              disabled={sysSaving || sysLoading}
+              className="btn-primary px-6 py-2.5 font-bold text-sm gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {sysSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {sysSaving ? 'جاري الحفظ...' : 'حفظ وتطبيق إعدادات المنصة'}
             </button>
           </div>
         </form>

@@ -226,7 +226,11 @@ export default function LiveMapPage() {
         </div>
       </div>
 
-      <div className="bg-surface-primary border border-border-primary rounded-xl overflow-hidden" style={{ height: '500px' }}>
+      {/* Viewport-relative height instead of a fixed 500px inline style. This is
+          the primary content of a live-tracking screen, so it should use the
+          space available: min-height keeps it usable on short screens, max-height
+          stops it stretching awkwardly on tall monitors. */}
+      <div className="bg-surface-primary border border-border-primary rounded-xl overflow-hidden h-[60vh] min-h-[360px] lg:h-[calc(100vh-15rem)] lg:max-h-[820px]">
         {loading ? <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 text-text-tertiary animate-spin" /></div> : null}
         <div ref={mapRef} className="w-full h-full" />
       </div>

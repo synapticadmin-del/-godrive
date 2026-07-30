@@ -1,2 +1,25 @@
--- Add password_hash column to users table
-ALTER TABLE users ADD COLUMN password_hash TEXT;
+-- 0007: Add password_hash to users — now a no-op.
+--
+-- This migration originally ran `ALTER TABLE users ADD COLUMN password_hash TEXT;`
+-- against a users table created by 0001_init.sql without that column.
+--
+-- 0001_init.sql was later edited to declare `password_hash TEXT` directly in its
+-- CREATE TABLE. That is invisible on any database that had already migrated, but
+-- it broke bootstrapping from scratch: on a fresh database 0001 now creates the
+-- column and this migration then failed with "duplicate column name:
+-- password_hash", aborting `wrangler d1 migrations apply` at step 7 of 17. A new
+-- environment (or a contributor running `npm run db:migrate:local`) could not get
+-- a working database at all.
+--
+-- SQLite has no `ADD COLUMN IF NOT EXISTS`, so the fix is to retire this
+-- migration's body. Emptying it is safe in both directions:
+--   * Databases that already applied it keep the column, and because D1 records
+--     applied migrations by filename in the d1_migrations table this file is
+--     never re-run — the edit is inert for them.
+--   * Fresh databases get the column from 0001 and pass straight through here.
+--
+-- Do not delete the file: removing an entry that existing databases have already
+-- recorded would desynchronise the migration ledger.
+
+-- Intentionally empty. See the note above.
+SELECT 1;

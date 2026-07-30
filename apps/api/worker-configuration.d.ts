@@ -5,6 +5,10 @@ interface Env {
   TRIP_ROOM: DurableObjectNamespace;
   GEO_CELL: DurableObjectNamespace;
   CAPTAIN_INBOX: DurableObjectNamespace;
+  // Bound in wrangler.toml under both [durable_objects] and
+  // [env.prod.durable_objects] and used by routes/trips.ts, but it was never
+  // added here — so `npm run typecheck` failed on main with 4 TS2339 errors.
+  OFFER_SCHEDULER: DurableObjectNamespace;
   // Queue producer for async notifications
   NOTIFICATIONS?: Queue<NotificationMessage>;
   APP_NAME: string;

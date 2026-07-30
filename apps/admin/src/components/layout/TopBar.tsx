@@ -2,13 +2,15 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../design/ThemeContext';
-import { Search, Bell, Settings as CogIcon, LogOut, Menu, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Search, Bell, Settings as CogIcon, LogOut, Menu, ChevronDown, Sun, Moon, BellOff } from 'lucide-react';
+import { QuickSearchModal } from '../ui/QuickSearchModal';
 
 export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
   const { resolved, toggle } = useTheme();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -25,6 +27,20 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showNotifications, showUserMenu]);
 
+  // Ctrl/Cmd+K opens quick search from anywhere in the dashboard. The shortcut
+  // is registered here because the TopBar is mounted for the whole authenticated
+  // session, and it is the element that visibly owns the search affordance.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowSearch((open) => !open);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   return (
     <header className="sticky top-0 z-30 h-16 bg-bg-primary/80 backdrop-blur-lg border-b border-border-primary flex items-center justify-between px-4 lg:px-6">
       {/* Left - Menu + Search */}
@@ -33,17 +49,32 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           <Menu className="w-6 h-6" />
         </button>
 
-        <div className="relative w-full max-w-xs lg:max-w-md hidden sm:block">
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none">
-            <Search className="w-5 h-5" />
-          </div>
-          <input
-            type="search"
-            placeholder="ابحث في الرحلات، الكباتن..."
-            className="w-full pl-10 pr-4 py-2 bg-surface-secondary border border-border-primary rounded-xl text-text-primary placeholder:text-text-tertiary focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 text-sm transition-all"
-            autoComplete="off"
-          />
-        </div>
+        {/* A button, not an <input>. The real search UI is QuickSearchModal —
+            this is the affordance that opens it. It used to be a bare text input
+            that accepted keystrokes and did nothing with them, which read as a
+            broken feature rather than a shortcut. */}
+        <button
+          onClick={() => setShowSearch(true)}
+          className="hidden sm:flex items-center gap-2 w-full max-w-xs lg:max-w-md pr-3 pl-2 py-2 bg-surface-secondary border border-border-primary rounded-xl text-text-tertiary hover:border-primary-500/40 hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 text-sm transition-all"
+          aria-label="بحث سريع"
+        >
+          <Search className="w-5 h-5 shrink-0" />
+          <span className="flex-1 text-right">ابحث في الرحلات، الكباتن...</span>
+          <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-surface-tertiary border border-border-primary text-[10px] font-mono font-bold text-text-tertiary">
+            Ctrl K
+          </kbd>
+        </button>
+
+        {/* Below the sm breakpoint the labelled trigger is hidden to save room,
+            so mobile gets an icon-only equivalent. Previously mobile had no way
+            to reach search at all. */}
+        <button
+          onClick={() => setShowSearch(true)}
+          className="sm:hidden p-2 rounded-lg hover:bg-surface-hover text-text-secondary"
+          aria-label="بحث سريع"
+        >
+          <Search className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Right - Notifications + Theme + User */}
@@ -72,30 +103,29 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
             aria-label="الإشعارات"
             aria-expanded={showNotifications}
           >
+            {/* The unread badge is intentionally absent until a notifications
+                endpoint exists. It previously rendered a hardcoded "2" that
+                never changed, so it trained the admin to ignore the bell. */}
             <Bell className="w-5 h-5" />
-            <span className="absolute -top-0.5 -left-0.5 w-4 h-4 bg-error-main text-white text-[10px] font-bold rounded-full flex items-center justify-center">2</span>
           </button>
 
           {showNotifications && (
             <div className="absolute left-0 top-full mt-2 w-80 lg:w-96 bg-surface-primary border border-border-primary rounded-xl shadow-xl overflow-hidden z-50 animate-fade-in">
-              <div className="px-4 py-3 border-b border-border-primary flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-border-primary">
                 <h3 className="font-semibold text-text-primary">الإشعارات</h3>
-                <button className="text-sm text-text-tertiary hover:text-text-primary">الكل كمقروء</button>
               </div>
-              <div className="max-h-96 overflow-y-auto">
-                <div className="px-4 py-3 border-b border-border-primary hover:bg-surface-hover transition-colors cursor-pointer">
-                  <p className="font-medium text-text-primary">طلب توثيق كابتن جديد</p>
-                  <p className="text-sm text-text-tertiary">قام الكابتن محمد بإرفاق رخصة القيادة والفيش الجنائي.</p>
-                  <p className="text-xs text-text-tertiary mt-1">منذ 5 دقائق</p>
+              {/* Honest empty state. The two items that used to live here were
+                  hardcoded sample copy ("الكابتن محمد أرفق رخصة القيادة") that
+                  looked like real events. The notification_log table exists in
+                  the database but has no admin endpoint yet. */}
+              <div className="px-4 py-8 flex flex-col items-center text-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-surface-secondary flex items-center justify-center">
+                  <BellOff className="w-5 h-5 text-text-tertiary" />
                 </div>
-                <div className="px-4 py-3 border-b border-border-primary hover:bg-surface-hover transition-colors cursor-pointer">
-                  <p className="font-medium text-text-primary">زيادة إجمالي GMV</p>
-                  <p className="text-sm text-text-tertiary">تجاوزت الأرباح اليومية حاجز 15,000 ج.م في القاهرة.</p>
-                  <p className="text-xs text-text-tertiary mt-1">منذ ساعة</p>
-                </div>
-              </div>
-              <div className="p-3 border-t border-border-primary">
-                <button className="w-full text-center text-sm text-primary-500 hover:text-primary-600 font-medium">عرض جميع الإشعارات</button>
+                <p className="text-sm font-medium text-text-secondary">لا توجد إشعارات</p>
+                <p className="text-xs text-text-tertiary leading-relaxed max-w-[240px]">
+                  الإشعارات الفورية للتوثيقات وتنبيهات الأمان قيد التطوير.
+                </p>
               </div>
             </div>
           )}
@@ -141,6 +171,10 @@ export function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           )}
         </div>
       </div>
+
+      {/* QuickSearchModal existed in the codebase but was never rendered by any
+          component, so the search feature was unreachable. */}
+      <QuickSearchModal isOpen={showSearch} onClose={() => setShowSearch(false)} />
     </header>
   );
 }
