@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_isSignUp && !_acceptTerms) {
-      _toast('يجب الموافقة على شروط الانضمام أولاً', AppTokens.warning);
+      _toast(AppStrings.of(context).loginTermsRequired, AppTokens.warning);
       return;
     }
 
@@ -193,15 +193,16 @@ class _LoginScreenState extends State<LoginScreen> {
   // ── Hero carousel ───────────────────────────────────────────────────
 
   Widget _buildHero() {
-    const slides = <_HeroCopy>[
+    final strings = AppStrings.of(context);
+    final slides = <_HeroCopy>[
       _HeroCopy(
-        title: 'اربح وقتك',
-        body: 'اقبل الرحلات القريبة منك، وحدّد سعرك،\nواسحب أرباحك في أي وقت.',
+        title: strings.loginHeroEarnTitle,
+        body: strings.loginHeroEarnBody,
         image: 'assets/images/login_hero_earn.png',
       ),
       _HeroCopy(
-        title: 'نظام عادل',
-        body: 'زر الطوارئ متاح في كل رحلة،\nوكل راكب موثّق قبل الحجز.',
+        title: strings.loginHeroFairTitle,
+        body: strings.loginHeroFairBody,
         image: 'assets/images/login_hero_safety.png',
       ),
     ];
@@ -257,11 +258,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         _field(
                           controller: _nameCtrl,
-                          hint: 'الاسم بالكامل',
+                          hint: AppStrings.of(context).loginFullNameHint,
                           icon: Icons.person_outline_rounded,
                           textInputAction: TextInputAction.next,
                           validator: (v) => (v == null || v.trim().length < 3)
-                              ? 'اكتب اسمك الكامل'
+                              ? AppStrings.of(context).loginFullNameError
                               : null,
                         ),
                         const SizedBox(height: AppTokens.spaceMd),
@@ -274,23 +275,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
             _field(
               controller: _emailCtrl,
-              hint: 'البريد الإلكتروني',
+              hint: AppStrings.of(context).loginEmailHint,
               icon: Icons.mail_outline_rounded,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               validator: (v) {
                 final value = (v ?? '').trim();
-                if (value.isEmpty) return 'أدخل بريدك الإلكتروني';
+                if (value.isEmpty) return AppStrings.of(context).loginEmailRequired;
                 final ok =
                     RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
-                return ok ? null : 'صيغة البريد غير صحيحة';
+                return ok ? null : AppStrings.of(context).loginEmailInvalid;
               },
             ),
             const SizedBox(height: AppTokens.spaceMd),
 
             _field(
               controller: _passCtrl,
-              hint: 'كلمة السر',
+              hint: AppStrings.of(context).loginPasswordHint,
               icon: Icons.lock_outline_rounded,
               obscure: _obscurePass,
               textInputAction: TextInputAction.done,
@@ -304,13 +305,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: _muted,
                   size: 20,
                 ),
-                tooltip: _obscurePass ? 'إظهار كلمة السر' : 'إخفاء كلمة السر',
+                tooltip: _obscurePass
+                    ? AppStrings.of(context).loginShowPasswordTooltip
+                    : AppStrings.of(context).loginHidePasswordTooltip,
               ),
               validator: (v) {
                 final value = v ?? '';
-                if (value.isEmpty) return 'أدخل كلمة السر';
+                if (value.isEmpty) return AppStrings.of(context).loginPasswordRequired;
                 if (_isSignUp && value.length < 6) {
-                  return 'كلمة السر 6 أحرف على الأقل';
+                  return AppStrings.of(context).loginPasswordTooShort;
                 }
                 return null;
               },
@@ -350,7 +353,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           strokeWidth: 2.2,
                         ),
                       )
-                    : Text(_isSignUp ? 'تقديم طلب الانضمام' : 'تسجيل الدخول'),
+                    : Text(_isSignUp
+                        ? AppStrings.of(context).loginJoinSubmit
+                        : AppStrings.of(context).loginSubmit),
               ),
             ),
 
@@ -391,7 +396,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(width: AppTokens.spaceSm),
             Expanded(
               child: Text(
-                'أوافق على شروط وأحكام الانضمام ككابتن',
+                AppStrings.of(context).loginAcceptTermsLabel,
                 style: AppTokens.font(fontSize: 13, color: _muted),
               ),
             ),
@@ -408,7 +413,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
           child: Text(
-            'أو المتابعة بواسطة',
+            AppStrings.of(context).loginOrContinueWith,
             style: AppTokens.font(fontSize: 12, color: _muted),
           ),
         ),
@@ -424,13 +429,13 @@ class _LoginScreenState extends State<LoginScreen> {
         _SocialTile(
           icon: Icons.g_mobiledata_rounded,
           label: 'Google',
-          onTap: () => _toast('تسجيل الدخول عبر Google قريباً', AppTokens.info),
+          onTap: () => _toast(AppStrings.of(context).loginGoogleSoon, AppTokens.info),
         ),
         const SizedBox(width: AppTokens.spaceMd),
         _SocialTile(
           icon: Icons.apple_rounded,
           label: 'Apple',
-          onTap: () => _toast('تسجيل الدخول عبر Apple قريباً', AppTokens.info),
+          onTap: () => _toast(AppStrings.of(context).loginAppleSoon, AppTokens.info),
         ),
       ],
     );
@@ -441,13 +446,17 @@ class _LoginScreenState extends State<LoginScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
-          _isSignUp ? 'لديك حساب بالفعل؟ ' : 'ليس لديك حساب؟ ',
+          _isSignUp
+              ? AppStrings.of(context).loginHaveAccount
+              : AppStrings.of(context).loginNoAccount,
           style: AppTokens.font(fontSize: 14, color: _muted),
         ),
         GestureDetector(
           onTap: () => _setMode(!_isSignUp),
           child: Text(
-            _isSignUp ? 'تسجيل الدخول' : 'انضم ككابتن',
+            _isSignUp
+                ? AppStrings.of(context).loginSubmit
+                : AppStrings.of(context).loginJoinAsCaptain,
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: FontWeight.w800,
@@ -532,9 +541,9 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
       validator: (v) {
         final value = (v ?? '').trim();
-        if (value.isEmpty) return 'أدخل رقم هاتفك';
+        if (value.isEmpty) return AppStrings.of(context).loginPhoneRequired;
         if (!RegExp(r'^01[0125]\d{8}$').hasMatch(value)) {
-          return 'رقم مصري غير صحيح (مثال: 01012345678)';
+          return AppStrings.of(context).loginPhoneInvalid;
         }
         return null;
       },
@@ -694,6 +703,7 @@ class _ModeSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -703,8 +713,8 @@ class _ModeSwitch extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _segment('دخول', !isSignUp, () => onChanged(false)),
-          _segment('انضمام', isSignUp, () => onChanged(true)),
+          _segment(strings.loginModeSignIn, !isSignUp, () => onChanged(false)),
+          _segment(strings.loginModeSignUp, isSignUp, () => onChanged(true)),
         ],
       ),
     );

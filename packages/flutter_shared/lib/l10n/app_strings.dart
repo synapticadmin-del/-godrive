@@ -1725,6 +1725,64 @@ abstract class AppStrings {
 
   /// Step counter connector, e.g. "3 من 4".
   String stepOfTotal(int step, int total);
+
+  // ── Login / sign-up screen ──────────────────────────────────────────────
+  /// Hero slide 1 title (earn).
+  String get loginHeroEarnTitle;
+  /// Hero slide 1 body.
+  String get loginHeroEarnBody;
+  /// Hero slide 2 title (fair/safety).
+  String get loginHeroFairTitle;
+  /// Hero slide 2 body.
+  String get loginHeroFairBody;
+  /// Sign-in / sign-up segmented control — sign-in label.
+  String get loginModeSignIn;
+  /// Sign-in / sign-up segmented control — sign-up label.
+  String get loginModeSignUp;
+  /// Full-name field hint.
+  String get loginFullNameHint;
+  /// Full-name validation error.
+  String get loginFullNameError;
+  /// Email field hint.
+  String get loginEmailHint;
+  /// Email required validation error.
+  String get loginEmailRequired;
+  /// Email format validation error.
+  String get loginEmailInvalid;
+  /// Password field hint.
+  String get loginPasswordHint;
+  /// Password required validation error.
+  String get loginPasswordRequired;
+  /// Password too-short validation error.
+  String get loginPasswordTooShort;
+  /// Show-password tooltip.
+  String get loginShowPasswordTooltip;
+  /// Hide-password tooltip.
+  String get loginHidePasswordTooltip;
+  /// Phone required validation error.
+  String get loginPhoneRequired;
+  /// Phone format validation error.
+  String get loginPhoneInvalid;
+  /// Terms checkbox label.
+  String get loginAcceptTermsLabel;
+  /// Terms-not-accepted toast.
+  String get loginTermsRequired;
+  /// Submit button in sign-up mode.
+  String get loginJoinSubmit;
+  /// Submit button in sign-in mode.
+  String get loginSubmit;
+  /// Divider label between the form and social buttons.
+  String get loginOrContinueWith;
+  /// Google sign-in coming-soon toast.
+  String get loginGoogleSoon;
+  /// Apple sign-in coming-soon toast.
+  String get loginAppleSoon;
+  /// Footer prefix when the user already has an account.
+  String get loginHaveAccount;
+  /// Footer prefix when the user has no account.
+  String get loginNoAccount;
+  /// Footer action to switch to sign-up mode.
+  String get loginJoinAsCaptain;
 }
 
 /// Egyptian-Arabic copy — the app's primary language.
@@ -3621,6 +3679,66 @@ class AppStringsAr extends AppStrings {
 
   @override
   String stepOfTotal(int step, int total) => '$step من $total';
+
+  // ── Login / sign-up screen ──────────────────────────────────────────────
+  @override
+  String get loginHeroEarnTitle => 'اربح وقتك';
+  @override
+  String get loginHeroEarnBody =>
+      'اقبل الرحلات القريبة منك، وحدّد سعرك،\nواسحب أرباحك في أي وقت.';
+  @override
+  String get loginHeroFairTitle => 'نظام عادل';
+  @override
+  String get loginHeroFairBody =>
+      'زر الطوارئ متاح في كل رحلة،\nوكل راكب موثّق قبل الحجز.';
+  @override
+  String get loginModeSignIn => 'دخول';
+  @override
+  String get loginModeSignUp => 'انضمام';
+  @override
+  String get loginFullNameHint => 'الاسم بالكامل';
+  @override
+  String get loginFullNameError => 'اكتب اسمك الكامل';
+  @override
+  String get loginEmailHint => 'البريد الإلكتروني';
+  @override
+  String get loginEmailRequired => 'أدخل بريدك الإلكتروني';
+  @override
+  String get loginEmailInvalid => 'صيغة البريد غير صحيحة';
+  @override
+  String get loginPasswordHint => 'كلمة السر';
+  @override
+  String get loginPasswordRequired => 'أدخل كلمة السر';
+  @override
+  String get loginPasswordTooShort => 'كلمة السر 6 أحرف على الأقل';
+  @override
+  String get loginShowPasswordTooltip => 'إظهار كلمة السر';
+  @override
+  String get loginHidePasswordTooltip => 'إخفاء كلمة السر';
+  @override
+  String get loginPhoneRequired => 'أدخل رقم هاتفك';
+  @override
+  String get loginPhoneInvalid => 'رقم مصري غير صحيح (مثال: 01012345678)';
+  @override
+  String get loginAcceptTermsLabel => 'أوافق على شروط وأحكام الانضمام ككابتن';
+  @override
+  String get loginTermsRequired => 'يجب الموافقة على شروط الانضمام أولاً';
+  @override
+  String get loginJoinSubmit => 'تقديم طلب الانضمام';
+  @override
+  String get loginSubmit => 'تسجيل الدخول';
+  @override
+  String get loginOrContinueWith => 'أو المتابعة بواسطة';
+  @override
+  String get loginGoogleSoon => 'تسجيل الدخول عبر Google قريباً';
+  @override
+  String get loginAppleSoon => 'تسجيل الدخول عبر Apple قريباً';
+  @override
+  String get loginHaveAccount => 'لديك حساب بالفعل؟ ';
+  @override
+  String get loginNoAccount => 'ليس لديك حساب؟ ';
+  @override
+  String get loginJoinAsCaptain => 'انضم ككابتن';
 }
 
 /// English copy.
@@ -5519,4 +5637,64 @@ class AppStringsEn extends AppStrings {
 
   @override
   String stepOfTotal(int step, int total) => '$step of $total';
+
+  // ── Login / sign-up screen ──────────────────────────────────────────────
+  @override
+  String get loginHeroEarnTitle => 'Earn your time';
+  @override
+  String get loginHeroEarnBody =>
+      'Accept trips near you, set your price,\nand withdraw your earnings anytime.';
+  @override
+  String get loginHeroFairTitle => 'A fair system';
+  @override
+  String get loginHeroFairBody =>
+      'The emergency button is available on every trip,\nand every rider is verified before booking.';
+  @override
+  String get loginModeSignIn => 'Sign in';
+  @override
+  String get loginModeSignUp => 'Join';
+  @override
+  String get loginFullNameHint => 'Full name';
+  @override
+  String get loginFullNameError => 'Enter your full name';
+  @override
+  String get loginEmailHint => 'Email address';
+  @override
+  String get loginEmailRequired => 'Enter your email address';
+  @override
+  String get loginEmailInvalid => 'Invalid email format';
+  @override
+  String get loginPasswordHint => 'Password';
+  @override
+  String get loginPasswordRequired => 'Enter your password';
+  @override
+  String get loginPasswordTooShort => 'Password must be at least 6 characters';
+  @override
+  String get loginShowPasswordTooltip => 'Show password';
+  @override
+  String get loginHidePasswordTooltip => 'Hide password';
+  @override
+  String get loginPhoneRequired => 'Enter your phone number';
+  @override
+  String get loginPhoneInvalid => 'Invalid Egyptian number (e.g. 01012345678)';
+  @override
+  String get loginAcceptTermsLabel => 'I agree to the captain terms and conditions';
+  @override
+  String get loginTermsRequired => 'You must accept the joining terms first';
+  @override
+  String get loginJoinSubmit => 'Submit joining request';
+  @override
+  String get loginSubmit => 'Sign in';
+  @override
+  String get loginOrContinueWith => 'Or continue with';
+  @override
+  String get loginGoogleSoon => 'Google sign-in coming soon';
+  @override
+  String get loginAppleSoon => 'Apple sign-in coming soon';
+  @override
+  String get loginHaveAccount => 'Already have an account? ';
+  @override
+  String get loginNoAccount => 'No account? ';
+  @override
+  String get loginJoinAsCaptain => 'Join as a captain';
 }
