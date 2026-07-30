@@ -5662,9 +5662,3 @@ class AppStringsEn extends AppStrings {
   @override
   String get loginJoinAsCaptain => 'Join as a captain';
 }
-attribution badge.
-  @override
-  String get synapticStudioLabel => 'Synaptic Studio';
-}
-StudioLabel => 'Synaptic Studio';
-}
