@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +20,29 @@ import '../services/app_state.dart';
 ///
 /// All auth logic (validation, sign-in/sign-up toggle, terms checkbox) is
 /// preserved from the previous revision — only the presentation changed.
+///
+/// ## Motion
+///
+/// The screen used to arrive fully formed: a single `.animate().scale()` on the
+/// hero illustration — and with flutter_animate's default `begin` of zero, so
+/// the artwork popped out of nothing — plus three implicit animations on
+/// controls the rider had to touch first. Nothing moved on entry, which made
+/// the splash's carefully choreographed hand-off land on a static wall.
+///
+/// Now the page assembles itself: the top bar and hero settle in from above,
+/// the auth panel rises from the bottom edge, and the panel's rows fade up on a
+/// 70ms stagger. The hero also advances on its own so a rider who never swipes
+/// still sees the second slide.
+///
+/// Two implementation notes worth keeping in mind when editing this file:
+///
+/// * Every entrance runs through [_entrance], which stamps a stable `ValueKey`
+///   on the `Animate` wrapper. Toggling sign-in/sign-up inserts and removes
+///   siblings in the panel's `Column`, and without a fixed identity Flutter
+///   would rebuild those elements at their new indices and replay the entrance
+///   every single time the rider flipped the mode.
+/// * flutter_animate does not consult the platform's reduce-motion setting, so
+///   [_reduceMotion] is checked before any effect is attached.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -42,6 +67,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Color get _action => AppTokens.primary; // rider green
   Color get _onAction => Colors.white;
 
+  /// Riders who asked the platform to limit animation get the page as it was:
+  /// no entrance effects, no auto-advance, no press rebound.
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -51,19 +81,57 @@ class _LoginScreenState extends State<LoginScreen> {
   final _heroCtrl = PageController();
   int _heroPage = 0;
 
+  /// Kept as a constant rather than read off the per-build slide list, because
+  /// the auto-advance timer fires outside of `build` and must not depend on it.
+  static const int _heroSlideCount = 2;
+
+  Timer? _heroTimer;
+
   bool _signUpMode = false;
   bool _acceptedTerms = false;
   bool _busy = false;
   bool _obscurePassword = true;
+  bool _submitPressed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_reduceMotion) {
+      _heroTimer?.cancel();
+      _heroTimer = null;
+    } else {
+      _startHeroAutoAdvance();
+    }
+  }
 
   @override
   void dispose() {
+    _heroTimer?.cancel();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _heroCtrl.dispose();
     super.dispose();
+  }
+
+  /// Advances the hero on a slow loop.
+  ///
+  /// Restarted on every page change so a manual swipe resets the dwell instead
+  /// of being yanked onward a moment later, and skipped entirely while the
+  /// keyboard is up — a rider filling in the form should not have artwork
+  /// sliding around above their hands.
+  void _startHeroAutoAdvance() {
+    _heroTimer?.cancel();
+    _heroTimer = Timer.periodic(const Duration(milliseconds: 4600), (_) {
+      if (!mounted || !_heroCtrl.hasClients) return;
+      if (MediaQuery.of(context).viewInsets.bottom > 0) return;
+      _heroCtrl.animateToPage(
+        (_heroPage + 1) % _heroSlideCount,
+        duration: const Duration(milliseconds: 520),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   Future<void> _submit() async {
@@ -142,10 +210,31 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ── Entrance choreography ───────────────────────────────────────────
+
+  /// Wraps [child] in a keyed fade-and-rise.
+  ///
+  /// `step` is a beat index, not a millisecond value — the cascade stays even
+  /// if rows are inserted or reordered later.
+  Widget _entrance(Widget child, {required String id, required int step}) {
+    if (_reduceMotion) return child;
+    final delay = (180 + step * 70).ms;
+    return child
+        .animate(key: ValueKey('entrance-$id'))
+        .fadeIn(delay: delay, duration: 420.ms)
+        .slideY(
+          begin: 0.14,
+          end: 0,
+          delay: delay,
+          duration: 480.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
   // ── Top bar ─────────────────────────────────────────────────────────
 
   Widget _buildTopBar() {
-    return Padding(
+    final bar = Padding(
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
         AppTokens.spaceXs,
@@ -165,6 +254,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+
+    if (_reduceMotion) return bar;
+    return bar
+        .animate(key: const ValueKey('entrance-topbar'))
+        .fadeIn(duration: 380.ms);
   }
 
   // ── Hero carousel ───────────────────────────────────────────────────
@@ -185,15 +279,22 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     ];
 
-    return Column(
+    final hero = Column(
       children: [
         SizedBox(
           height: 300,
           child: PageView.builder(
             controller: _heroCtrl,
             itemCount: slides.length,
-            onPageChanged: (i) => setState(() => _heroPage = i),
-            itemBuilder: (_, i) => _HeroSlide(copy: slides[i]),
+            onPageChanged: (i) {
+              setState(() => _heroPage = i);
+              // Reset the dwell so a manual swipe gets its full reading time.
+              if (!_reduceMotion) _startHeroAutoAdvance();
+            },
+            itemBuilder: (_, i) => _HeroSlide(
+              copy: slides[i],
+              reduceMotion: _reduceMotion,
+            ),
           ),
         ),
         const SizedBox(height: AppTokens.spaceMd),
@@ -201,6 +302,20 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: AppTokens.spaceLg),
       ],
     );
+
+    if (_reduceMotion) return hero;
+    // Settles downward from just above its resting place, so the stage reads
+    // top-down while the panel below comes up to meet it.
+    return hero
+        .animate(key: const ValueKey('entrance-hero'))
+        .fadeIn(delay: 80.ms, duration: 460.ms)
+        .slideY(
+          begin: -0.06,
+          end: 0,
+          delay: 80.ms,
+          duration: 540.ms,
+          curve: Curves.easeOutCubic,
+        );
   }
 
   // ── Auth panel ──────────────────────────────────────────────────────
@@ -208,7 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildAuthPanel() {
     final strings = AppStrings.of(context);
 
-    return Container(
+    final panel = Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
         AppTokens.spaceLg,
@@ -227,127 +342,201 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ModeSwitch(isSignUp: _signUpMode, onChanged: _setMode),
+            _entrance(
+              _ModeSwitch(isSignUp: _signUpMode, onChanged: _setMode),
+              id: 'mode',
+              step: 0,
+            ),
             const SizedBox(height: AppTokens.spaceLg),
 
             // Join-only identity fields.
             AnimatedSize(
-              duration: const Duration(milliseconds: 220),
+              duration: Duration(milliseconds: _reduceMotion ? 0 : 220),
               curve: Curves.easeOut,
               child: _signUpMode
-                  ? Column(
-                      children: [
-                        _field(
-                          controller: _nameCtrl,
-                          hint: strings.loginFullNameHint,
-                          icon: Icons.person_outline_rounded,
-                          textInputAction: TextInputAction.next,
-                          validator: (v) => (v == null || v.trim().length < 3)
-                              ? strings.loginEnterValidNamePhone
-                              : null,
-                        ),
-                        const SizedBox(height: AppTokens.spaceMd),
-                        _buildPhoneField(),
-                        const SizedBox(height: AppTokens.spaceMd),
-                      ],
+                  ? _revealed(
+                      Column(
+                        children: [
+                          _field(
+                            controller: _nameCtrl,
+                            hint: strings.loginFullNameHint,
+                            icon: Icons.person_outline_rounded,
+                            textInputAction: TextInputAction.next,
+                            validator: (v) => (v == null || v.trim().length < 3)
+                                ? strings.loginEnterValidNamePhone
+                                : null,
+                          ),
+                          const SizedBox(height: AppTokens.spaceMd),
+                          _buildPhoneField(),
+                          const SizedBox(height: AppTokens.spaceMd),
+                        ],
+                      ),
                     )
                   : const SizedBox.shrink(),
             ),
 
-            _field(
-              controller: _emailCtrl,
-              hint: strings.loginEmailHint,
-              icon: Icons.mail_outline_rounded,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              validator: (v) {
-                final value = (v ?? '').trim();
-                if (value.isEmpty) return strings.loginEnterEmailPassword;
-                final ok =
-                    RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
-                return ok ? null : strings.loginEnterEmailPassword;
-              },
+            _entrance(
+              _field(
+                controller: _emailCtrl,
+                hint: strings.loginEmailHint,
+                icon: Icons.mail_outline_rounded,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                validator: (v) {
+                  final value = (v ?? '').trim();
+                  if (value.isEmpty) return strings.loginEnterEmailPassword;
+                  final ok =
+                      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+                  return ok ? null : strings.loginEnterEmailPassword;
+                },
+              ),
+              id: 'email',
+              step: 1,
             ),
             const SizedBox(height: AppTokens.spaceMd),
 
-            _field(
-              controller: _passwordCtrl,
-              hint: strings.loginPasswordHint,
-              icon: Icons.lock_outline_rounded,
-              obscure: _obscurePassword,
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => _submit(),
-              suffix: IconButton(
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  color: _muted,
-                  size: 20,
+            _entrance(
+              _field(
+                controller: _passwordCtrl,
+                hint: strings.loginPasswordHint,
+                icon: Icons.lock_outline_rounded,
+                obscure: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submit(),
+                suffix: IconButton(
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: _muted,
+                    size: 20,
+                  ),
                 ),
+                validator: (v) {
+                  final value = v ?? '';
+                  if (value.isEmpty) return strings.loginEnterEmailPassword;
+                  if (_signUpMode && value.length < 6) {
+                    return strings.loginEnterEmailPassword;
+                  }
+                  return null;
+                },
               ),
-              validator: (v) {
-                final value = v ?? '';
-                if (value.isEmpty) return strings.loginEnterEmailPassword;
-                if (_signUpMode && value.length < 6) {
-                  return strings.loginEnterEmailPassword;
-                }
-                return null;
-              },
+              id: 'password',
+              step: 2,
             ),
 
             if (_signUpMode) ...[
               const SizedBox(height: AppTokens.spaceXs),
-              _buildTermsRow(),
+              _revealed(_buildTermsRow()),
             ],
 
             const SizedBox(height: AppTokens.spaceLg),
 
-            SizedBox(
-              height: AppTokens.primaryActionHeight,
-              child: ElevatedButton(
-                onPressed: _busy ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _action,
-                  foregroundColor: _onAction,
-                  disabledBackgroundColor: _fieldFill,
-                  disabledForegroundColor: _muted,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                  ),
-                  textStyle: AppTokens.font(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                child: _busy
-                    ? SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          color: _onAction,
-                          strokeWidth: 2.2,
-                        ),
-                      )
-                    : Text(_signUpMode
-                        ? strings.loginCreateAccountAction
-                        : strings.loginSignInAction),
-              ),
-            ),
+            _entrance(_buildSubmitButton(), id: 'submit', step: 3),
 
             const SizedBox(height: AppTokens.spaceLg),
-            _buildDivider(),
+            _entrance(_buildDivider(), id: 'divider', step: 4),
             const SizedBox(height: AppTokens.spaceMd),
-            _buildSocialRow(),
+            _entrance(_buildSocialRow(), id: 'social', step: 5),
             const SizedBox(height: AppTokens.spaceLg),
-            _buildFooterSwitch(),
+            _entrance(_buildFooterSwitch(), id: 'footer', step: 6),
           ],
         ),
       ),
     );
+
+    if (_reduceMotion) return panel;
+    // Slide only, no fade: the panel is an opaque surface and cross-fading it
+    // against the stage behind would show the hero bleeding through. Rising
+    // from just below the bottom edge reads as the sheet arriving.
+    return panel
+        .animate(key: const ValueKey('entrance-panel'))
+        .slideY(
+          begin: 0.05,
+          end: 0,
+          duration: 560.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  /// Fade for content revealed by the sign-up toggle.
+  ///
+  /// Unlike [_entrance] this is *meant* to replay — the widget really is newly
+  /// shown each time, and `AnimatedSize` on its own would grow an already
+  /// fully-opaque block into view.
+  Widget _revealed(Widget child) {
+    if (_reduceMotion) return child;
+    return child.animate().fadeIn(duration: 260.ms, curve: Curves.easeOut);
+  }
+
+  Widget _buildSubmitButton() {
+    final strings = AppStrings.of(context);
+
+    final button = ElevatedButton(
+      onPressed: _busy ? null : _submit,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _action,
+        foregroundColor: _onAction,
+        disabledBackgroundColor: _fieldFill,
+        disabledForegroundColor: _muted,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
+        ),
+        textStyle: AppTokens.font(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      // Keyed by state so the label cross-fades when the rider flips mode and
+      // when the request starts, instead of snapping between the two.
+      child: AnimatedSwitcher(
+        duration: Duration(milliseconds: _reduceMotion ? 0 : 220),
+        child: _busy
+            ? SizedBox(
+                key: const ValueKey('busy'),
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  color: _onAction,
+                  strokeWidth: 2.2,
+                ),
+              )
+            : Text(
+                _signUpMode
+                    ? strings.loginCreateAccountAction
+                    : strings.loginSignInAction,
+                key: ValueKey(_signUpMode ? 'signup' : 'signin'),
+              ),
+      ),
+    );
+
+    return SizedBox(
+      height: AppTokens.primaryActionHeight,
+      // Listener rather than GestureDetector: raw pointer events do not enter
+      // the gesture arena, so the button keeps its own tap recognition and the
+      // rebound can never be left stuck down by a lost arena contest.
+      child: Listener(
+        onPointerDown: (_) => _setPressed(true),
+        onPointerUp: (_) => _setPressed(false),
+        onPointerCancel: (_) => _setPressed(false),
+        child: AnimatedScale(
+          scale: _submitPressed ? 0.97 : 1,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: button,
+        ),
+      ),
+    );
+  }
+
+  void _setPressed(bool pressed) {
+    // Nothing to acknowledge while the button is disabled mid-request.
+    if (_busy || _reduceMotion) return;
+    if (_submitPressed == pressed) return;
+    setState(() => _submitPressed = pressed);
   }
 
   Widget _buildTermsRow() {
@@ -592,71 +781,103 @@ class _HeroCopy {
 
 /// One page of the hero carousel — friendly illustrated artwork with
 /// headline and supporting copy, matching the inDrive auth pattern.
+///
+/// The copy animates alongside the artwork now. Because `PageView.builder`
+/// constructs each page as it comes into range, this replays per slide — which
+/// is what you want from a carousel: the new slide's words arrive with it.
 class _HeroSlide extends StatelessWidget {
-  const _HeroSlide({required this.copy});
+  const _HeroSlide({required this.copy, required this.reduceMotion});
 
   final _HeroCopy copy;
+  final bool reduceMotion;
 
   @override
   Widget build(BuildContext context) {
+    final artwork = ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: Image.asset(
+        copy.image,
+        width: 148,
+        height: 148,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => Container(
+          width: 132,
+          height: 132,
+          decoration: BoxDecoration(
+            color: AppTokens.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: AppTokens.primary.withOpacity(0.25),
+            ),
+          ),
+          child: const Icon(
+            Icons.navigation_rounded,
+            size: 52,
+            color: AppTokens.primary,
+          ),
+        ),
+      ),
+    );
+
+    final title = Text(
+      copy.title,
+      textAlign: TextAlign.center,
+      style: AppTokens.font(
+        fontSize: 25,
+        fontWeight: FontWeight.w900,
+        color: GoTheme.of(context).text,
+        height: 1.25,
+      ),
+    );
+
+    final body = Text(
+      copy.body,
+      textAlign: TextAlign.center,
+      style: AppTokens.font(
+        fontSize: 14,
+        color: GoTheme.of(context).muted,
+        height: 1.6,
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Friendly illustrated artwork.
-          ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: Image.asset(
-              copy.image,
-              width: 148,
-              height: 148,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Container(
-                width: 132,
-                height: 132,
-                decoration: BoxDecoration(
-                  color: AppTokens.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: AppTokens.primary.withOpacity(0.25),
-                  ),
+          if (reduceMotion)
+            artwork
+          else
+            // Explicit begin. Left at flutter_animate's default the artwork
+            // scaled up from zero, which popped rather than settled.
+            artwork
+                .animate()
+                .fadeIn(duration: 340.ms)
+                .scale(
+                  begin: const Offset(0.92, 0.92),
+                  end: const Offset(1, 1),
+                  duration: 460.ms,
+                  curve: Curves.easeOutBack,
                 ),
-                child: const Icon(
-                  Icons.navigation_rounded,
-                  size: 52,
-                  color: AppTokens.primary,
-                ),
-              ),
-            ),
-          ).animate().scale(duration: 420.ms, curve: Curves.easeOutBack),
-
           const SizedBox(height: AppTokens.spaceLg),
-
-          Text(
-            copy.title,
-            textAlign: TextAlign.center,
-            style: AppTokens.font(
-              fontSize: 25,
-              fontWeight: FontWeight.w900,
-              color: GoTheme.of(context).text,
-              height: 1.25,
-            ),
-          ),
+          if (reduceMotion) title else _copyIn(title, 120),
           const SizedBox(height: AppTokens.spaceXs),
-          Text(
-            copy.body,
-            textAlign: TextAlign.center,
-            style: AppTokens.font(
-              fontSize: 14,
-              color: GoTheme.of(context).muted,
-              height: 1.6,
-            ),
-          ),
+          if (reduceMotion) body else _copyIn(body, 210),
         ],
       ),
     );
   }
+
+  Widget _copyIn(Widget child, int delayMs) => child
+      .animate()
+      .fadeIn(delay: delayMs.ms, duration: 400.ms)
+      .slideY(
+        begin: 0.28,
+        end: 0,
+        delay: delayMs.ms,
+        duration: 440.ms,
+        curve: Curves.easeOutCubic,
+      );
 }
 
 /// Page position indicator — active dot stretches into a pill.
@@ -729,13 +950,15 @@ class _ModeSwitch extends StatelessWidget {
             color: active ? AppTokens.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(AppTokens.radiusPill),
           ),
-          child: Text(
-            label,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
             style: AppTokens.font(
               fontSize: 14,
               fontWeight: active ? FontWeight.w800 : FontWeight.w600,
               color: active ? Colors.white : GoTheme.of(context).muted,
             ),
+            child: Text(label),
           ),
         ),
       ),
