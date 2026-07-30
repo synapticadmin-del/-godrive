@@ -145,7 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // ── Top bar ─────────────────────────────────────────────────────────
 
   Widget _buildTopBar() {
-    final strings = AppStrings.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppTokens.spaceMd,
