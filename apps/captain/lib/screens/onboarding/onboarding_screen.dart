@@ -485,14 +485,21 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
           if (fullName.isNotEmpty) 'name': fullName,
         });
       case 1:
-        await state.apiPost('/captain/profile', {
-          if (_licenseExpiry != null) 'licenseExpiry': _licenseExpiry,
-        });
+        // The licence photo is registered by _pickAndUpload on its own, so
+        // with no expiry date there is genuinely nothing to persist here.
+        // This used to collapse to a POST of `{}`.
+        if (_licenseExpiry != null) {
+          await state.apiPost('/captain/profile', {
+            'licenseExpiry': _licenseExpiry,
+          });
+        }
       case 2:
-        await state.apiPost('/captain/profile', {
-          if (_nationalId.text.trim().isNotEmpty)
-            'nationalIdNumber': _nationalId.text.trim(),
-        });
+        final nationalId = _nationalId.text.trim();
+        if (nationalId.isNotEmpty) {
+          await state.apiPost('/captain/profile', {
+            'nationalIdNumber': nationalId,
+          });
+        }
       case 3:
         await state.apiPost('/captain/profile', {
           'vehicleMake': _vehicleMake.text.trim(),
