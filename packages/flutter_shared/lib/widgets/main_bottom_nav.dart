@@ -88,6 +88,10 @@ class NavFirstDestination {
 /// not a destination of its own, so it has no label and never shows a selected
 /// state.
 ///
+/// The first slot is the rider's saved places by default: the map itself is
+/// one tap away on the centre button, so the corner slot earns its keep as
+/// the quick-reorder surface (Home, Work, …) rather than duplicating the map.
+///
 /// Two opt-ins let each app re-shape the bar without breaking the other:
 ///  * [centerDestination] turns the crest into a real destination with a label
 ///    and a selected state (the Captain app puts its map there).
