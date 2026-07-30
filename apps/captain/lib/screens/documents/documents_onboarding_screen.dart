@@ -241,7 +241,11 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
         Uri.parse('${state.baseUrl}/captain/upload'),
       );
       uploadReq.headers['Authorization'] = 'Bearer ${state.token}';
-      uploadReq.files.add(await http.MultipartFile.fromPath('file', image.path));
+      uploadReq.files.add(await http.MultipartFile.fromPath(
+        'file',
+        image.path,
+        contentType: imageMediaTypeForPath(image.path),
+      ));
 
       final uploadRes = await uploadReq.send();
       final uploadBody = await uploadRes.stream.bytesToString();
@@ -328,6 +332,17 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
     final strings = AppStrings.of(context);
     final go = GoTheme.of(context);
     final isDark = go.isDark;
+    final state = context.watch<CaptainState>();
+
+    // Approval landed while this grid was open: drop back to the root so
+    // MainShell renders the live map instead of leaving the captain on a
+    // stale "قيد المراجعة" page — every other full-screen document page
+    // already does this, this one was the gap. A cleared token pops too.
+    if (state.isApproved || state.token == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      });
+    }
 
     // The mock-ups are a near-black canvas; the shared night ramp matches it.
     final bg = isDark ? AppTokens.nightBg : go.bg;

@@ -34,6 +34,39 @@ const AVATAR_TYPES: Record<string, string> = {
   "image/heif": "heif",
 };
 
+/// Some clients (notably the Flutter apps' `http.MultipartFile.fromPath`
+/// without an explicit `contentType`) send the part with no real MIME type —
+/// it arrives as `application/octet-stream` or empty. Rather than reject a
+/// perfectly good JPEG, read the first bytes and identify the format from its
+/// magic numbers. Returns the stored extension, or null when the payload does
+/// not look like any accepted image.
+const sniffImageExt = async (file: File): Promise<string | null> => {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  if (head.length < 4) return null;
+  // JPEG: FF D8 FF
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "jpg";
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47 &&
+    head[4] === 0x0d && head[5] === 0x0a && head[6] === 0x1a && head[7] === 0x0a
+  ) return "png";
+  // WebP: "RIFF" .... "WEBP"
+  if (
+    head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 &&
+    head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50
+  ) return "webp";
+  // HEIC/HEIF: ISO-BMFF "ftyp" box with a heic/heif/mif1/msf1 brand.
+  if (
+    head.length >= 12 &&
+    head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70
+  ) {
+    const brand = String.fromCharCode(head[8], head[9], head[10], head[11]);
+    if (brand === "heic" || brand === "heix" || brand === "hevc" || brand === "hevx") return "heic";
+    if (brand === "mif1" || brand === "msf1" || brand === "heif") return "heif";
+  }
+  return null;
+};
+
 /// `/user/avatar/<userId>/<file>` (what the column stores, and what the app
 /// requests) ⇄ `avatars/<userId>/<file>` (the R2 object key).
 const keyFromPublicPath = (publicPath: string): string | null => {
@@ -120,13 +153,24 @@ userRoutes.post("/avatar", async (c) => {
     return c.json({ error: "Image too large (max 5MB)", code: "FILE_TOO_LARGE" }, 400);
   }
 
-  const contentType = (file.type || "").toLowerCase();
-  const ext = AVATAR_TYPES[contentType];
+  const declaredType = (file.type || "").toLowerCase();
+  // Prefer the declared type when it is one we accept; otherwise (missing or
+  // a generic octet-stream, which is what several of the mobile clients send
+  // for a perfectly valid photo) fall back to sniffing the magic bytes. The
+  // stored extension is still derived from the image itself, never from the
+  // uploaded filename.
+  let ext = AVATAR_TYPES[declaredType];
+  let contentType = declaredType;
   if (!ext) {
-    return c.json(
-      { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
-      400,
-    );
+    const sniffed = await sniffImageExt(file);
+    if (!sniffed) {
+      return c.json(
+        { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
+        400,
+      );
+    }
+    ext = sniffed;
+    contentType = `image/${sniffed === "jpg" ? "jpeg" : sniffed}`;
   }
 
   // The timestamp + UUID make every upload a distinct URL, which is what lets

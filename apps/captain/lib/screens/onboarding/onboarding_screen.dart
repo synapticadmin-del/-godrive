@@ -323,7 +323,11 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         Uri.parse('${state.baseUrl}/captain/upload'),
       );
       uploadReq.headers['Authorization'] = 'Bearer ${state.token}';
-      uploadReq.files.add(await http.MultipartFile.fromPath('file', image.path));
+      uploadReq.files.add(await http.MultipartFile.fromPath(
+        'file',
+        image.path,
+        contentType: imageMediaTypeForPath(image.path),
+      ));
 
       final uploadRes = await uploadReq.send();
       final uploadBody = await uploadRes.stream.bytesToString();

@@ -540,17 +540,69 @@ captainRoutes.delete("/documents/:type", async (c) => {
 
 // POST /captain/upload — upload a file directly to R2 (multipart/form-data).
 // Returns the R2 key which is then passed to POST /captain/documents.
+const DOC_IMAGE_TYPES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
+// The Flutter clients send the part without a real MIME type
+// (application/octet-stream), and the previous revision trusted the filename
+// extension — which would also let someone stash a `.html` in the bucket that
+// is later served back by GET /captain/file. Identify the image by its magic
+// bytes instead, exactly like POST /user/avatar does.
+const sniffDocImageExt = async (file: File): Promise<string | null> => {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  if (head.length < 4) return null;
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "jpg";
+  if (
+    head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47 &&
+    head[4] === 0x0d && head[5] === 0x0a && head[6] === 0x1a && head[7] === 0x0a
+  ) return "png";
+  if (
+    head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 &&
+    head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50
+  ) return "webp";
+  if (
+    head.length >= 12 &&
+    head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70
+  ) {
+    const brand = String.fromCharCode(head[8], head[9], head[10], head[11]);
+    if (brand === "heic" || brand === "heix" || brand === "hevc" || brand === "hevx") return "heic";
+    if (brand === "mif1" || brand === "msf1" || brand === "heif") return "heif";
+  }
+  return null;
+};
+
 captainRoutes.post("/upload", async (c) => {
   const user = c.get("user");
   const formData = await c.req.formData();
   const file = formData.get("file") as File | null;
   if (!file) return c.json({ error: "file required", code: "MISSING_FILE" }, 400);
+  if (file.size === 0) return c.json({ error: "File is empty", code: "EMPTY_FILE" }, 400);
   if (file.size > 10 * 1024 * 1024) return c.json({ error: "File too large (max 10MB)", code: "FILE_TOO_LARGE" }, 400);
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const declaredType = (file.type || "").toLowerCase();
+  let ext = DOC_IMAGE_TYPES[declaredType];
+  let contentType = declaredType;
+  if (!ext) {
+    const sniffed = await sniffDocImageExt(file);
+    if (!sniffed) {
+      return c.json(
+        { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
+        400,
+      );
+    }
+    ext = sniffed;
+    contentType = `image/${sniffed === "jpg" ? "jpeg" : sniffed}`;
+  }
+
   const key = `docs/${user.id}/${Date.now()}_${id("f")}.${ext}`;
   await c.env.FILES.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type || "image/jpeg" },
+    httpMetadata: { contentType },
   });
 
   return c.json({ ok: true, r2Key: key, url: `/captain/file/${key}` });
