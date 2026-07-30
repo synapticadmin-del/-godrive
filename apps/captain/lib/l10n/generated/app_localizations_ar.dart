@@ -71,10 +71,10 @@ class AppLocalizationsAr extends AppLocalizations {
   String get decline => 'رفض';
 
   @override
-  String get arrivingToPickup => 'في الطريق للموقف';
+  String get arrivingToPickup => 'في الطريق لموقف الراكب';
 
   @override
-  String get arrivedAtPickup => 'وصلت لموقف النزول';
+  String get arrivedAtPickup => 'وصلت لموقف الراكب';
 
   @override
   String get startTrip => 'ابدأ الرحلة';
