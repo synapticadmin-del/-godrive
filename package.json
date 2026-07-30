@@ -15,7 +15,10 @@
     "deploy:admin": "npm run deploy -w @synaptic-go/admin",
     "db:migrate:local": "npm run db:migrate:local -w @synaptic-go/api",
     "db:migrate:remote": "npm run db:migrate:remote -w @synaptic-go/api",
-    "typecheck": "npm run typecheck -w @synaptic-go/api && npm run typecheck -w @synaptic-go/admin"
+    "typecheck": "npm run typecheck -w @synaptic-go/api && npm run typecheck -w @synaptic-go/admin",
+    "test": "npm test -w @synaptic-go/shared",
+    "check": "python3 scripts/check_migrations.py && python3 scripts/check_migrations_apply.py && python3 scripts/check_l10n_parity.py && python3 scripts/check_repo_hygiene.py",
+    "verify": "npm run typecheck -w @synaptic-go/api && npm run typecheck -w @synaptic-go/admin && npm run typecheck -w @synaptic-go/shared && npm run build -w @synaptic-go/admin && npm test && npm run check"
   },
   "engines": {
     "node": ">=20"
