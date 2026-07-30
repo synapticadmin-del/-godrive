@@ -348,7 +348,7 @@ class _CaptainOnboardingScreenState extends State<CaptainOnboardingScreen> {
         return _hasDoc('license');
       case 2:
         return _hasDoc('criminal_record') &&
-            (!_isRequired('national_id_number', fallback: false) ||
+            (!_isRequired('national_id', fallback: false) ||
                 _nationalId.text.trim().isNotEmpty);
       case 3:
         return _hasDoc('vehicle_reg') &&
