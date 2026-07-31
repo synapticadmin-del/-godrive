@@ -1,0 +1,33 @@
+-- Migration 0019: composite index for the captain's completed-trip count
+
+-- `withCaptain()` in apps/api/src/routes/trips.ts runs
+--
+--   SELECT COUNT(*) FROM trips WHERE captain_id = ? AND status = 'completed'
+--
+-- on every GET /trips/:id and inside every trip.updated broadcast, so it has
+-- to stay cheap for the life of the table.
+--
+-- trips(captain_id) and trips(status) both already exist as single-column
+-- indexes, and SQLite can only use one of them per table reference. Which one
+-- it picks depends on sqlite_stat1 -- and D1 never runs ANALYZE on its own, so
+-- this database has no stats and the planner falls back to heuristics.
+--
+-- Measured against the live schema, the plan today is:
+--
+--   SEARCH t USING INDEX idx_trips_status (status=?)
+--
+-- That is the worse of the two. 'completed' is the bucket that grows without
+-- bound while any single captain's share of it stays small, so the query walks
+-- every completed trip in the system to answer a question about one driver.
+-- Reproduced locally at 50,000 rows with no ANALYZE: the planner still chooses
+-- idx_trips_status. It only switches to idx_trips_captain once stats exist,
+-- which is not a thing anyone here is running.
+--
+-- A composite index removes the guess. captain_id leads because it is the
+-- selective column; status merely narrows what is already a small set. The
+-- index also covers the query outright -- no table rows are visited at all:
+--
+--   SEARCH t USING COVERING INDEX idx_trips_captain_status (captain_id=? AND status=?)
+--
+-- and that plan holds with or without stats, at 12 rows and at 50,000.
+CREATE INDEX IF NOT EXISTS idx_trips_captain_status ON trips(captain_id, status);
