@@ -920,6 +920,17 @@ tripRoutes.post("/:id/bid", requireRole("captain", "admin"), async (c) => {
     counterPrice: body.counterPrice,
   });
 
+  // Tell the rider's trip room the status moved to `offered`. Every other
+  // mutating endpoint here broadcasts; this one did not, and the omission was
+  // load-bearing: the rider only opens CaptainBidsSheet when it sees status
+  // `offered`, and the 5s GET /trips/:id/bids poll lives INSIDE that sheet. No
+  // broadcast → no sheet → no poll → the counter-offer was never fetched, so a
+  // captain who bid on a trip still in `searching` was invisible to the rider.
+  const updatedTrip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
+    .bind(cleanTripId)
+    .first<DbTrip>();
+  if (updatedTrip) await broadcastTrip(c.env, updatedTrip);
+
   // Notify Rider about new driver counter-offer
   await pushToUser({
     env: c.env,

@@ -8,6 +8,8 @@ type Session = {
   userId?: string;
   /** True until the first-message {"type":"auth"} handshake completes. */
   pendingAuth?: boolean;
+  /** The real `trips.id` for this room — see resolveTripId(). */
+  tripId?: string;
 };
 
 /** Max time a pending-auth socket may stay open before we close it (4401). */
@@ -27,6 +29,49 @@ const AUTH_TIMEOUT_MS = 10_000;
 export class TripRoom extends DurableObject<Env> {
   sessions: Map<WebSocket, Session> = new Map();
   authTimers: Map<WebSocket, number> = new Map();
+  /** In-memory cache of this room's trips.id — see resolveTripId(). */
+  private tripIdCache?: string;
+
+  /**
+   * The real `trips.id` this room belongs to.
+   *
+   * Deliberately NOT `ctx.id.toString()`: that returns the 64-hex
+   * DurableObjectId, never the name passed to `idFromName(tripId)`, because
+   * `idFromName` is one-way. Trip ids look like `trip_<32 hex>` (lib/utils.ts
+   * `id()`), so a D1 lookup keyed on the hex id matches no row — which is what
+   * made every first-message auth handshake fail closed with 4401 and left
+   * riders with no live socket for the whole trip.
+   *
+   * Resolution order: the `?tripId=` the Worker route forwards (authoritative)
+   * → storage (survives hibernation) → `ctx.id.name` (only populated on newer
+   * compatibility dates) → the hex id as a last resort.
+   */
+  private async resolveTripId(fromQuery?: string | null): Promise<string> {
+    if (fromQuery) {
+      if (this.tripIdCache !== fromQuery) {
+        this.tripIdCache = fromQuery;
+        await this.ctx.storage.put("tripId", fromQuery);
+      }
+      return fromQuery;
+    }
+
+    if (this.tripIdCache) return this.tripIdCache;
+
+    const stored = await this.ctx.storage.get<string>("tripId");
+    if (stored) {
+      this.tripIdCache = stored;
+      return stored;
+    }
+
+    const name = (this.ctx.id as DurableObjectId & { name?: string }).name;
+    if (name) {
+      this.tripIdCache = name;
+      await this.ctx.storage.put("tripId", name);
+      return name;
+    }
+
+    return this.ctx.id.toString();
+  }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -43,7 +88,11 @@ export class TripRoom extends DurableObject<Env> {
     }
 
     if (url.pathname === "/state" && request.method === "PUT") {
-      const body = await request.json();
+      const body = await request.json<Record<string, unknown>>();
+      // The trip row carries its own id, so this is the cheapest reliable
+      // place to learn this room's real trips.id even when a socket connects
+      // before any route has forwarded ?tripId=.
+      if (typeof body?.id === "string") await this.resolveTripId(body.id);
       await this.ctx.storage.put("trip", body);
       this.broadcast({ type: "trip.updated", trip: body });
       return Response.json({ ok: true });
@@ -55,9 +104,15 @@ export class TripRoom extends DurableObject<Env> {
       const server = pair[1];
       this.ctx.acceptWebSocket(server);
 
+      const tripId = await this.resolveTripId(url.searchParams.get("tripId"));
+
       if (url.searchParams.get("pendingAuth") === "1") {
-        const tripId = url.searchParams.get("tripId") ?? this.ctx.id.toString();
-        this.sessions.set(server, { ws: server, role: "unknown", pendingAuth: true });
+        this.sessions.set(server, {
+          ws: server,
+          role: "unknown",
+          pendingAuth: true,
+          tripId,
+        });
         this.armAuthTimeout(server);
         server.send(
           JSON.stringify({ type: "auth.required", tripId, timeoutMs: AUTH_TIMEOUT_MS }),
@@ -65,12 +120,12 @@ export class TripRoom extends DurableObject<Env> {
       } else {
         const role = (url.searchParams.get("role") as ClientRole) || "unknown";
         const userId = url.searchParams.get("userId") || undefined;
-        this.sessions.set(server, { ws: server, role, userId });
+        this.sessions.set(server, { ws: server, role, userId, tripId });
 
         server.send(
           JSON.stringify({
             type: "connected",
-            tripId: this.ctx.id.toString(),
+            tripId,
             role,
           }),
         );
@@ -166,7 +221,7 @@ export class TripRoom extends DurableObject<Env> {
         return;
       }
 
-      const tripId = this.ctx.id.toString();
+      const tripId = session.tripId ?? (await this.resolveTripId());
       const trip = await this.env.DB.prepare(`SELECT rider_id, captain_id FROM trips WHERE id = ?`)
         .bind(tripId)
         .first<{ rider_id: string; captain_id: string }>();
