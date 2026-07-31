@@ -702,6 +702,13 @@ class _ServerDocImageState extends State<_ServerDocImage> {
   @override
   Widget build(BuildContext context) {
     final state = context.read<CaptainState>();
+    // The stored extension is assigned server-side from the file's own magic
+    // bytes — POST /captain/upload writes `.pdf` only when `%PDF-` sits at
+    // offset 0 — so this suffix is a type signal we can trust rather than
+    // client-supplied metadata.
+    if (widget.r2Key.toLowerCase().endsWith('.pdf')) {
+      return const _PdfDocBadge();
+    }
     return Image.network(
       '${state.baseUrl}/captain/file/${widget.r2Key}',
       fit: BoxFit.cover,
@@ -718,6 +725,44 @@ class _ServerDocImageState extends State<_ServerDocImage> {
                 child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.lime),
               ),
             ),
+    );
+  }
+}
+
+/// Stand-in tile for a stored PDF document.
+///
+/// A PDF has no bitmap for [Image.network] to decode, so before this it fell
+/// through to the `errorBuilder` and showed a broken-image icon — which reads as
+/// a failed upload rather than a stored file. There is deliberately nothing to
+/// tap: GET /captain/file requires the bearer token and serves PDFs as
+/// `Content-Disposition: attachment`, so there is no URL an external viewer
+/// could open without the header. The captain needs confirmation the file is
+/// stored; the admin review screen renders the document itself.
+///
+/// Duplicated from `onboarding/onboarding_screen.dart` rather than shared: both
+/// are private to their libraries, and the pair belongs in the captain's own
+/// widgets layer once `flutter analyze` runs in CI and can vet the move.
+class _PdfDocBadge extends StatelessWidget {
+  const _PdfDocBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.picture_as_pdf_rounded, size: 30, color: AppTokens.lime),
+          const SizedBox(height: AppTokens.spaceXs),
+          Text(
+            'PDF',
+            style: AppTokens.font(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppTokens.lime,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
