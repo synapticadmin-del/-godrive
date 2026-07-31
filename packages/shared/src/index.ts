@@ -200,3 +200,19 @@ export const DEFAULT_PRICING: PricingRule = {
   minFare: 25,
   commissionRate: 0.2,
 };
+
+/* ------------------------------------------------------------------ */
+/*  Upload file-type identification                                    */
+/*                                                                     */
+/*  Lives in its own module because it is byte-level security logic     */
+/*  with its own test suite, and because both API upload routes need    */
+/*  the same implementation rather than a copy each.                    */
+/* ------------------------------------------------------------------ */
+export {
+  FILE_EXT_CONTENT_TYPE,
+  isImageFileExt,
+  isIsoBmffContainer,
+  SNIFF_HEAD_BYTES,
+  sniffFileExt,
+  type StoredFileExt,
+} from "./fileType";
