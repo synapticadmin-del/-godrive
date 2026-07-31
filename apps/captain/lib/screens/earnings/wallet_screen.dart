@@ -295,10 +295,11 @@ class _WalletScreenState extends State<WalletScreen> {
               : ListView(
                   padding: const EdgeInsets.all(AppTokens.spaceMd),
                   children: [
-                    _buildBalanceHero().animate().scale(
-                          duration: 380.ms,
-                          curve: Curves.easeOutBack,
-                        ),
+                    _BalanceCard(
+                      balance: _balance,
+                      onWithdraw: _requestPayout,
+                    ),
+                    ..._buildPayoutMeta(strings),
                     const SizedBox(height: AppTokens.spaceXl),
                     Text(
                       strings.transactionHistoryTitle,
@@ -323,165 +324,48 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  /// The balance hero is the most important number on screen — it mirrors the
-  /// rider wallet's card so the two apps read as one product: a gradient held
-  /// inside the brand's dark ramp (deepening after dark) so white text never
-  /// lands on a pale stop, soft light pools for physicality, the GoDrive
-  /// wordmark where an issuer mark would sit, an oversized numeral via
-  /// AppTokens.money, and the primary action as a white pill at
-  /// primaryActionHeight.
-  Widget _buildBalanceHero() {
-    final strings = AppStrings.of(context);
-    final go = GoTheme.of(context);
+  /// The captain-only figures that used to sit *inside* the balance card,
+  /// between the number and the action. They are still worth showing, but
+  /// stacking them there stretched the card well past the rider's and buried
+  /// the two things the captain opens this screen for, so they moved directly
+  /// underneath it.
+  ///
+  /// Returned as a list so the whole block — including its leading gap —
+  /// disappears when the payload carries none of them, rather than leaving a
+  /// stray `SizedBox` behind the card.
+  List<Widget> _buildPayoutMeta(AppStrings strings) {
     final nextPayout = _wallet?['nextPayoutWindow']?.toString();
     final weekTrips = (_wallet?['weekTrips'] as num?)?.toInt();
     final weekCommission = (_wallet?['weekCommission'] as num?)?.toDouble();
 
-    return Container(
-      decoration: BoxDecoration(
-        // Both stops stay in the dark half of the brand ramp so the white
-        // numeral survives the full sweep; dark mode drops a step deeper so
-        // the card does not glare at night. Same ramp as the rider card.
-        gradient: LinearGradient(
-          colors: go.isDark
-              ? const [AppTokens.primaryDark, AppTokens.primaryDeep]
-              : const [AppTokens.primary, AppTokens.primaryDark],
-          begin: AlignmentDirectional.topStart,
-          end: AlignmentDirectional.bottomEnd,
+    final chips = <Widget>[
+      if (nextPayout != null && nextPayout.isNotEmpty)
+        _MetaChip(
+          icon: Icons.event_available_rounded,
+          label: strings.payoutWindowLine(nextPayout),
         ),
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        boxShadow: AppTokens.glow(
-          AppTokens.primary,
-          opacity: go.isDark ? 0.16 : 0.30,
+      if (weekTrips != null)
+        _MetaChip(
+          icon: Icons.local_taxi_rounded,
+          label: strings.weekTripsChip(weekTrips),
         ),
+      if (weekCommission != null)
+        _MetaChip(
+          icon: Icons.percent_rounded,
+          label: strings.weekCommissionChip(weekCommission.toStringAsFixed(0)),
+        ),
+    ];
+
+    if (chips.isEmpty) return const [];
+
+    return [
+      const SizedBox(height: AppTokens.spaceMd),
+      Wrap(
+        spacing: AppTokens.spaceXs,
+        runSpacing: AppTokens.spaceXs,
+        children: chips,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        child: Stack(
-          children: [
-            // Two clipped light pools give the panel physicality so it reads
-            // as a card rather than a coloured rectangle (rider parity).
-            const PositionedDirectional(
-              top: -52,
-              end: -34,
-              child: _Bloom(size: 176, opacity: 0.13),
-            ),
-            const PositionedDirectional(
-              bottom: -64,
-              end: 44,
-              child: _Bloom(size: 140, opacity: 0.08),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceLg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          strings.availableBalanceHero,
-                          style: AppTokens.font(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white.withOpacity(0.82),
-                          ),
-                        ),
-                      ),
-                      // The lockup sits where an issuer mark would, in two-tone
-                      // white that keeps its own hierarchy without competing
-                      // with the balance.
-                      GoDriveWordmark(
-                        fontSize: 13,
-                        goColor: Colors.white.withOpacity(0.92),
-                        driveColor: Colors.white.withOpacity(0.55),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppTokens.spaceXs),
-                  // Money uses w900 and tight tracking — readable in a glance at any
-                  // screen brightness or viewing angle. Baseline alignment stops
-                  // the currency suffix floating against the tall numerals.
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        _balance.toStringAsFixed(2),
-                        style: AppTokens.money(fontSize: 44, color: Colors.white),
-                      ),
-                      const SizedBox(width: AppTokens.spaceXs),
-                      Text(
-                        strings.egp,
-                        style: AppTokens.font(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withOpacity(0.85),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (nextPayout != null) ...[
-                    const SizedBox(height: AppTokens.space2xs),
-                    Text(
-                      strings.payoutWindowLine(nextPayout),
-                      style: AppTokens.font(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
-                    ),
-                  ],
-                  // Weekly summary chips give context — how much of that balance
-                  // arrived this week versus sitting from before.
-                  if (weekTrips != null || weekCommission != null) ...[
-                    const SizedBox(height: AppTokens.spaceMd),
-                    Wrap(
-                      spacing: AppTokens.spaceXs,
-                      children: [
-                        if (weekTrips != null)
-                          _HeroChip(label: strings.weekTripsChip(weekTrips)),
-                        if (weekCommission != null)
-                          _HeroChip(
-                            label: strings.weekCommissionChip(weekCommission.toStringAsFixed(0)),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: AppTokens.spaceMd),
-                  ] else
-                    const SizedBox(height: AppTokens.spaceLg),
-                  // Primary action at the required 56dp touch target height — a
-                  // white pill so it does not read brand-green on brand-green.
-                  SizedBox(
-                    width: double.infinity,
-                    height: AppTokens.primaryActionHeight,
-                    child: ElevatedButton.icon(
-                      onPressed: _requestPayout,
-                      icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
-                      label: Text(
-                        strings.withdrawNowAction,
-                        style: AppTokens.font(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppTokens.primary,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppTokens.primary,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    ];
   }
 
   Widget _buildTransactionRow(
@@ -704,33 +588,208 @@ class _PayoutMethodTile extends StatelessWidget {
   }
 }
 
-/// Small pill chip used inside the balance hero card.
-class _HeroChip extends StatelessWidget {
-  const _HeroChip({required this.label});
+/// The balance hero.
+///
+/// Deliberately a line-for-line match of the rider wallet's `_BalanceCard` —
+/// the two apps ship the same card, and only the action inside it differs: a
+/// captain withdraws where a rider tops up. Everything here exists to keep one
+/// number legible and one action obvious. The gradient stays in the brand's
+/// dark ramp so white never lands on a pale stop; two clipped light pools give
+/// the panel some physicality so it reads as a card rather than a coloured
+/// rectangle; the wordmark sits where an issuer mark would.
+class _BalanceCard extends StatelessWidget {
+  const _BalanceCard({required this.balance, required this.onWithdraw});
 
+  final double balance;
+  final VoidCallback onWithdraw;
+
+  @override
+  Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
+    final strings = AppStrings.of(context);
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    final card = Container(
+      decoration: BoxDecoration(
+        // Both stops sit in the dark half of the brand ramp, which is the
+        // whole point — white text has to survive the full sweep. Dark mode
+        // drops a further step down so the card does not glare at night.
+        gradient: LinearGradient(
+          colors: go.isDark
+              ? const [AppTokens.primaryDark, AppTokens.primaryDeep]
+              : const [AppTokens.primary, AppTokens.primaryDark],
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+        ),
+        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        boxShadow: AppTokens.glow(
+          AppTokens.primary,
+          opacity: go.isDark ? 0.16 : 0.30,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        child: Stack(
+          children: [
+            // Positioned children do not contribute to the Stack's size, so
+            // the card still measures to its content column.
+            const PositionedDirectional(
+              top: -52,
+              end: -34,
+              child: _Bloom(size: 176, opacity: 0.13),
+            ),
+            const PositionedDirectional(
+              bottom: -64,
+              end: 44,
+              child: _Bloom(size: 140, opacity: 0.08),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppTokens.spaceLg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          strings.availableBalanceHero,
+                          style: AppTokens.font(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.82),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Two-tone in white keeps the lockup's own hierarchy
+                      // without competing with the balance.
+                      GoDriveWordmark(
+                        fontSize: 13,
+                        goColor: Colors.white.withOpacity(0.92),
+                        driveColor: Colors.white.withOpacity(0.55),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTokens.spaceXs),
+                  // Baseline alignment stops the currency suffix from
+                  // floating against the tall numerals.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        balance.toStringAsFixed(2),
+                        style: AppTokens.money(fontSize: 42, color: Colors.white),
+                      ),
+                      const SizedBox(width: AppTokens.spaceXs),
+                      Text(
+                        strings.egp,
+                        style: AppTokens.font(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTokens.spaceLg),
+                  SizedBox(
+                    width: double.infinity,
+                    height: AppTokens.primaryActionHeight,
+                    child: ElevatedButton.icon(
+                      onPressed: onWithdraw,
+                      icon: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        size: 20,
+                      ),
+                      // White on the green card, so the action does not read
+                      // brand green sitting on brand green.
+                      label: Text(
+                        strings.withdrawNowAction,
+                        style: AppTokens.font(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppTokens.primary,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppTokens.primary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppTokens.radiusMd),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (reduceMotion) return card;
+
+    // Settling in from 96% reads as the card arriving. The previous revision
+    // scaled from the flutter_animate default of zero, which popped it out of
+    // nothing instead.
+    return card
+        .animate()
+        .fadeIn(duration: 320.ms)
+        .scale(
+          begin: const Offset(0.96, 0.96),
+          end: const Offset(1, 1),
+          duration: 420.ms,
+          curve: Curves.easeOutBack,
+        );
+  }
+}
+
+/// Captain-only figure shown under the balance card. Themed rather than white
+/// now that it sits on the page background instead of on the gradient.
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
   final String label;
 
   @override
   Widget build(BuildContext context) {
+    final go = GoTheme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.spaceSm,
+        vertical: 6,
       ),
-      child: Text(
-        label,
-        style: AppTokens.font(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
+      decoration: BoxDecoration(
+        color: go.panel,
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        border: Border.all(color: go.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: go.muted),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTokens.font(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: go.muted,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Soft light pool used behind the balance hero's gradient (rider parity).
+/// Soft light pool used behind the balance card's gradient (rider parity).
 class _Bloom extends StatelessWidget {
   const _Bloom({required this.size, required this.opacity});
 
