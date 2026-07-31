@@ -1,46 +1,51 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 
-/// Live captain offers for a trip, rendered as a **top-anchored overlay** on
-/// the trip map.
+import '../../services/app_state.dart';
+
+/// Live captain offers for a trip, rendered as an **inline list inside the
+/// trip screen's bottom panel**.
 ///
-/// This used to be a modal bottom sheet. The offers are the only decision on
-/// screen while a trip is `offered`, and burying them under the fold meant the
-/// rider read the map first and the thing they had to act on second. The panel
-/// now sits at the top, directly under the map controls, with the price as the
-/// hero and accept/decline as an equal pair.
+/// History matters here, because this widget has been the wrong shape twice.
+/// It started as a modal bottom sheet, then became a top-anchored overlay that
+/// *replaced* the bottom panel outright. That second form is what produced the
+/// long-standing "why are there two different waiting screens?" bug: a trip
+/// sitting at `searching` drew the bottom panel, and the moment the API flipped
+/// it to `offered` the entire surface was swapped for a different-looking card
+/// at the opposite end of the screen — different title, different cancel
+/// button, different position. Two states of one trip looked like two
+/// unrelated products.
 ///
-/// The class keeps its `...Sheet` name and filename so the single import site
-/// and `docs/BIDDING_SYSTEM.md` stay valid; it is a panel, not a route, and no
-/// longer pops anything on accept.
+/// It is now a plain list with no chrome of its own. The trip screen owns the
+/// heading, the cancel action and the panel it sits in; this widget owns
+/// exactly one thing — the offers — and renders nothing at all when there are
+/// none. That is what lets `searching` and `offered` be the same screen.
 ///
-/// Offers poll every few seconds — previously the rider had to press a refresh
-/// icon to discover that a captain had responded, which is not something anyone
-/// thinks to do while waiting for a car.
-class CaptainBidsSheet extends StatefulWidget {
-  const CaptainBidsSheet({
+/// The class keeps its `captain_bids_sheet.dart` filename so the single import
+/// site and `docs/BIDDING_SYSTEM.md` stay valid.
+class CaptainOffersList extends StatefulWidget {
+  const CaptainOffersList({
     super.key,
     required this.tripId,
-    required this.token,
-    required this.baseUrl,
     required this.onBidAccepted,
-    this.onCancelTrip,
+    this.onOffersChanged,
     this.pickupLat,
     this.pickupLng,
   });
 
   final String tripId;
-  final String token;
-  final String baseUrl;
-  final Function(Map<String, dynamic> trip) onBidAccepted;
 
-  /// Optional hook for cancelling the whole request from this panel.
-  final VoidCallback? onCancelTrip;
+  /// Called with the freshly assigned trip once the rider accepts an offer.
+  final void Function(Map<String, dynamic> trip) onBidAccepted;
+
+  /// Reports how many offers are currently on screen, so the parent can retitle
+  /// its heading and status pill without duplicating the poll. Fired after the
+  /// frame, never during build.
+  final void Function(int count)? onOffersChanged;
 
   /// Pickup coordinates, used to estimate each captain's arrival time from the
   /// `captain_lat`/`captain_lng` the bids endpoint returns. Optional: when
@@ -49,12 +54,11 @@ class CaptainBidsSheet extends StatefulWidget {
   final double? pickupLng;
 
   @override
-  State<CaptainBidsSheet> createState() => _CaptainBidsSheetState();
+  State<CaptainOffersList> createState() => _CaptainOffersListState();
 }
 
-class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
+class _CaptainOffersListState extends State<CaptainOffersList> {
   List<Map<String, dynamic>> _bids = [];
-  bool _loading = true;
   String? _error;
 
   /// Offers the rider dismissed locally. The backend keeps them pending (a
@@ -65,6 +69,15 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
   /// Accept is in flight for this bid — used to disable both buttons so a
   /// double-tap can't fire two accepts.
   String? _accepting;
+
+  /// Last count handed to [CaptainOffersList.onOffersChanged]; guards against
+  /// waking the parent every five seconds with a number it already has.
+  int _lastReported = -1;
+
+  /// Consecutive failed polls. One flaky tick should not replace a good list
+  /// with an error card, but a poll that has been failing for half a minute is
+  /// no longer "transient" and the rider deserves to know.
+  int _consecutiveFailures = 0;
 
   Timer? _poller;
 
@@ -84,92 +97,134 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
     super.dispose();
   }
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${widget.token}',
-      };
+  /// Turns an exception into something a rider can act on.
+  ///
+  /// `AppState` throws the API's own `error` string when it has one, so most
+  /// of these already read as Arabic sentences; the cases below are the ones
+  /// that would otherwise surface as a raw Dart exception on screen.
+  static String _friendlyError(Object e) {
+    final raw = e.toString().replaceFirst('Exception: ', '').trim();
+    if (raw.isEmpty) return 'تعذّر الاتصال، حاول مرة أخرى';
+    if (raw.contains('Session expired')) {
+      return 'انتهت الجلسة، سجّل الدخول مرة أخرى';
+    }
+    if (raw.contains('SocketException') ||
+        raw.contains('Failed host lookup') ||
+        raw.contains('TimeoutException') ||
+        raw.contains('ClientException')) {
+      return 'تحقق من اتصالك بالإنترنت';
+    }
+    return raw;
+  }
 
+  /// Fetches the current offers.
+  ///
+  /// Every call goes through [AppState.apiGet] rather than a bare `http.get`.
+  /// That is the fix for the failure this panel was famous for: the old code
+  /// held its own copy of the bearer token and called `http` directly, so it
+  /// bypassed the 401 refresh interceptor entirely. Once the access token
+  /// lapsed mid-wait, every poll 401'd, the `catch` swallowed it in silence,
+  /// and the rider watched an empty "searching" spinner forever while real
+  /// offers piled up server-side.
   Future<void> _fetchBids({bool silent = false}) async {
-    if (!silent && mounted) setState(() => _loading = true);
-
     try {
-      final res = await http.get(
-        Uri.parse('${widget.baseUrl}/trips/${widget.tripId}/bids'),
-        headers: _headers,
-      );
+      final res = await context.read<AppState>().apiGet(
+            '/trips/${widget.tripId}/bids',
+          );
       if (!mounted) return;
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          _bids = List<Map<String, dynamic>>.from(data['bids'] ?? []);
-          _loading = false;
-          _error = null;
-        });
-      } else if (!silent) {
-        setState(() {
-          _loading = false;
-          _error = 'تعذّر تحميل العروض (${res.statusCode})';
-        });
-      }
-    } catch (e) {
-      if (!mounted || silent) return;
+      final raw = res['bids'];
+      final parsed = <Map<String, dynamic>>[
+        if (raw is List)
+          for (final entry in raw)
+            if (entry is Map) Map<String, dynamic>.from(entry),
+      ];
+
       setState(() {
-        _error = 'تحقق من اتصالك بالإنترنت';
-        _loading = false;
+        _bids = parsed;
+        _error = null;
+        _consecutiveFailures = 0;
       });
+      _reportCount();
+    } catch (e) {
+      if (!mounted) return;
+      _consecutiveFailures++;
+      // Hold the last good list through a blip; speak up once it is clearly
+      // not a blip, or immediately when the rider asked for this fetch.
+      final shouldSurface =
+          !silent || (_bids.isEmpty && _consecutiveFailures >= 3);
+      if (!shouldSurface) return;
+      setState(() => _error = _friendlyError(e));
     }
   }
+
+  /// Tells the parent how many offers are visible, after the current frame.
+  ///
+  /// Post-frame because this runs inside `setState`/`build` paths and the
+  /// parent's callback calls `setState` of its own — doing it synchronously
+  /// would throw "setState() called during build".
+  void _reportCount() {
+    final cb = widget.onOffersChanged;
+    if (cb == null) return;
+    final n = _visible.length;
+    if (n == _lastReported) return;
+    _lastReported = n;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) cb(n);
+    });
+  }
+
+  List<Map<String, dynamic>> get _visible =>
+      _bids.where((b) => !_declined.contains(b['id'] as String?)).toList();
 
   Future<void> _acceptBid(String bidId) async {
     setState(() => _accepting = bidId);
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final res = await http.post(
-        Uri.parse('${widget.baseUrl}/trips/${widget.tripId}/accept-bid'),
-        headers: _headers,
-        body: jsonEncode({'bidId': bidId}),
+      final data = await context.read<AppState>().apiPost(
+        '/trips/${widget.tripId}/accept-bid',
+        {'bidId': bidId},
       );
       if (!mounted) return;
 
-      if (res.statusCode < 400) {
-        final data = jsonDecode(res.body);
-        _poller?.cancel();
-        // No pop: this is an inline panel, not a route. The trip screen swaps
-        // it out when the status it just received leaves `offered`.
-        widget.onBidAccepted(data['trip']);
+      _poller?.cancel();
+      final trip = data['trip'];
+      if (trip is Map) {
+        // No pop: this is an inline list, not a route. The trip screen swaps
+        // the whole panel over once the status it just received leaves
+        // `searching`/`offered`.
+        widget.onBidAccepted(Map<String, dynamic>.from(trip));
         return;
       }
 
-      // A 409 means another rider action or captain change beat us to it —
-      // refresh so the rider sees the real current state.
-      String message = 'فشل قبول العرض، حاول مرة أخرى';
-      try {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['error'] is String) {
-          message = body['error'] as String;
-        }
-      } catch (_) {}
-
+      // A 2xx with no trip payload should not strand the rider on a dead
+      // panel — restart the poll and let the next tick reconcile.
       setState(() => _accepting = null);
-      messenger.showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: AppTokens.danger),
+      _poller = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _fetchBids(silent: true),
       );
       _fetchBids(silent: true);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      // A 409 means a captain withdrew or another action beat us to it —
+      // refresh so the rider sees the real current state.
       setState(() => _accepting = null);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('تعذّر الاتصال، حاول مرة أخرى'),
+        SnackBar(
+          content: Text(_friendlyError(e)),
           backgroundColor: AppTokens.danger,
         ),
       );
+      _fetchBids(silent: true);
     }
   }
 
-  void _decline(String bidId) => setState(() => _declined.add(bidId));
+  void _decline(String bidId) {
+    setState(() => _declined.add(bidId));
+    _reportCount();
+  }
 
   /// Minutes until this captain reaches the pickup.
   ///
@@ -216,94 +271,80 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
-    final visible =
-        _bids.where((b) => !_declined.contains(b['id'] as String?)).toList();
+    final state = context.read<AppState>();
+    final visible = _visible;
+
+    // Nothing to show and nothing wrong: render nothing. The trip screen's
+    // "جارٍ البحث عن كابتن…" heading is already saying the right thing, and a
+    // second spinner underneath it was half of what made this look like a
+    // separate screen.
+    if (visible.isEmpty) {
+      if (_error == null) return const SizedBox.shrink();
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: _errorCard(go),
+      );
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Container(
-        // Fades the map out behind the heading so white-on-map stays legible
-        // in both themes, then releases the map cleanly below the card.
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              go.bg.withOpacity(0.94),
-              go.bg.withOpacity(0.82),
-              go.bg.withOpacity(0.0),
-            ],
-            stops: const [0.0, 0.60, 1.0],
-          ),
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Header(go: go, onCancel: widget.onCancelTrip),
-            const SizedBox(height: 14),
-            Flexible(child: _buildBody(go, visible)),
-          ],
-        ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: visible.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (ctx, idx) {
+          final bid = visible[idx];
+          final bidId = bid['id'] as String;
+          return _BidCard(
+            go: go,
+            bid: bid,
+            eta: _eta(bid),
+            baseUrl: state.baseUrl,
+            token: state.token ?? '',
+            busy: _accepting != null,
+            accepting: _accepting == bidId,
+            onAccept: () => _acceptBid(bidId),
+            onDecline: () => _decline(bidId),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBody(GoTheme go, List<Map<String, dynamic>> visible) {
-    if (_error != null && _bids.isEmpty) {
-      return _PanelCard(
+  Widget _errorCard(GoTheme go) => _PanelCard(
         go: go,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Icon(Icons.cloud_off_rounded, size: 32, color: go.muted),
-            const SizedBox(height: 10),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: AppTokens.font(fontSize: 14, color: go.muted),
+            Icon(Icons.cloud_off_rounded, size: 22, color: go.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _error!,
+                style: AppTokens.font(fontSize: 13, color: go.muted),
+              ),
             ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: _fetchBids,
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () {
+                setState(() => _error = null);
+                _fetchBids();
+              },
               child: Text(
                 'إعادة المحاولة',
-                style: AppTokens.font(fontWeight: FontWeight.w700),
+                style: AppTokens.font(fontSize: 13, fontWeight: FontWeight.w700),
               ),
             ),
           ],
         ),
       );
-    }
-
-    if (visible.isEmpty) return _SearchingState(go: go);
-
-    return ListView.separated(
-      shrinkWrap: true,
-      padding: EdgeInsets.zero,
-      itemCount: visible.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (ctx, idx) {
-        final bid = visible[idx];
-        final bidId = bid['id'] as String;
-        return _BidCard(
-          go: go,
-          bid: bid,
-          eta: _eta(bid),
-          baseUrl: widget.baseUrl,
-          token: widget.token,
-          busy: _accepting != null,
-          accepting: _accepting == bidId,
-          onAccept: () => _acceptBid(bidId),
-          onDecline: () => _decline(bidId),
-        );
-      },
-    );
-  }
 }
 
-/// Shared card shell — one place for the offer surface, radius and shadow.
+/// Shared card shell — one place for the offer surface, radius and border.
+///
+/// Tuned for sitting *inside* the trip panel rather than floating over map
+/// tiles: a tinted fill against `go.panel` instead of the old drop shadow,
+/// which read as a second floating layer once the list moved into the sheet.
 class _PanelCard extends StatelessWidget {
   const _PanelCard({required this.go, required this.child});
 
@@ -314,85 +355,15 @@ class _PanelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: go.isDark ? go.surface : go.panel,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        boxShadow: AppTokens.shadowOffer,
+        color: go.isDark
+            ? Colors.white.withOpacity(0.04)
+            : Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: go.border),
       ),
       child: child,
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.go, this.onCancel});
-
-  final GoTheme go;
-  final VoidCallback? onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'اختيار سائق',
-                style: AppTokens.font(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  color: go.text,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(
-                    Icons.verified_user_rounded,
-                    size: 15,
-                    color: go.isDark ? go.action : AppTokens.primary,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'تم التحقق من جميع السائقين',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTokens.font(fontSize: 12.5, color: go.muted),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        if (onCancel != null) ...[
-          const SizedBox(width: 8),
-          // Solid fill rather than the old 10% tint: sitting over map tiles,
-          // a translucent chip had no reliable contrast to read against.
-          TextButton.icon(
-            onPressed: onCancel,
-            icon: const Icon(Icons.close_rounded, size: 17),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor:
-                  Color.lerp(AppTokens.danger, Colors.black, 0.28),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTokens.radiusPill),
-              ),
-            ),
-            label: Text(
-              'إلغاء الطلب',
-              style: AppTokens.font(fontSize: 13, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ],
     );
   }
 }
@@ -457,7 +428,7 @@ class _BidCard extends StatelessWidget {
             children: [
               Text(
                 '${price.round()} ج.م',
-                style: AppTokens.money(fontSize: 28, color: go.text),
+                style: AppTokens.money(fontSize: 26, color: go.text),
               ),
               const SizedBox(width: 10),
               if (eta != null)
@@ -471,7 +442,7 @@ class _BidCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTokens.font(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: go.muted,
                     ),
@@ -479,7 +450,7 @@ class _BidCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           Row(
             children: [
@@ -544,7 +515,7 @@ class _BidCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
           // Accept and decline get equal width; only the fill separates them.
           Row(
@@ -574,7 +545,7 @@ class _BidCard extends StatelessWidget {
                         foregroundColor: go.onAction,
                         disabledForegroundColor: go.onAction,
                         shadowColor: Colors.transparent,
-                        minimumSize: const Size.fromHeight(48),
+                        minimumSize: const Size.fromHeight(46),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius:
@@ -610,7 +581,7 @@ class _BidCard extends StatelessWidget {
                     disabledBackgroundColor: go.isDark ? go.elevated : go.surface,
                     foregroundColor: go.text,
                     shadowColor: Colors.transparent,
-                    minimumSize: const Size.fromHeight(48),
+                    minimumSize: const Size.fromHeight(46),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
@@ -643,7 +614,7 @@ class _BidCard extends StatelessWidget {
 ///
 /// Initials remain the fallback and stay on screen underneath while the photo
 /// loads, so a slow image degrades to the previous behaviour instead of
-/// punching a hole in the card. The panel re-polls every 5s; Flutter's image
+/// punching a hole in the card. The list re-polls every 5s; Flutter's image
 /// cache keys on the URL, so the photo resolves from memory on every rebuild
 /// after the first and does not flicker.
 class _CaptainAvatar extends StatelessWidget {
@@ -741,49 +712,4 @@ class _Eta {
 
   final int minutes;
   final bool approximate;
-}
-
-/// Shown while waiting for the first offer to arrive.
-class _SearchingState extends StatelessWidget {
-  const _SearchingState({required this.go});
-
-  final GoTheme go;
-
-  @override
-  Widget build(BuildContext context) {
-    return _PanelCard(
-      go: go,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 6),
-          SizedBox(
-            width: 30,
-            height: 30,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.6,
-              color: go.isDark ? go.action : AppTokens.primary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'جارٍ البحث عن كباتن قريبين',
-            textAlign: TextAlign.center,
-            style: AppTokens.font(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: go.text,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'هتوصلك عروض الأسعار هنا أول ما يردّوا',
-            textAlign: TextAlign.center,
-            style: AppTokens.font(fontSize: 13, color: go.muted),
-          ),
-          const SizedBox(height: 6),
-        ],
-      ),
-    );
-  }
 }

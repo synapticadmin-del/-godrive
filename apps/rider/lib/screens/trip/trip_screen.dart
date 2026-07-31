@@ -15,6 +15,15 @@ import '../ride/captain_bids_sheet.dart';
 /// Rider trip screen — progressive states like Uber/Careem:
 /// searching → offered → assigned → arrived → in_progress → completed
 /// Each state shows a different bottom panel with contextual info + actions.
+///
+/// `searching` and `offered` deliberately share one panel. They are the same
+/// moment for the rider — "I have asked for a car and I am waiting" — and the
+/// only difference is whether any captain has named a price yet. Rendering
+/// them as two separate surfaces (which this screen used to do: a bottom sheet
+/// for one, a top-anchored overlay for the other) meant the screen visibly
+/// rearranged itself mid-wait, with a different title and a differently worded
+/// cancel button, for a state change the rider never asked for and could not
+/// predict. Now the panel stays put and the offers grow inside it.
 class TripScreen extends StatefulWidget {
   final String tripId;
   const TripScreen({super.key, required this.tripId});
@@ -30,6 +39,15 @@ class _TripScreenState extends State<TripScreen> {
   LatLng? _captainLoc;
   bool _loading = true;
   final MapController _mapController = MapController();
+
+  /// How many captain offers are currently on screen.
+  ///
+  /// Reported up by [CaptainOffersList] rather than polled again here. It
+  /// drives the panel heading and the status pill, which is what lets both of
+  /// them tell the truth: the API flips a trip to `offered` as soon as it finds
+  /// captains to notify, *before* any of them has actually bid, so the raw
+  /// status alone would announce "عروض متاحة" over an empty list.
+  int _offersCount = 0;
 
   /// The driving route stored with the trip. `GET /trips/:id` returns the
   /// geometry the backend computed at booking time; previously the screen
@@ -61,40 +79,6 @@ class _TripScreenState extends State<TripScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
-  }
-
-  /// The captain-offers panel, or null when the trip is not taking offers.
-  ///
-  /// `offered` means at least one captain has named a price and is waiting on
-  /// an answer, so the offers are the only thing on screen worth acting on.
-  /// They render inline at the top of the map rather than in a modal sheet:
-  /// declaring them here means a status change simply stops building them —
-  /// there is no route to open, latch against double-opening, or pop from the
-  /// wrong context, all of which the sheet version needed.
-  Widget? _buildOffersPanel() {
-    if (_status != 'offered') return null;
-
-    final state = context.read<AppState>();
-    final token = state.token;
-    // Without a token the panel's requests would 401 in a loop; the auth
-    // interceptor will already be logging the rider out in that case.
-    if (token == null) return null;
-
-    return CaptainBidsSheet(
-      // Keyed so the poller and any locally-declined offers survive the
-      // rebuild that every incoming `trip.updated` triggers.
-      key: const ValueKey('captain-offers'),
-      tripId: widget.tripId,
-      token: token,
-      baseUrl: state.baseUrl,
-      pickupLat: (_trip?['pickup_lat'] as num?)?.toDouble(),
-      pickupLng: (_trip?['pickup_lng'] as num?)?.toDouble(),
-      onBidAccepted: (trip) {
-        if (!mounted) return;
-        setState(() => _trip = Map<String, dynamic>.from(trip));
-      },
-      onCancelTrip: _cancelTrip,
-    );
   }
 
   /// Geometry arrives as `[[lat, lng], ...]`. Parsed defensively so a bad
@@ -138,9 +122,9 @@ class _TripScreenState extends State<TripScreen> {
       onMessage: (ev) {
         final type = ev['type'] as String?;
         if (type == 'trip.updated' && ev['trip'] is Map) {
-          // The backend flips the trip to `offered` the moment a captain bids,
-          // and the offers panel is built from that status — so this setState
-          // is all it takes for the offers to appear while the rider watches.
+          // The backend flips the trip to `offered` the moment a captain bids.
+          // The panel does not change shape for it any more — the offers list
+          // inside is already polling and will render them in place.
           setState(() => _trip = Map<String, dynamic>.from(ev['trip'] as Map));
         } else if (type == 'location.captain') {
           final lat = (ev['lat'] as num?)?.toDouble();
@@ -216,10 +200,14 @@ class _TripScreenState extends State<TripScreen> {
 
   String get _status => _trip?['status'] as String? ?? 'searching';
 
+  /// True while the rider is waiting for a car, whether or not any captain has
+  /// bid yet. One predicate, so the panel, the heading and the pill can never
+  /// disagree about which phase the trip is in.
+  bool get _isWaiting => _status == 'searching' || _status == 'offered';
+
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
-    final offersPanel = _buildOffersPanel();
 
     return Scaffold(
       backgroundColor: go.bg,
@@ -289,27 +277,12 @@ class _TripScreenState extends State<TripScreen> {
                     ],
                   ),
                 ),
-                // While captains are bidding the offers own the screen: they
-                // sit at the top, directly under the map controls, and the
-                // bottom panel stands down rather than repeating the same
-                // decision twice with the map squeezed between them.
-                if (offersPanel != null)
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 56,
-                    left: 0,
-                    right: 0,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.62,
-                      ),
-                      child: offersPanel,
-                    ),
-                  )
-                else
-                  Positioned(
-                    left: 0, right: 0, bottom: 0,
-                    child: _buildBottomPanel(),
-                  ),
+                // One panel, always at the bottom, for every state of the trip.
+                // Offers are not an exception to that — they render inside it.
+                Positioned(
+                  left: 0, right: 0, bottom: 0,
+                  child: _buildBottomPanel(),
+                ),
               ],
             ),
     );
@@ -447,52 +420,115 @@ class _TripScreenState extends State<TripScreen> {
 
   List<Widget> _buildPanelContent(Color text, Color muted) {
     switch (_status) {
-      case 'searching': return _searchingContent(text, muted);
-      case 'offered': return _offeredContent(text, muted);
+      // Same panel for both: waiting is waiting, with or without offers in it.
+      case 'searching': case 'offered': return _waitingContent(text, muted);
       case 'assigned': case 'arrived': return _assignedContent(text, muted);
       case 'in_progress': return _inProgressContent(text, muted);
       case 'completed': return _completedContent(text, muted);
       case 'cancelled': return _cancelledContent(text, muted);
-      default: return _searchingContent(text, muted);
+      default: return _waitingContent(text, muted);
     }
   }
 
-  List<Widget> _searchingContent(Color text, Color muted) => [
-    Center(child: SizedBox(width: 48, height: 48,
-      child: CircularProgressIndicator(strokeWidth: 3, valueColor: AlwaysStoppedAnimation<Color>(AppTokens.primary)))),
-    const SizedBox(height: 16),
-    Text('جارٍ البحث عن كابتن…', style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text)),
-    const SizedBox(height: 4),
-    Text('سنبلغك فور قبول كابتن لرحلتك', style: AppTokens.font(fontSize: 13, color: muted)),
-    const SizedBox(height: 20),
-    SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
-      icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
-      style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
-  ];
+  /// Arabic plural for the offer counter: 3–10 takes the broken plural.
+  static String _offersLabel(int n) => (n >= 3 && n <= 10) ? 'عروض' : 'عرض';
 
-  /// Degraded `offered` panel, reached only when the offers panel could not be
-  /// built because the session token is missing.
+  /// The single waiting panel, covering `searching` and `offered`.
   ///
-  /// Normally the offers render at the top of the map and this never runs —
-  /// `_buildOffersPanel` returning non-null suppresses the bottom panel
-  /// entirely. Without a token the auth interceptor is already signing the
-  /// rider out, so all this owes them is an explanation and a way out rather
-  /// than a dead screen. It deliberately offers no "view offers" button: there
-  /// is no sheet to reopen any more, and fetching them would 401 in a loop.
-  List<Widget> _offeredContent(Color text, Color muted) {
+  /// The heading is driven by [_offersCount], not by the raw trip status,
+  /// because the two disagree: the API marks a trip `offered` when it finds
+  /// captains worth notifying, which is strictly earlier than any of them
+  /// answering. Titling the panel off the status produced "اختيار سائق" above
+  /// an empty list — the screen claiming a decision was waiting on the rider
+  /// when nothing had arrived yet.
+  List<Widget> _waitingContent(Color text, Color muted) {
     final go = GoTheme.of(context);
+    final state = context.read<AppState>();
+    final token = state.token;
+    final hasOffers = _offersCount > 0;
+
     return [
-      Row(children: [
-        Icon(Icons.local_offer_rounded,
-            color: go.action, size: 20),
-        const SizedBox(width: 8),
-        Expanded(child: Text('وصلت عروض من الكباتن',
-          style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
-      ]),
-      const SizedBox(height: 4),
-      Text('تعذّر عرض العروض — جرّب تسجيل الدخول مرة أخرى',
-        style: AppTokens.font(fontSize: 13, color: muted)),
-      const SizedBox(height: 20),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 26,
+            height: 26,
+            child: hasOffers
+                ? Icon(Icons.local_offer_rounded, size: 22, color: go.action)
+                : CircularProgressIndicator(
+                    strokeWidth: 2.8,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.primary),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasOffers ? 'اختر كابتن' : 'جارٍ البحث عن كابتن…',
+                  style: AppTokens.font(
+                      fontSize: 18, fontWeight: FontWeight.w700, color: text),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  hasOffers
+                      ? 'وصلك $_offersCount ${_offersLabel(_offersCount)} — لسه البحث شغال'
+                      : 'سنبلغك فور قبول كابتن لرحلتك',
+                  style: AppTokens.font(fontSize: 13, color: muted),
+                ),
+              ],
+            ),
+          ),
+          if (hasOffers) ...[
+            const SizedBox(width: 8),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.verified_user_rounded,
+                  size: 14, color: go.isDark ? go.action : AppTokens.primary),
+              const SizedBox(width: 4),
+              Text('موثّقون',
+                  style: AppTokens.font(fontSize: 11.5, color: muted)),
+            ]),
+          ],
+        ],
+      ),
+
+      // The offers themselves. Renders nothing until a captain actually bids,
+      // so the panel above is the whole UI for the empty case.
+      if (token != null) ...[
+        const SizedBox(height: 14),
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.42,
+          ),
+          child: CaptainOffersList(
+            // Keyed so the poller and any locally-declined offers survive the
+            // rebuild that every incoming `trip.updated` triggers.
+            key: const ValueKey('captain-offers'),
+            tripId: widget.tripId,
+            pickupLat: (_trip?['pickup_lat'] as num?)?.toDouble(),
+            pickupLng: (_trip?['pickup_lng'] as num?)?.toDouble(),
+            onOffersChanged: (count) {
+              if (!mounted || count == _offersCount) return;
+              setState(() => _offersCount = count);
+            },
+            onBidAccepted: (trip) {
+              if (!mounted) return;
+              setState(() {
+                _trip = Map<String, dynamic>.from(trip);
+                _offersCount = 0;
+              });
+            },
+          ),
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        Text('تعذّر عرض العروض — جرّب تسجيل الدخول مرة أخرى',
+            style: AppTokens.font(fontSize: 13, color: AppTokens.danger)),
+      ],
+
+      const SizedBox(height: 16),
       SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
         icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
         style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
@@ -738,10 +774,20 @@ class _TripScreenState extends State<TripScreen> {
       Text('${fare.toStringAsFixed(0)} ج.م', style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w800, color: AppTokens.primary)),
     ]);
 
+  /// The pill above the map.
+  ///
+  /// `searching` and `offered` collapse into one label chosen by whether any
+  /// offer is actually on screen, so the pill and the panel heading always
+  /// agree. Without this the pill turned green and announced "عروض متاحة" the
+  /// instant the API found captains to notify — while the panel below it was
+  /// still spinning on an empty list.
   Map<String, dynamic> _statusConfig(String status) {
+    if (_isWaiting) {
+      return _offersCount > 0
+          ? {'label': 'عروض متاحة', 'color': AppTokens.success, 'icon': Icons.local_offer}
+          : {'label': 'جارٍ البحث', 'color': AppTokens.warning, 'icon': Icons.search};
+    }
     switch (status) {
-      case 'searching': return {'label': 'جارٍ البحث', 'color': AppTokens.warning, 'icon': Icons.search};
-      case 'offered': return {'label': 'عروض متاحة', 'color': AppTokens.success, 'icon': Icons.local_offer};
       case 'assigned': return {'label': 'كابتن في الطريق', 'color': AppTokens.primary, 'icon': Icons.directions_car};
       case 'arrived': return {'label': 'وصل الكابتن', 'color': AppTokens.primary, 'icon': Icons.location_on};
       case 'in_progress': return {'label': 'الرحلة جارية', 'color': AppTokens.primary, 'icon': Icons.navigation};
@@ -753,7 +799,7 @@ class _TripScreenState extends State<TripScreen> {
 }
 
 
-/// The captain's photo, matching the treatment in `CaptainBidsSheet` so the
+/// The captain's photo, matching the treatment in the offers list so the
 /// person the rider chose looks the same before and after acceptance.
 ///
 /// `captain_avatar_url` is the API-relative path from `users.avatar_url`, and
