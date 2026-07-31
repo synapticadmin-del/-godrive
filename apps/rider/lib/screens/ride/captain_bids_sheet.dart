@@ -1,19 +1,27 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_shared/flutter_shared.dart';
 
-/// Live list of captain offers for a trip.
+/// Live captain offers for a trip, rendered as a **top-anchored overlay** on
+/// the trip map.
 ///
-/// Modelled on the reference app's offer cards: the price is the hero, the
-/// captain's identity sits beneath it, and accept/decline are presented as an
-/// equal pair so declining is a first-class action rather than a hidden one.
+/// This used to be a modal bottom sheet. The offers are the only decision on
+/// screen while a trip is `offered`, and burying them under the fold meant the
+/// rider read the map first and the thing they had to act on second. The panel
+/// now sits at the top, directly under the map controls, with the price as the
+/// hero and accept/decline as an equal pair.
 ///
-/// Offers now poll automatically every few seconds — previously the rider had
-/// to press a refresh icon to discover that a captain had responded, which is
-/// not something anyone thinks to do while waiting for a car.
+/// The class keeps its `...Sheet` name and filename so the single import site
+/// and `docs/BIDDING_SYSTEM.md` stay valid; it is a panel, not a route, and no
+/// longer pops anything on accept.
+///
+/// Offers poll every few seconds — previously the rider had to press a refresh
+/// icon to discover that a captain had responded, which is not something anyone
+/// thinks to do while waiting for a car.
 class CaptainBidsSheet extends StatefulWidget {
   const CaptainBidsSheet({
     super.key,
@@ -22,6 +30,8 @@ class CaptainBidsSheet extends StatefulWidget {
     required this.baseUrl,
     required this.onBidAccepted,
     this.onCancelTrip,
+    this.pickupLat,
+    this.pickupLng,
   });
 
   final String tripId;
@@ -29,8 +39,14 @@ class CaptainBidsSheet extends StatefulWidget {
   final String baseUrl;
   final Function(Map<String, dynamic> trip) onBidAccepted;
 
-  /// Optional hook for cancelling the whole request from this sheet.
+  /// Optional hook for cancelling the whole request from this panel.
   final VoidCallback? onCancelTrip;
+
+  /// Pickup coordinates, used to estimate each captain's arrival time from the
+  /// `captain_lat`/`captain_lng` the bids endpoint returns. Optional: when
+  /// absent the ETA line is simply omitted rather than guessed.
+  final double? pickupLat;
+  final double? pickupLng;
 
   @override
   State<CaptainBidsSheet> createState() => _CaptainBidsSheetState();
@@ -108,7 +124,6 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
   Future<void> _acceptBid(String bidId) async {
     setState(() => _accepting = bidId);
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
 
     try {
       final res = await http.post(
@@ -121,8 +136,9 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
       if (res.statusCode < 400) {
         final data = jsonDecode(res.body);
         _poller?.cancel();
+        // No pop: this is an inline panel, not a route. The trip screen swaps
+        // it out when the status it just received leaves `offered`.
         widget.onBidAccepted(data['trip']);
-        navigator.pop();
         return;
       }
 
@@ -155,6 +171,35 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
 
   void _decline(String bidId) => setState(() => _declined.add(bidId));
 
+  /// Straight-line minutes from the captain to the pickup.
+  ///
+  /// Deliberately an estimate, not a routed ETA: the bids endpoint already
+  /// returns the captain's last known position, so this costs no extra request
+  /// and no OSRM call per offer. 22 km/h is a realistic mean for Cairo traffic
+  /// once the straight-line underestimate of real road distance is absorbed.
+  int? _etaMinutes(Map<String, dynamic> bid) {
+    final pLat = widget.pickupLat;
+    final pLng = widget.pickupLng;
+    final cLat = (bid['captain_lat'] as num?)?.toDouble();
+    final cLng = (bid['captain_lng'] as num?)?.toDouble();
+    if (pLat == null || pLng == null || cLat == null || cLng == null) {
+      return null;
+    }
+
+    const earthKm = 6371.0;
+    double rad(double d) => d * math.pi / 180.0;
+    final dLat = rad(cLat - pLat);
+    final dLng = rad(cLng - pLng);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(rad(pLat)) * math.cos(rad(cLat)) * math.sin(dLng / 2) * math.sin(dLng / 2);
+    final km = earthKm * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    if (!km.isFinite) return null;
+    // `num.clamp` is statically typed `num` even on an int receiver, so the
+    // toInt() is load-bearing, not decorative.
+    return (km / 22.0 * 60).round().clamp(1, 90).toInt();
+  }
+
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
@@ -164,77 +209,54 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.72,
-        ),
+        // Fades the map out behind the heading so white-on-map stays legible
+        // in both themes, then releases the map cleanly below the card.
         decoration: BoxDecoration(
-          color: go.panel,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(AppTokens.radiusXl),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              go.bg.withOpacity(0.94),
+              go.bg.withOpacity(0.82),
+              go.bg.withOpacity(0.0),
+            ],
+            stops: const [0.0, 0.60, 1.0],
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: go.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              _Header(
-                go: go,
-                count: visible.length,
-                onCancel: widget.onCancelTrip,
-              ),
-              const SizedBox(height: 14),
-
-              Flexible(child: _buildBody(go, visible)),
-            ],
-          ),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _Header(go: go, onCancel: widget.onCancelTrip),
+            const SizedBox(height: 14),
+            Flexible(child: _buildBody(go, visible)),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildBody(GoTheme go, List<Map<String, dynamic>> visible) {
-    if (_loading && _bids.isEmpty) {
-      return _SearchingState(go: go);
-    }
-
     if (_error != null && _bids.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 26),
+      return _PanelCard(
+        go: go,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off_rounded, size: 36, color: go.muted),
-            const SizedBox(height: 12),
+            Icon(Icons.cloud_off_rounded, size: 32, color: go.muted),
+            const SizedBox(height: 10),
             Text(
               _error!,
-              style: AppTokens.font(
-                fontSize: 14,
-                color: go.muted,
-              ),
+              textAlign: TextAlign.center,
+              style: AppTokens.font(fontSize: 14, color: go.muted),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             OutlinedButton(
               onPressed: _fetchBids,
               child: Text(
                 'إعادة المحاولة',
-                style: AppTokens.font(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: AppTokens.font(fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -246,7 +268,7 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
 
     return ListView.separated(
       shrinkWrap: true,
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.zero,
       itemCount: visible.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (ctx, idx) {
@@ -255,6 +277,7 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
         return _BidCard(
           go: go,
           bid: bid,
+          etaMinutes: _etaMinutes(bid),
           busy: _accepting != null,
           accepting: _accepting == bidId,
           onAccept: () => _acceptBid(bidId),
@@ -265,11 +288,32 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.go, required this.count, this.onCancel});
+/// Shared card shell — one place for the offer surface, radius and shadow.
+class _PanelCard extends StatelessWidget {
+  const _PanelCard({required this.go, required this.child});
 
   final GoTheme go;
-  final int count;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: go.isDark ? go.surface : go.panel,
+        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
+        boxShadow: AppTokens.shadowOffer,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.go, this.onCancel});
+
+  final GoTheme go;
   final VoidCallback? onCancel;
 
   @override
@@ -298,11 +342,12 @@ class _Header extends StatelessWidget {
                     color: go.isDark ? go.action : AppTokens.primary,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'تم التحقق من جميع السائقين',
-                    style: AppTokens.font(
-                      fontSize: 12.5,
-                      color: go.muted,
+                  Flexible(
+                    child: Text(
+                      'تم التحقق من جميع السائقين',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTokens.font(fontSize: 12.5, color: go.muted),
                     ),
                   ),
                 ],
@@ -310,26 +355,28 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        if (onCancel != null)
+        if (onCancel != null) ...[
+          const SizedBox(width: 8),
+          // Solid fill rather than the old 10% tint: sitting over map tiles,
+          // a translucent chip had no reliable contrast to read against.
           TextButton.icon(
             onPressed: onCancel,
             icon: const Icon(Icons.close_rounded, size: 17),
             style: TextButton.styleFrom(
-              foregroundColor: AppTokens.danger,
-              backgroundColor: AppTokens.danger.withOpacity(0.10),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              foregroundColor: Colors.white,
+              backgroundColor:
+                  Color.lerp(AppTokens.danger, Colors.black, 0.28),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTokens.radiusPill),
               ),
             ),
             label: Text(
               'إلغاء الطلب',
-              style: AppTokens.font(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+              style: AppTokens.font(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
+        ],
       ],
     );
   }
@@ -340,6 +387,7 @@ class _BidCard extends StatelessWidget {
   const _BidCard({
     required this.go,
     required this.bid,
+    required this.etaMinutes,
     required this.busy,
     required this.accepting,
     required this.onAccept,
@@ -348,10 +396,16 @@ class _BidCard extends StatelessWidget {
 
   final GoTheme go;
   final Map<String, dynamic> bid;
+  final int? etaMinutes;
   final bool busy;
   final bool accepting;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+
+  /// Arabic plural for the trip counter: 3–10 takes the broken plural
+  /// (رحلات), everything else the singular (رحلة). "404 رحلة" is correct;
+  /// "404 رحلات" is not.
+  static String _tripsLabel(int n) => (n >= 3 && n <= 10) ? 'رحلات' : 'رحلة';
 
   @override
   Widget build(BuildContext context) {
@@ -365,33 +419,24 @@ class _BidCard extends StatelessWidget {
     final model = (bid['vehicle_model'] as String?) ?? '';
     final vehicle = '$make $model'.trim();
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: go.surface,
-        borderRadius: BorderRadius.circular(AppTokens.radiusLg),
-        border: Border.all(color: go.border),
-      ),
+    return _PanelCard(
+      go: go,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Price leads — it is what the rider is comparing between offers.
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
                 '${price.round()} ج.م',
-                style: AppTokens.font(
-                  fontSize: 27,
-                  fontWeight: FontWeight.w900,
-                  color: go.text,
-                  height: 1.1,
-                ),
+                style: AppTokens.money(fontSize: 28, color: go.text),
               ),
-              const SizedBox(width: 12),
-              if (bid['eta_min'] != null)
+              const SizedBox(width: 10),
+              if (etaMinutes != null)
                 Text(
-                  '${bid['eta_min']} دقيقة',
+                  '$etaMinutes دقيقة',
                   style: AppTokens.font(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -404,11 +449,7 @@ class _BidCard extends StatelessWidget {
 
           Row(
             children: [
-              CircleAvatar(
-                radius: 21,
-                backgroundColor: go.elevated,
-                child: Icon(Icons.person_rounded, color: go.muted, size: 23),
-              ),
+              _CaptainAvatar(go: go, name: name),
               const SizedBox(width: 11),
               Expanded(
                 child: Column(
@@ -443,11 +484,8 @@ class _BidCard extends StatelessWidget {
                         if (ratingCount > 0) ...[
                           const SizedBox(width: 5),
                           Text(
-                            '$ratingCount رحلة',
-                            style: AppTokens.font(
-                              fontSize: 12,
-                              color: go.muted,
-                            ),
+                            '$ratingCount ${_tripsLabel(ratingCount)}',
+                            style: AppTokens.font(fontSize: 12, color: go.muted),
                           ),
                         ],
                       ],
@@ -458,10 +496,7 @@ class _BidCard extends StatelessWidget {
                         vehicle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTokens.font(
-                          fontSize: 12.5,
-                          color: go.muted,
-                        ),
+                        style: AppTokens.font(fontSize: 12.5, color: go.muted),
                       ),
                     ],
                   ],
@@ -471,50 +506,74 @@ class _BidCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Accept and decline get equal visual weight.
+          // Accept and decline get equal width; only the fill separates them.
           Row(
             children: [
               Expanded(
-                child: ElevatedButton(
-                  onPressed: busy ? null : onAccept,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: go.isDark ? go.action : AppTokens.primary,
-                    foregroundColor: go.isDark ? go.onAction : Colors.white,
-                    disabledBackgroundColor: go.elevated,
-                    minimumSize: const Size.fromHeight(46),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                child: Opacity(
+                  opacity: busy && !accepting ? 0.45 : 1.0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      // Plain Alignment, not AlignmentDirectional: a
+                      // directional gradient needs a TextDirection threaded
+                      // through to createShader, and this reads the same in
+                      // both directions anyway.
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [go.actionPressed, go.action],
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(AppTokens.radiusMd),
+                    ),
+                    child: ElevatedButton(
+                      onPressed: busy ? null : onAccept,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        disabledBackgroundColor: Colors.transparent,
+                        foregroundColor: go.onAction,
+                        disabledForegroundColor: go.onAction,
+                        shadowColor: Colors.transparent,
+                        minimumSize: const Size.fromHeight(48),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppTokens.radiusMd),
+                        ),
+                      ),
+                      child: accepting
+                          ? SizedBox(
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: go.onAction,
+                              ),
+                            )
+                          : Text(
+                              'قبول',
+                              style: AppTokens.font(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                     ),
                   ),
-                  child: accepting
-                      ? SizedBox(
-                          width: 19,
-                          height: 19,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: go.isDark ? go.onAction : Colors.white,
-                          ),
-                        )
-                      : Text(
-                          'قبول',
-                          style: AppTokens.font(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: OutlinedButton(
+                child: ElevatedButton(
                   onPressed: busy ? null : onDecline,
-                  style: OutlinedButton.styleFrom(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: go.isDark ? go.elevated : go.surface,
+                    disabledBackgroundColor: go.isDark ? go.elevated : go.surface,
                     foregroundColor: go.text,
-                    minimumSize: const Size.fromHeight(46),
-                    side: BorderSide(color: go.border),
+                    shadowColor: Colors.transparent,
+                    minimumSize: const Size.fromHeight(48),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+                      borderRadius: BorderRadius.circular(AppTokens.radiusMd),
                     ),
                   ),
                   child: Text(
@@ -534,6 +593,57 @@ class _BidCard extends StatelessWidget {
   }
 }
 
+/// Captain portrait slot.
+///
+/// The bids endpoint does not return an avatar URL, so this renders the
+/// captain's initials rather than a generic person glyph — every offer
+/// otherwise looked like the same anonymous driver. Swap the body for an
+/// `Image.network` once `GET /trips/:id/bids` carries a photo.
+class _CaptainAvatar extends StatelessWidget {
+  const _CaptainAvatar({required this.go, required this.name});
+
+  final GoTheme go;
+  final String name;
+
+  String get _initials {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '';
+    String head(String s) => s.substring(0, 1).toUpperCase();
+    if (parts.length == 1) return head(parts.first);
+    return '${head(parts.first)}${head(parts[1])}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = _initials;
+    return Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: go.isDark ? go.elevated : go.surface,
+      ),
+      child: initials.isEmpty
+          ? Icon(Icons.person_rounded, color: go.muted, size: 23)
+          : Text(
+              initials,
+              // Latin initials read as letters; Arabic ones need the RTL
+              // shaping the surrounding Directionality already provides.
+              style: AppTokens.font(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: go.text,
+              ),
+            ),
+    );
+  }
+}
+
 /// Shown while waiting for the first offer to arrive.
 class _SearchingState extends StatelessWidget {
   const _SearchingState({required this.go});
@@ -542,22 +652,24 @@ class _SearchingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 30),
+    return _PanelCard(
+      go: go,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const SizedBox(height: 6),
           SizedBox(
-            width: 34,
-            height: 34,
+            width: 30,
+            height: 30,
             child: CircularProgressIndicator(
               strokeWidth: 2.6,
               color: go.isDark ? go.action : AppTokens.primary,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           Text(
             'جارٍ البحث عن كباتن قريبين',
+            textAlign: TextAlign.center,
             style: AppTokens.font(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -567,11 +679,10 @@ class _SearchingState extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'هتوصلك عروض الأسعار هنا أول ما يردّوا',
-            style: AppTokens.font(
-              fontSize: 13,
-              color: go.muted,
-            ),
+            textAlign: TextAlign.center,
+            style: AppTokens.font(fontSize: 13, color: go.muted),
           ),
+          const SizedBox(height: 6),
         ],
       ),
     );

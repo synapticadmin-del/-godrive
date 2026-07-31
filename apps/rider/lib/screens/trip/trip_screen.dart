@@ -34,18 +34,6 @@ class _TripScreenState extends State<TripScreen> {
   /// path their driver was taking.
   List<LatLng> _routePoints = const [];
 
-  /// True while the captain-offers sheet is on screen.
-  ///
-  /// `trip.updated` can arrive several times in a row (every bid re-broadcasts
-  /// the trip), so without this latch each frame would stack another sheet on
-  /// top of the last one and the rider would have to dismiss a pile of them.
-  bool _bidsSheetOpen = false;
-
-  /// The offers sheet's own context, kept so it can be dismissed by route
-  /// rather than by `Navigator.pop(context)` — popping the screen's context
-  /// would tear down the trip screen itself if the sheet had already gone.
-  BuildContext? _bidsSheetContext;
-
   @override
   void initState() {
     super.initState();
@@ -63,9 +51,6 @@ class _TripScreenState extends State<TripScreen> {
       });
       _fitToRoute();
       _connectWs();
-      // A trip can already have offers waiting by the time this screen opens —
-      // the captain may have bid while the booking sheet was still closing.
-      _syncBidsSheet();
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -74,78 +59,38 @@ class _TripScreenState extends State<TripScreen> {
     }
   }
 
-  /// Keeps the captain-offers sheet in step with the trip status.
+  /// The captain-offers panel, or null when the trip is not taking offers.
   ///
   /// `offered` means at least one captain has named a price and is waiting on
-  /// an answer. Until now the screen treated that exactly like `searching` and
-  /// showed a spinner, so real offers sat unanswered on the server while the
-  /// rider assumed nobody had responded. Opening the sheet here is what closes
-  /// that gap.
-  ///
-  /// It also handles the reverse: once the trip leaves `offered` — the rider
-  /// accepted, another captain was assigned, or the request was cancelled —
-  /// the sheet is stale and gets dismissed so it cannot sit over a live trip.
-  void _syncBidsSheet() {
-    if (!mounted) return;
-
-    if (_status != 'offered') {
-      _dismissBidsSheet();
-      return;
-    }
-
-    if (_bidsSheetOpen) return;
+  /// an answer, so the offers are the only thing on screen worth acting on.
+  /// They render inline at the top of the map rather than in a modal sheet:
+  /// declaring them here means a status change simply stops building them —
+  /// there is no route to open, latch against double-opening, or pop from the
+  /// wrong context, all of which the sheet version needed.
+  Widget? _buildOffersPanel() {
+    if (_status != 'offered') return null;
 
     final state = context.read<AppState>();
     final token = state.token;
-    // Without a token the sheet's requests would 401 in a loop; the auth
+    // Without a token the panel's requests would 401 in a loop; the auth
     // interceptor will already be logging the rider out in that case.
-    if (token == null) return;
+    if (token == null) return null;
 
-    _bidsSheetOpen = true;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      // Dismissing would hide live offers behind an opaque map, so the rider
-      // has to make a decision — accept one, or cancel the request outright.
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        _bidsSheetContext = sheetContext;
-        return CaptainBidsSheet(
-          tripId: widget.tripId,
-          token: token,
-          baseUrl: state.baseUrl,
-          onBidAccepted: (trip) {
-            if (!mounted) return;
-            setState(() => _trip = Map<String, dynamic>.from(trip));
-          },
-          onCancelTrip: () {
-            _dismissBidsSheet();
-            _cancelTrip();
-          },
-        );
+    return CaptainBidsSheet(
+      // Keyed so the poller and any locally-declined offers survive the
+      // rebuild that every incoming `trip.updated` triggers.
+      key: const ValueKey('captain-offers'),
+      tripId: widget.tripId,
+      token: token,
+      baseUrl: state.baseUrl,
+      pickupLat: (_trip?['pickup_lat'] as num?)?.toDouble(),
+      pickupLng: (_trip?['pickup_lng'] as num?)?.toDouble(),
+      onBidAccepted: (trip) {
+        if (!mounted) return;
+        setState(() => _trip = Map<String, dynamic>.from(trip));
       },
-    ).whenComplete(() {
-      // Covers every exit path — accepted, cancelled, or dismissed by
-      // `_dismissBidsSheet` — so the latch can never stick shut.
-      _bidsSheetOpen = false;
-      _bidsSheetContext = null;
-    });
-  }
-
-  /// Closes the offers sheet if it is still mounted.
-  ///
-  /// Pops the sheet's own route rather than the screen's, so a status change
-  /// arriving just after the rider dismissed the sheet cannot pop the trip
-  /// screen out from under them.
-  void _dismissBidsSheet() {
-    final sheetContext = _bidsSheetContext;
-    _bidsSheetOpen = false;
-    _bidsSheetContext = null;
-    if (sheetContext != null && sheetContext.mounted) {
-      Navigator.of(sheetContext).pop();
-    }
+      onCancelTrip: _cancelTrip,
+    );
   }
 
   /// Geometry arrives as `[[lat, lng], ...]`. Parsed defensively so a bad
@@ -189,11 +134,10 @@ class _TripScreenState extends State<TripScreen> {
       onMessage: (ev) {
         final type = ev['type'] as String?;
         if (type == 'trip.updated' && ev['trip'] is Map) {
+          // The backend flips the trip to `offered` the moment a captain bids,
+          // and the offers panel is built from that status — so this setState
+          // is all it takes for the offers to appear while the rider watches.
           setState(() => _trip = Map<String, dynamic>.from(ev['trip'] as Map));
-          // The backend flips the trip to `offered` the moment a captain bids.
-          // React to it here so the offers appear while the rider is watching,
-          // instead of only on the next rebuild.
-          _syncBidsSheet();
         } else if (type == 'location.captain') {
           final lat = (ev['lat'] as num?)?.toDouble();
           final lng = (ev['lng'] as num?)?.toDouble();
@@ -208,7 +152,6 @@ class _TripScreenState extends State<TripScreen> {
   @override
   void dispose() {
     _ws?.dispose();
-    _bidsSheetContext = null;
     super.dispose();
   }
 
@@ -242,6 +185,7 @@ class _TripScreenState extends State<TripScreen> {
   @override
   Widget build(BuildContext context) {
     final go = GoTheme.of(context);
+    final offersPanel = _buildOffersPanel();
 
     return Scaffold(
       backgroundColor: go.bg,
@@ -311,10 +255,27 @@ class _TripScreenState extends State<TripScreen> {
                     ],
                   ),
                 ),
-                Positioned(
-                  left: 0, right: 0, bottom: 0,
-                  child: _buildBottomPanel(),
-                ),
+                // While captains are bidding the offers own the screen: they
+                // sit at the top, directly under the map controls, and the
+                // bottom panel stands down rather than repeating the same
+                // decision twice with the map squeezed between them.
+                if (offersPanel != null)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 56,
+                    left: 0,
+                    right: 0,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.62,
+                      ),
+                      child: offersPanel,
+                    ),
+                  )
+                else
+                  Positioned(
+                    left: 0, right: 0, bottom: 0,
+                    child: _buildBottomPanel(),
+                  ),
               ],
             ),
     );
@@ -475,11 +436,15 @@ class _TripScreenState extends State<TripScreen> {
       style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
   ];
 
-  /// Panel shown behind the offers sheet while captains are bidding.
+  /// Degraded `offered` panel, reached only when the offers panel could not be
+  /// built because the session token is missing.
   ///
-  /// The sheet itself carries the decision, but it can be popped — and on a
-  /// cold restart the status may already be `offered` — so this panel keeps a
-  /// way back to the offers rather than leaving the rider on a dead screen.
+  /// Normally the offers render at the top of the map and this never runs —
+  /// `_buildOffersPanel` returning non-null suppresses the bottom panel
+  /// entirely. Without a token the auth interceptor is already signing the
+  /// rider out, so all this owes them is an explanation and a way out rather
+  /// than a dead screen. It deliberately offers no "view offers" button: there
+  /// is no sheet to reopen any more, and fetching them would 401 in a loop.
   List<Widget> _offeredContent(Color text, Color muted) {
     final go = GoTheme.of(context);
     return [
@@ -491,15 +456,9 @@ class _TripScreenState extends State<TripScreen> {
           style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700, color: text))),
       ]),
       const SizedBox(height: 4),
-      Text('اختار العرض اللي يناسبك من القايمة',
+      Text('تعذّر عرض العروض — جرّب تسجيل الدخول مرة أخرى',
         style: AppTokens.font(fontSize: 13, color: muted)),
       const SizedBox(height: 20),
-      SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _syncBidsSheet,
-        icon: const Icon(Icons.visibility_outlined, size: 18), label: const Text('عرض العروض'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: go.action,
-          foregroundColor: go.onAction))),
-      const SizedBox(height: 8),
       SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _cancelTrip,
         icon: const Icon(Icons.close, size: 18), label: const Text('إلغاء الرحلة'),
         style: OutlinedButton.styleFrom(foregroundColor: AppTokens.danger, side: const BorderSide(color: AppTokens.danger)))),
