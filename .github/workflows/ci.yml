@@ -4,8 +4,8 @@ name: CI
 # if one is ever enabled.
 #
 # IMPORTANT: this workflow makes failures VISIBLE, it does not make them
-# BLOCKING. To actually stop a broken merge, both jobs below must be added as
-# required status checks in Settings > Branches > branch protection rule for
+# BLOCKING. To actually stop a broken merge, all three jobs below must be added
+# as required status checks in Settings > Branches > branch protection rule for
 # `main`. Until that is done a red run can still be merged past.
 on:
   pull_request:
@@ -96,6 +96,100 @@ jobs:
             exit 1
           fi
           echo "node job passed."
+
+  flutter:
+    name: flutter (analyze)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Both pubspec.lock files record `dart: ">=3.4.0 <4.0.0"` and
+          # `flutter: ">=3.22.0"`. Pinning one concrete stable release keeps the
+          # analyzer's verdict reproducible instead of drifting with whatever
+          # `stable` happens to point at; 3.24.5 ships Dart 3.5.4.
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      # Why this job exists: a branch once shipped a captain_state.dart with 24
+      # orphan lines pasted after the final class brace - a file that cannot
+      # parse, let alone compile. Every other check here is node or python, so
+      # CI was fully green while the captain app was broken. `flutter analyze`
+      # is the cheapest thing that catches that whole class of fault.
+      #
+      # Only ERRORS fail the job (--no-fatal-infos --no-fatal-warnings). The
+      # apps carry pre-existing lint infos and warnings; making those fatal
+      # today would bury the signal this job exists to surface. Tightening to
+      # --fatal-warnings once that backlog is clear is a worthwhile follow-up.
+      #
+      # `flutter analyze` needs a resolved package graph, so every target gets
+      # its own `pub get` first.
+      - name: pub get - packages/flutter_shared
+        id: get-shared
+        continue-on-error: true
+        run: flutter pub get
+        working-directory: packages/flutter_shared
+
+      # flutter_shared is analysed standalone, not only through a host app: it
+      # is a path dependency of both apps and has to compile on its own.
+      - name: analyze - packages/flutter_shared
+        id: an-shared
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        working-directory: packages/flutter_shared
+
+      # apps/captain sets `generate: true`, so this `pub get` also runs
+      # gen-l10n and the generated AppLocalizations exist before analysis.
+      - name: pub get - apps/captain
+        id: get-captain
+        continue-on-error: true
+        run: flutter pub get
+        working-directory: apps/captain
+
+      - name: analyze - apps/captain
+        id: an-captain
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        working-directory: apps/captain
+
+      - name: pub get - apps/rider
+        id: get-rider
+        continue-on-error: true
+        run: flutter pub get
+        working-directory: apps/rider
+
+      - name: analyze - apps/rider
+        id: an-rider
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        working-directory: apps/rider
+
+      - name: Result
+        if: always()
+        run: |
+          fail=0
+          check() {
+            if [ "$2" = "success" ]; then
+              echo "  PASS  $1"
+            else
+              echo "  FAIL  $1"
+              fail=1
+            fi
+          }
+          check "pub get packages/flutter_shared" "${{ steps.get-shared.outcome }}"
+          check "analyze packages/flutter_shared" "${{ steps.an-shared.outcome }}"
+          check "pub get apps/captain"            "${{ steps.get-captain.outcome }}"
+          check "analyze apps/captain"            "${{ steps.an-captain.outcome }}"
+          check "pub get apps/rider"              "${{ steps.get-rider.outcome }}"
+          check "analyze apps/rider"              "${{ steps.an-rider.outcome }}"
+          echo
+          if [ "$fail" -ne 0 ]; then
+            echo "flutter job failed - see the individual steps above."
+            exit 1
+          fi
+          echo "flutter job passed."
 
   checks:
     name: checks (migrations, l10n, hygiene)
