@@ -129,9 +129,34 @@ function useDocumentBlobUrl(docId: string | null | undefined): string | null {
   return blobUrl;
 }
 
+/**
+ * True when the stored object is a PDF.
+ *
+ * The extension is assigned server-side from the file's own magic bytes — POST
+ * /captain/upload writes `.pdf` only when `%PDF-` sits at offset 0 — so this
+ * suffix is a type signal we can trust rather than client-supplied metadata.
+ *
+ * Guarded rather than dereferenced directly: `r2_key` is typed non-optional but
+ * the grid below still tests `d.r2_key &&` before using it, so rows do reach the
+ * client without one and the preview modal does not re-check.
+ */
+const isPdfDoc = (doc: Doc) => !!doc.r2_key && doc.r2_key.toLowerCase().endsWith('.pdf');
+
 /** Authenticated document thumbnail; identical layout to the previous <img>. */
 function DocumentImage({ doc, className }: { doc: Doc; className?: string }) {
-  const blobUrl = useDocumentBlobUrl(doc.id);
+  const isPdf = isPdfDoc(doc);
+  // Skip the fetch entirely for a PDF: the tile only shows a badge, and these
+  // are `no-store` identity documents that would otherwise be pulled again on
+  // every re-render for nothing.
+  const blobUrl = useDocumentBlobUrl(isPdf ? null : doc.id);
+  if (isPdf) {
+    return (
+      <div className={`${className ?? ''} flex flex-col items-center justify-center gap-1 bg-surface-tertiary`}>
+        <FileText className="w-6 h-6 text-text-tertiary" />
+        <span className="text-[10px] font-bold text-text-tertiary">PDF</span>
+      </div>
+    );
+  }
   if (!blobUrl) {
     return (
       <div className={`${className ?? ''} flex items-center justify-center bg-surface-tertiary`}>
@@ -164,6 +189,10 @@ function ZoomablePreviewModal({
 
   // Authenticated blob URL for the currently-previewed doc; revoked on change/close.
   const blobUrl = useDocumentBlobUrl(doc.id);
+
+  // A PDF is handed to the browser's own viewer, which brings its own zoom and
+  // paging — so the zoom cluster below is hidden rather than left as a no-op.
+  const isPdf = isPdfDoc(doc);
 
   const currentIdx = allDocs.findIndex((d) => d.id === doc.id);
   const hasPrev = currentIdx > 0;
@@ -250,7 +279,8 @@ function ZoomablePreviewModal({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Zoom controls */}
+          {/* Zoom controls — images only; the PDF viewer supplies its own. */}
+          {!isPdf && (
           <div className="flex items-center gap-1 bg-white/10 rounded-xl border border-white/10 px-1 py-1">
             <button onClick={zoomOut} className="p-1.5 text-white/70 hover:text-white rounded-lg hover:bg-white/10 transition-colors" title="تصغير (-)">
               <ZoomOut className="w-4 h-4" />
@@ -263,6 +293,7 @@ function ZoomablePreviewModal({
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
+          )}
 
           {/* Navigation */}
           <div className="flex items-center gap-1 bg-white/10 rounded-xl border border-white/10 px-1 py-1">
@@ -348,15 +379,28 @@ function ZoomablePreviewModal({
         style={{ cursor: scale > 1 ? (dragging ? 'grabbing' : 'grab') : 'default' }}
       >
         {blobUrl ? (
-          <img
-            src={blobUrl}
-            alt={doc.type}
-            className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
-            style={{
-              transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-            }}
-            draggable={false}
-          />
+          isPdf ? (
+            // The blob carries the response's `application/pdf` Content-Type, so
+            // the browser's built-in viewer renders it here. `Content-Disposition:
+            // attachment` on the route only affects direct navigation, not a blob
+            // URL — so review still happens in-page, and the bytes never leave
+            // this origin.
+            <iframe
+              src={blobUrl}
+              title={doc.type}
+              className="w-full h-full border-0 bg-white"
+            />
+          ) : (
+            <img
+              src={blobUrl}
+              alt={doc.type}
+              className="max-w-full max-h-full object-contain transition-transform duration-200 select-none"
+              style={{
+                transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+              }}
+              draggable={false}
+            />
+          )
         ) : (
           <Loader2 className="w-8 h-8 text-white/70 animate-spin" />
         )}

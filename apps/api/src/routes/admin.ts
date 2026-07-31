@@ -900,8 +900,24 @@ adminRoutes.get("/documents/:id/file", async (c) => {
   const obj = await c.env.FILES.get(doc.r2_key);
   if (!obj) return c.json({ error: "File not found", code: "FILE_NOT_FOUND" }, 404);
   const headers = new Headers();
-  headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
-  headers.set("Cache-Control", "public, max-age=3600");
+  const served = obj.httpMetadata?.contentType ?? "image/jpeg";
+  headers.set("Content-Type", served);
+  // Identity documents (national ID scans, driving licences) must never sit in
+  // a shared cache. `public` explicitly authorised one, and this route
+  // authenticates with a Bearer header rather than a cookie — so a CDN or
+  // corporate proxy keying on the URL alone could hand a captain's ID scan to a
+  // request carrying no valid token at all. `no-store` additionally keeps the
+  // scan off the disk of a shared admin machine after logout. This is the same
+  // policy GET /captain/file already applies to these very same R2 objects.
+  headers.set("Cache-Control", "private, no-store");
+  // This is the higher-value target of the two file routes: the viewer is an
+  // admin, and the file was uploaded by someone else. nosniff stops a browser
+  // second-guessing the declared type, and a PDF is downloaded rather than
+  // rendered in this origin. (Literal rather than shared with captain.ts's
+  // DOC_PDF_TYPE — the accepted-type table wants extracting into
+  // packages/shared, which is tracked separately.)
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (served === "application/pdf") headers.set("Content-Disposition", "attachment");
   return new Response(obj.body, { headers });
 });
 

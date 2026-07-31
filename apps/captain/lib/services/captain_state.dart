@@ -5,10 +5,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'offers_ws.dart';
 import 'trip_ws.dart';
+
+/// Resolves the multipart MIME type for a picked image from its file
+/// extension. `http.MultipartFile.fromPath` without an explicit `contentType`
+/// sends the part as application/octet-stream, which POST /user/avatar and
+/// POST /captain/upload reject with UNSUPPORTED_TYPE even for a valid photo.
+MediaType imageMediaTypeForPath(String path) {
+  final ext = path.split('.').last.toLowerCase();
+  switch (ext) {
+    case 'png':
+      return MediaType('image', 'png');
+    case 'webp':
+      return MediaType('image', 'webp');
+    case 'heic':
+      return MediaType('image', 'heic');
+    case 'heif':
+      return MediaType('image', 'heif');
+    case 'jpg':
+    case 'jpeg':
+    default:
+      return MediaType('image', 'jpeg');
+  }
+}
 
 class CaptainState extends ChangeNotifier {
   bool loading = true;
@@ -360,7 +383,11 @@ class CaptainState extends ChangeNotifier {
     final res = await _executeWithAuthInterceptor(() async {
       final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/user/avatar'))
         ..headers.addAll({if (token != null) 'Authorization': 'Bearer $token'})
-        ..files.add(await http.MultipartFile.fromPath('file', filePath));
+        ..files.add(await http.MultipartFile.fromPath(
+          'file',
+          filePath,
+          contentType: imageMediaTypeForPath(filePath),
+        ));
       final streamed = await req.send().timeout(const Duration(seconds: 45));
       return http.Response.fromStream(streamed);
     });

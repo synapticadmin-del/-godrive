@@ -13,6 +13,16 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.2.0
+  # Declares the multipart image MIME type on uploads (POST /user/avatar and
+  # POST /captain/upload), which the server now matches against its
+  # accepted-image whitelist.
+  #
+  # The constraint is ^4.0.0 rather than ^4.1.0: MediaType has existed since
+  # 4.0.x, and 4.0.2 is what pubspec.lock already pins (http pulls it in).
+  # Requiring 4.1.0 left the manifest unsatisfiable by its own lockfile, so
+  # `pub get --enforce-lockfile` fails and a plain `pub get` silently rewrites
+  # the pin. ^4.0.0 is satisfied by the pinned 4.0.2 with no version change.
+  http_parser: ^4.0.0
   shared_preferences: ^2.2.3
   geolocator: ^12.0.0
   flutter_map: ^6.1.0

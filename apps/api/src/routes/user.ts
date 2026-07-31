@@ -1,5 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import {
+  FILE_EXT_CONTENT_TYPE,
+  isImageFileExt,
+  isIsoBmffContainer,
+  SNIFF_HEAD_BYTES,
+  sniffFileExt,
+  type StoredFileExt,
+} from "@synaptic-go/shared";
 import type { DbUser } from "../lib/types";
 import { nowIso, id } from "../lib/utils";
 import { authMiddleware, type AppEnv } from "../middleware/auth";
@@ -22,14 +30,15 @@ const AVATAR_PREFIX = "avatars/";
 const AVATAR_ROUTE = "/user/avatar/";
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
-/// Extension is derived from the declared MIME type, never from the uploaded
-/// filename — a filename is attacker-controlled and would let someone stash a
-/// `.html` in the bucket that we later serve back.
-const AVATAR_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
+/// An avatar is a photograph. The accepted set, the byte signatures and the
+/// canonical Content-Type all live in @synaptic-go/shared alongside their tests,
+/// shared with POST /captain/upload — this sniffer used to be a second, untested
+/// copy of that logic. The document route additionally accepts PDF; an avatar
+/// does not, which is enforced with isImageFileExt below.
+///
+/// Only HEIC/HEIF may fall back to the declared type, and only when the bytes
+/// present a genuine ISO-BMFF container.
+const AVATAR_HEIC_DECLARED: Record<string, StoredFileExt> = {
   "image/heic": "heic",
   "image/heif": "heif",
 };
@@ -120,14 +129,33 @@ userRoutes.post("/avatar", async (c) => {
     return c.json({ error: "Image too large (max 5MB)", code: "FILE_TOO_LARGE" }, 400);
   }
 
-  const contentType = (file.type || "").toLowerCase();
-  const ext = AVATAR_TYPES[contentType];
-  if (!ext) {
+  // The bytes decide the type. The previous order checked the declared type
+  // first, skipped sniffing on a hit, and then stored that same client-supplied
+  // string as the object's Content-Type — so a client could label anything
+  // `image/png` and have it stored and served back under that type. The stored
+  // extension was never taken from the filename, but the declared type was just
+  // as much the client's choice.
+  const declaredType = (file.type || "").toLowerCase();
+  const head = new Uint8Array(await file.slice(0, SNIFF_HEAD_BYTES).arrayBuffer());
+  let ext: StoredFileExt | null = sniffFileExt(head);
+
+  if (!ext && isIsoBmffContainer(head)) {
+    // Genuine ISO-BMFF container with a brand the sniffer does not name: honour
+    // an explicit HEIC/HEIF declaration, since that registry is open-ended.
+    ext = AVATAR_HEIC_DECLARED[declaredType] ?? null;
+  }
+
+  // An avatar must be a photograph. PDF is a valid captain document but is not
+  // a face, and this column feeds an <img>/Image.network in both apps.
+  if (!ext || !isImageFileExt(ext)) {
     return c.json(
       { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
       400,
     );
   }
+
+  // Canonical, derived from the verified bytes — never the client's string.
+  const contentType = FILE_EXT_CONTENT_TYPE[ext];
 
   // The timestamp + UUID make every upload a distinct URL, which is what lets
   // the mobile client cache avatars forever and still see a change instantly.
@@ -182,6 +210,9 @@ userRoutes.get("/avatar/*", async (c) => {
   headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
   // The key is unique per upload, so a given URL's bytes never change.
   headers.set("Cache-Control", "private, max-age=31536000, immutable");
+  // Every avatar is a byte-verified image, so nothing here should ever be
+  // content-sniffed into something executable. Matches the two document routes.
+  headers.set("X-Content-Type-Options", "nosniff");
   return new Response(obj.body, { headers });
 });
 

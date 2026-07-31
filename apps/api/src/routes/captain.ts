@@ -1,4 +1,11 @@
 import { Hono } from "hono";
+import {
+  FILE_EXT_CONTENT_TYPE,
+  isIsoBmffContainer,
+  SNIFF_HEAD_BYTES,
+  sniffFileExt,
+  type StoredFileExt,
+} from "@synaptic-go/shared";
 import type { DbCaptain, DbTrip } from "../lib/types";
 import { cellKey } from "../lib/pricing";
 import {
@@ -540,17 +547,58 @@ captainRoutes.delete("/documents/:type", async (c) => {
 
 // POST /captain/upload — upload a file directly to R2 (multipart/form-data).
 // Returns the R2 key which is then passed to POST /captain/documents.
+// Which declared types may act as a fallback when the bytes match no known
+// signature, and what they resolve to. Only HEIC/HEIF, and only alongside a
+// verified ISO-BMFF container (see the handler) — the brand registry is
+// open-ended, so a real photo from an unusual encoder should not be refused.
+// A declared type on its own is never sufficient.
+const DOC_HEIC_DECLARED: Record<string, StoredFileExt> = {
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+
 captainRoutes.post("/upload", async (c) => {
   const user = c.get("user");
   const formData = await c.req.formData();
   const file = formData.get("file") as File | null;
   if (!file) return c.json({ error: "file required", code: "MISSING_FILE" }, 400);
+  if (file.size === 0) return c.json({ error: "File is empty", code: "EMPTY_FILE" }, 400);
   if (file.size > 10 * 1024 * 1024) return c.json({ error: "File too large (max 10MB)", code: "FILE_TOO_LARGE" }, 400);
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  // The bytes decide the type. The previous order checked the declared type
+  // first and skipped sniffing on a hit, so a client could label anything
+  // `image/png` and have it stored and served back under that type — the same
+  // stored-content gap the filename version had, just moved one field along.
+  const declaredType = (file.type || "").toLowerCase();
+  const head = new Uint8Array(await file.slice(0, SNIFF_HEAD_BYTES).arrayBuffer());
+  let ext: StoredFileExt | null = sniffFileExt(head);
+
+  if (!ext) {
+    // One tolerated fallback: an ISO-BMFF container whose brand is not in the
+    // list above. The HEIC/HEIF brand set is open-ended, so a real photo from
+    // an unusual encoder should not be refused — but it must still present a
+    // container. A declared type on its own is never enough, which is what
+    // stops arbitrary bytes being labelled `image/png` and stored as one.
+    const declaredHeic = DOC_HEIC_DECLARED[declaredType];
+    if (declaredHeic && isIsoBmffContainer(head)) ext = declaredHeic;
+  }
+
+  if (!ext) {
+    return c.json(
+      {
+        error: "Unsupported file type. Use JPEG, PNG, WebP, HEIC or PDF.",
+        code: "UNSUPPORTED_TYPE",
+      },
+      400,
+    );
+  }
+
+  // Derived from the verified extension, never echoed back from the upload.
+  const contentType = FILE_EXT_CONTENT_TYPE[ext];
+
   const key = `docs/${user.id}/${Date.now()}_${id("f")}.${ext}`;
   await c.env.FILES.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type || "image/jpeg" },
+    httpMetadata: { contentType },
   });
 
   return c.json({ ok: true, r2Key: key, url: `/captain/file/${key}` });
@@ -571,7 +619,17 @@ captainRoutes.get("/file/*", async (c) => {
   const obj = await c.env.FILES.get(key);
   if (!obj) return c.json({ error: "Not found", code: "NOT_FOUND" }, 404);
   const headers = new Headers();
-  headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
+  // Legacy objects predate stored contentType metadata; every one of them is an
+  // image, because this endpoint accepted nothing else until PDF was added.
+  const served = obj.httpMetadata?.contentType ?? "image/jpeg";
+  headers.set("Content-Type", served);
   headers.set("Cache-Control", "private, no-store");
+  // Belt and braces for anything already in the bucket from before the upload
+  // guard tightened: nosniff stops a browser second-guessing the declared type,
+  // and a PDF is handed over as a download rather than rendered in this origin.
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (served === FILE_EXT_CONTENT_TYPE.pdf) {
+    headers.set("Content-Disposition", "attachment");
+  }
   return new Response(obj.body, { headers });
 });
