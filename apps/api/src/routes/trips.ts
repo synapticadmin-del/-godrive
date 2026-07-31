@@ -85,15 +85,91 @@ async function logEvent(
     .run();
 }
 
+/**
+ * The captain half of an assigned trip.
+ *
+ * `trips` stores a bare `captain_id`; every human-readable fact about the
+ * person driving to the rider lives in `users` and `captains`. Until this
+ * existed, `GET /trips/:id` and every `trip.updated` broadcast shipped the raw
+ * row, so the rider's driver card had no data source at all — it is gated on
+ * `captain_name`, which never arrived, so the card never rendered once a trip
+ * was assigned. `GET /trips/:id/bids` already did this JOIN, but that endpoint
+ * stops being reachable the moment the bid is accepted, which is precisely
+ * when the rider most wants to know who is coming.
+ */
+export type TripCaptainFacts = {
+  captain_name: string | null;
+  captain_phone: string | null;
+  captain_avatar_url: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_plate: string | null;
+  vehicle_color: string | null;
+  vehicle_year: number | null;
+  rating_avg: number | null;
+  rating_count: number | null;
+  captain_trips_count: number | null;
+};
+
+export type TripWithCaptain = DbTrip & Partial<TripCaptainFacts>;
+
+/**
+ * Widen a trip row with its captain's identity and vehicle.
+ *
+ * `captain_avatar_url` is the API-relative path held in `users.avatar_url`,
+ * the same shape `GET /auth/me` and the bids endpoint return — clients prefix
+ * it with the API base and send the bearer token.
+ *
+ * `captain_trips_count` counts completed trips, which is what a rider reads
+ * "عدد الرحلات" to mean. It is deliberately not `rating_count`: that counts
+ * ratings left, and a captain who drove 400 trips but was rated 12 times
+ * should not be shown as a beginner.
+ *
+ * Unassigned trips skip the query entirely, and a failed lookup degrades to
+ * the bare row — status, fare and coordinates matter more than a photo.
+ */
+async function withCaptain(env: Env, trip: DbTrip): Promise<TripWithCaptain> {
+  if (!trip.captain_id) return trip;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT u.name       AS captain_name,
+              u.phone      AS captain_phone,
+              u.avatar_url AS captain_avatar_url,
+              c.vehicle_make,
+              c.vehicle_model,
+              c.vehicle_plate,
+              c.vehicle_color,
+              c.vehicle_year,
+              c.rating_avg,
+              c.rating_count,
+              (SELECT COUNT(*) FROM trips t
+                WHERE t.captain_id = u.id AND t.status = 'completed')
+                AS captain_trips_count
+         FROM users u
+         LEFT JOIN captains c ON c.user_id = u.id
+        WHERE u.id = ?`,
+    )
+      .bind(trip.captain_id)
+      .first<TripCaptainFacts>();
+    return row ? { ...trip, ...row } : trip;
+  } catch {
+    return trip;
+  }
+}
+
 async function broadcastTrip(env: Env, trip: DbTrip) {
+  // Enrich once, then ship the same object to both the live socket and the
+  // room's stored state — a rider whose socket connects late reads /state and
+  // must not get a thinner payload than one who was already listening.
+  const payload = await withCaptain(env, trip);
   const room = env.TRIP_ROOM.get(env.TRIP_ROOM.idFromName(trip.id));
   await room.fetch("https://room/broadcast", {
     method: "POST",
-    body: JSON.stringify({ type: "trip.updated", trip }),
+    body: JSON.stringify({ type: "trip.updated", trip: payload }),
   });
   await room.fetch("https://room/state", {
     method: "PUT",
-    body: JSON.stringify(trip),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -596,7 +672,11 @@ tripRoutes.get("/:id", async (c) => {
     geometry = null;
   }
 
-  return c.json({ trip, events: events.results ?? [], geometry });
+  return c.json({
+    trip: await withCaptain(c.env, trip),
+    events: events.results ?? [],
+    geometry,
+  });
 });
 
 tripRoutes.get("/:id/path", async (c) => {
