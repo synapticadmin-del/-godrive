@@ -1,0 +1,159 @@
+# Deploy the API Worker to Cloudflare when main changes.
+#
+# Why this exists
+# ---------------
+# Until now every deploy was a `wrangler deploy` someone remembered to run from
+# their laptop. That is how PR #45 — which carried the profile-photo upload fix,
+# the captain logout black screen and the approval hand-off — sat merged-but-not-
+# live, and how the 2026-07-30 batch merge reached main without anyone noticing
+# apps/admin no longer built. A deploy that only happens when a human remembers
+# is a deploy that eventually does not happen.
+#
+# This workflow does NOT replace review. It runs the same gates ci.yml runs and
+# refuses to publish if they fail.
+#
+# Setup (one time)
+# ----------------
+# Add a repository secret named CLOUDFLARE_API_TOKEN:
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+# Create the token at https://dash.cloudflare.com/profile/api-tokens using the
+# "Edit Cloudflare Workers" template, scoped to the account that owns
+# synaptic-go-api, and additionally grant D1:Edit so the migration step can run.
+# Optionally add CLOUDFLARE_ACCOUNT_ID if the token spans several accounts.
+#
+# Until that secret exists this workflow runs, reports what is missing and exits
+# green — it will not spam failures on every push.
+
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared/**"
+      - "migrations/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: "Skip the D1 migration step"
+        type: boolean
+        default: false
+
+concurrency:
+  # Never let two deploys race. Do not cancel an in-flight one: a half-applied
+  # migration run is worse than a queued deploy.
+  group: deploy-api-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Verify and deploy synaptic-go-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # --- Gates -----------------------------------------------------------
+      # Same checks ci.yml runs. A deploy must not be able to publish something
+      # a pull request would have been told to fix.
+
+      - name: Typecheck API
+        run: npm run typecheck -w @synaptic-go/api
+
+      - name: Typecheck shared
+        run: npm run typecheck -w @synaptic-go/shared
+
+      - name: Test shared
+        run: npm test -w @synaptic-go/shared
+
+      - name: Migration checks
+        run: |
+          python3 scripts/check_migrations.py
+          python3 scripts/check_migrations_apply.py
+
+      # --- Guard -----------------------------------------------------------
+
+      - name: Check for Cloudflare credentials
+        id: guard
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "${CF_TOKEN}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Deploy skipped"
+              echo ""
+              echo "All verification gates passed, but \`CLOUDFLARE_API_TOKEN\` is not set,"
+              echo "so nothing was published."
+              echo ""
+              echo "Add it under **Settings -> Secrets and variables -> Actions**, then"
+              echo "re-run this workflow. See the header of \`.github/workflows/deploy.yml\`"
+              echo "for the exact token scopes."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Deploy ----------------------------------------------------------
+      # `--env prod` is NOT optional. wrangler.toml's top-level block shares the
+      # worker name "synaptic-go-api" and the production D1 binding with
+      # [env.prod], so a bare `wrangler deploy` publishes the top-level [vars]
+      # straight over production. Those vars are the local-dev set. Getting this
+      # wrong once would push a dev configuration onto the live API.
+
+      - name: Apply D1 migrations
+        if: steps.guard.outputs.configured == 'true' && inputs.skip_migrations != true
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply synaptic-go --remote --env prod
+
+      - name: Deploy Worker
+        if: steps.guard.outputs.configured == 'true'
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env prod
+
+      # --- Smoke test ------------------------------------------------------
+      # The Worker answering on its real route is the only evidence that the
+      # deploy actually landed. A green `wrangler deploy` is not.
+
+      - name: Smoke test the live route
+        if: steps.guard.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 20 \
+              https://api.synapticstudio.tech/health || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "Health check OK on attempt ${attempt}:"
+              cat /tmp/health.json
+              {
+                echo "### Deployed"
+                echo ""
+                echo '```json'
+                cat /tmp/health.json
+                echo ""
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: HTTP ${code}, retrying in 10s"
+            sleep 10
+          done
+          echo "::error::Health check never returned 200 after the deploy."
+          exit 1
