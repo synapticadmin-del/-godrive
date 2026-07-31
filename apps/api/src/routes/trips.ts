@@ -3,7 +3,7 @@ import { canTransition, type TripStatus } from "@synaptic-go/shared";
 import type { Context } from "hono";
 import { pricingFromRow } from "../lib/pricing";
 import { findNearbyCaptains } from "../lib/nearby";
-import { fareFromRoute, getRoute } from "../lib/routing";
+import { fareFromRoute, getDurationsToPoint, getRoute } from "../lib/routing";
 import {
   createTripSchema,
   estimateTripSchema,
@@ -60,6 +60,141 @@ async function broadcastTrip(env: Env, trip: DbTrip) {
 
 function osrmUrl(env: Env): string {
   return (env as Env & { OSRM_URL?: string }).OSRM_URL || "https://router.project-osrm.org";
+}
+
+// ---------------------------------------------------------------------------
+// Captain arrival ETA (used by GET /trips/:id/bids)
+// ---------------------------------------------------------------------------
+
+/**
+ * How stale a captain's last fix may be before an ETA computed from it is
+ * fiction rather than an estimate. An online captain posts a location every
+ * few seconds; past this, the phone has stopped reporting and the honest
+ * answer is no number at all.
+ */
+const ETA_MAX_LOCATION_AGE_MS = 10 * 60 * 1000;
+
+/**
+ * How long a computed ETA is reused for. 60s is the Cloudflare KV floor, and
+ * it is also about the useful life of the number: a car covers ~300 m in that
+ * time, which moves the answer by roughly a minute on a figure the rider is
+ * reading to the nearest minute anyway.
+ *
+ * This is the knob if the numbers ever need to feel more live — lowering it
+ * costs one OSRM request and one KV write per captain per negotiation per
+ * interval, so the two scale together.
+ */
+const ETA_CACHE_TTL_SEC = 60;
+
+/** A row from the bids query — the columns the ETA needs, plus the ones it
+ * writes back. Intersected with the D1 row type rather than generic, because
+ * assigning through a type parameter (`<T extends ...>(row: T)`) does not
+ * typecheck: T could always be a narrower subtype than the value written. */
+type BidRow = Record<string, unknown> & {
+  captain_id?: string | null;
+  captain_lat?: number | null;
+  captain_lng?: number | null;
+  captain_seen_at?: string | null;
+  eta_min?: number | null;
+  eta_source?: "osrm" | "haversine";
+};
+
+/**
+ * Fills `eta_min` / `eta_source` on each bid — real driving minutes from the
+ * captain's last known position to the pickup, over the street network.
+ *
+ * The rider app used to derive this itself: straight-line distance at a flat
+ * 22 km/h. Across the Nile that is not an approximation, it is a different
+ * number — the bridge is not where the crow flies.
+ *
+ * Two things keep a polled endpoint from becoming an OSRM firehose:
+ *
+ *  1. **One request for all bids.** OSRM's table service takes every captain
+ *     and the pickup in a single call, so the cost is per poll, not per offer.
+ *  2. **A KV cache per captain per trip.** The panel re-polls every 5s, so
+ *     without it a single negotiation would fire twelve OSRM requests a minute
+ *     for a number that barely moves. Keying on the pair rather than on the
+ *     captain's rounded position is deliberate: a position key looks like a
+ *     tighter cache, but a moving car misses it on every poll, which just
+ *     trades OSRM requests for KV writes one-for-one. Keyed on the pair, both
+ *     are bounded at one per interval whether the car is moving or parked.
+ *
+ * The fallback is cached too, under its own marker. When OSRM is unreachable
+ * the alternative is paying the timeout on every single poll, which turns a
+ * degraded ETA into a degraded endpoint.
+ */
+async function attachCaptainEtas(
+  env: Env,
+  rows: BidRow[],
+  pickup: { lat?: number | null; lng?: number | null },
+  tripId: string,
+): Promise<void> {
+  const pLat = pickup.lat;
+  const pLng = pickup.lng;
+  if (rows.length === 0 || typeof pLat !== "number" || typeof pLng !== "number") {
+    return;
+  }
+
+  const now = Date.now();
+  const routable: Array<{ row: BidRow; lat: number; lng: number; key: string }> = [];
+
+  for (const row of rows) {
+    const lat = typeof row.captain_lat === "number" ? row.captain_lat : null;
+    const lng = typeof row.captain_lng === "number" ? row.captain_lng : null;
+    if (lat === null || lng === null) continue;
+    if (typeof row.captain_id !== "string" || !row.captain_id) continue;
+
+    // An unparseable timestamp is treated as fresh rather than dropped: the
+    // column is nullable on rows that predate location tracking, and a
+    // slightly optimistic ETA beats a blank where a car clearly exists.
+    const seenAt = row.captain_seen_at ? Date.parse(row.captain_seen_at) : NaN;
+    if (Number.isFinite(seenAt) && now - seenAt > ETA_MAX_LOCATION_AGE_MS) continue;
+
+    routable.push({ row, lat, lng, key: `eta:${tripId}:${row.captain_id}` });
+  }
+
+  if (routable.length === 0) return;
+
+  // Cached as `<o|h>:<minutes>` so a hit restores the source too — the app
+  // marks an estimate differently from a routed answer.
+  const cached = await Promise.all(
+    routable.map((entry) => env.SESSIONS.get(entry.key).catch(() => null)),
+  );
+
+  const misses: Array<{ row: BidRow; lat: number; lng: number; key: string }> = [];
+  cached.forEach((hit, i) => {
+    const entry = routable[i];
+    if (!entry) return;
+    const minutes = hit ? Number.parseInt(hit.slice(2), 10) : NaN;
+    if (hit && Number.isFinite(minutes) && minutes > 0) {
+      entry.row.eta_min = minutes;
+      entry.row.eta_source = hit.startsWith("o:") ? "osrm" : "haversine";
+    } else {
+      misses.push(entry);
+    }
+  });
+
+  if (misses.length > 0) {
+    const estimates = await getDurationsToPoint(
+      misses.map((entry) => ({ lat: entry.lat, lng: entry.lng })),
+      { lat: pLat, lng: pLng },
+      osrmUrl(env),
+    );
+
+    await Promise.all(
+      misses.map(async (entry, i) => {
+        const estimate = estimates[i];
+        if (!estimate) return;
+        entry.row.eta_min = estimate.durationMin;
+        entry.row.eta_source = estimate.source;
+        await env.SESSIONS.put(
+          entry.key,
+          `${estimate.source === "osrm" ? "o" : "h"}:${estimate.durationMin}`,
+          { expirationTtl: ETA_CACHE_TTL_SEC },
+        ).catch(() => {});
+      }),
+    );
+  }
 }
 
 tripRoutes.post(
@@ -938,9 +1073,12 @@ tripRoutes.get("/:id/bids", async (c) => {
   const user = c.get("user");
   const tripId = c.req.param("id");
 
-  const trip = await c.env.DB.prepare(`SELECT rider_id FROM trips WHERE id = ?`)
+  // pickup_lat/pickup_lng are selected for the arrival ETA below.
+  const trip = await c.env.DB.prepare(
+    `SELECT rider_id, pickup_lat, pickup_lng FROM trips WHERE id = ?`,
+  )
     .bind(tripId)
-    .first<{ rider_id: string }>();
+    .first<{ rider_id: string; pickup_lat: number | null; pickup_lng: number | null }>();
 
   if (!trip) return c.json({ error: "Trip not found", code: "NOT_FOUND" }, 404);
 
@@ -948,11 +1086,18 @@ tripRoutes.get("/:id/bids", async (c) => {
     return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
   }
 
+  // avatar_url: the rider is choosing between people, and every offer
+  // rendering the same placeholder glyph made that choice harder than it
+  // needed to be. GET /user/avatar/* is already readable by any authenticated
+  // user for exactly this reason.
+  //
+  // last_seen_at qualifies the coordinates: it is what tells the ETA whether
+  // last_lat/last_lng are a live position or an abandoned one.
   const bids = await c.env.DB.prepare(
     `SELECT b.id, b.trip_id, b.captain_id, b.counter_price, b.status, b.created_at,
-            u.name as captain_name, u.phone as captain_phone,
+            u.name as captain_name, u.phone as captain_phone, u.avatar_url as captain_avatar_url,
             c.vehicle_make, c.vehicle_model, c.vehicle_plate, c.vehicle_color, c.rating_avg, c.rating_count,
-            c.last_lat as captain_lat, c.last_lng as captain_lng
+            c.last_lat as captain_lat, c.last_lng as captain_lng, c.last_seen_at as captain_seen_at
      FROM trip_bids b
      JOIN users u ON b.captain_id = u.id
      LEFT JOIN captains c ON b.captain_id = c.user_id
@@ -960,9 +1105,17 @@ tripRoutes.get("/:id/bids", async (c) => {
      ORDER BY b.created_at DESC`
   )
     .bind(tripId)
-    .all();
+    .all<BidRow>();
 
-  return c.json({ bids: bids.results || [] });
+  const rows = bids.results || [];
+  await attachCaptainEtas(
+    c.env,
+    rows,
+    { lat: trip.pickup_lat, lng: trip.pickup_lng },
+    tripId ?? "",
+  );
+
+  return c.json({ bids: rows });
 });
 
 // POST /trips/:id/accept-bid — Rider accepts a specific captain's bid

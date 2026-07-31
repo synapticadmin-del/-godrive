@@ -171,13 +171,23 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
 
   void _decline(String bidId) => setState(() => _declined.add(bidId));
 
-  /// Straight-line minutes from the captain to the pickup.
+  /// Minutes until this captain reaches the pickup.
   ///
-  /// Deliberately an estimate, not a routed ETA: the bids endpoint already
-  /// returns the captain's last known position, so this costs no extra request
-  /// and no OSRM call per offer. 22 km/h is a realistic mean for Cairo traffic
-  /// once the straight-line underestimate of real road distance is absorbed.
-  int? _etaMinutes(Map<String, dynamic> bid) {
+  /// The real answer comes from the server: `GET /trips/:id/bids` routes each
+  /// captain's live position to the pickup over the street network and returns
+  /// `eta_min` with an `eta_source`. Across the Nile a straight line is not an
+  /// approximation of the drive — the bridge is somewhere else entirely — so
+  /// this is worth a round trip the endpoint is already making.
+  ///
+  /// The haversine below survives only as a fallback for an app pointed at an
+  /// API that predates the change, and it is flagged approximate when used.
+  _Eta? _eta(Map<String, dynamic> bid) {
+    final routed = (bid['eta_min'] as num?)?.toInt();
+    if (routed != null && routed > 0) {
+      // Anything the server could not route is still an estimate, and says so.
+      return _Eta(routed, approximate: bid['eta_source'] != 'osrm');
+    }
+
     final pLat = widget.pickupLat;
     final pLng = widget.pickupLng;
     final cLat = (bid['captain_lat'] as num?)?.toDouble();
@@ -197,7 +207,10 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
     if (!km.isFinite) return null;
     // `num.clamp` is statically typed `num` even on an int receiver, so the
     // toInt() is load-bearing, not decorative.
-    return (km / 22.0 * 60).round().clamp(1, 90).toInt();
+    return _Eta(
+      (km / 22.0 * 60).round().clamp(1, 90).toInt(),
+      approximate: true,
+    );
   }
 
   @override
@@ -277,7 +290,9 @@ class _CaptainBidsSheetState extends State<CaptainBidsSheet> {
         return _BidCard(
           go: go,
           bid: bid,
-          etaMinutes: _etaMinutes(bid),
+          eta: _eta(bid),
+          baseUrl: widget.baseUrl,
+          token: widget.token,
           busy: _accepting != null,
           accepting: _accepting == bidId,
           onAccept: () => _acceptBid(bidId),
@@ -387,7 +402,9 @@ class _BidCard extends StatelessWidget {
   const _BidCard({
     required this.go,
     required this.bid,
-    required this.etaMinutes,
+    required this.eta,
+    required this.baseUrl,
+    required this.token,
     required this.busy,
     required this.accepting,
     required this.onAccept,
@@ -396,7 +413,13 @@ class _BidCard extends StatelessWidget {
 
   final GoTheme go;
   final Map<String, dynamic> bid;
-  final int? etaMinutes;
+  final _Eta? eta;
+
+  /// Needed to resolve the captain's photo: the API returns it as a path, and
+  /// the route that serves it requires the bearer token.
+  final String baseUrl;
+  final String token;
+
   final bool busy;
   final bool accepting;
   final VoidCallback onAccept;
@@ -406,6 +429,9 @@ class _BidCard extends StatelessWidget {
   /// (رحلات), everything else the singular (رحلة). "404 رحلة" is correct;
   /// "404 رحلات" is not.
   static String _tripsLabel(int n) => (n >= 3 && n <= 10) ? 'رحلات' : 'رحلة';
+
+  /// Same rule for minutes — "5 دقيقة" was wrong the same way "404 رحلات" was.
+  static String _minutesLabel(int n) => (n >= 3 && n <= 10) ? 'دقائق' : 'دقيقة';
 
   @override
   Widget build(BuildContext context) {
@@ -434,13 +460,21 @@ class _BidCard extends StatelessWidget {
                 style: AppTokens.money(fontSize: 28, color: go.text),
               ),
               const SizedBox(width: 10),
-              if (etaMinutes != null)
-                Text(
-                  '$etaMinutes دقيقة',
-                  style: AppTokens.font(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: go.muted,
+              if (eta != null)
+                // Flexible because the price is the fixed element here: a
+                // four-digit fare next to "حوالي 12 دقيقة" would otherwise
+                // overflow the row on a narrow phone.
+                Flexible(
+                  child: Text(
+                    '${eta!.approximate ? 'حوالي ' : ''}'
+                    '${eta!.minutes} ${_minutesLabel(eta!.minutes)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTokens.font(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: go.muted,
+                    ),
                   ),
                 ),
             ],
@@ -449,7 +483,13 @@ class _BidCard extends StatelessWidget {
 
           Row(
             children: [
-              _CaptainAvatar(go: go, name: name),
+              _CaptainAvatar(
+                go: go,
+                name: name,
+                baseUrl: baseUrl,
+                token: token,
+                avatarUrl: bid['captain_avatar_url'] as String?,
+              ),
               const SizedBox(width: 11),
               Expanded(
                 child: Column(
@@ -593,17 +633,35 @@ class _BidCard extends StatelessWidget {
   }
 }
 
-/// Captain portrait slot.
+/// Captain portrait.
 ///
-/// The bids endpoint does not return an avatar URL, so this renders the
-/// captain's initials rather than a generic person glyph — every offer
-/// otherwise looked like the same anonymous driver. Swap the body for an
-/// `Image.network` once `GET /trips/:id/bids` carries a photo.
+/// `GET /trips/:id/bids` returns `captain_avatar_url` as the same API-relative
+/// `/user/avatar/<userId>/<file>` path the profile surfaces use, so it needs
+/// the base URL prefixed and the bearer token attached — that route sits
+/// behind `authMiddleware`, and is readable by any signed-in user precisely so
+/// a rider can see who is coming to collect them.
+///
+/// Initials remain the fallback and stay on screen underneath while the photo
+/// loads, so a slow image degrades to the previous behaviour instead of
+/// punching a hole in the card. The panel re-polls every 5s; Flutter's image
+/// cache keys on the URL, so the photo resolves from memory on every rebuild
+/// after the first and does not flicker.
 class _CaptainAvatar extends StatelessWidget {
-  const _CaptainAvatar({required this.go, required this.name});
+  const _CaptainAvatar({
+    required this.go,
+    required this.name,
+    required this.baseUrl,
+    required this.token,
+    this.avatarUrl,
+  });
 
   final GoTheme go;
   final String name;
+  final String baseUrl;
+  final String token;
+  final String? avatarUrl;
+
+  static const double _size = 42;
 
   String get _initials {
     final parts = name
@@ -617,12 +675,41 @@ class _CaptainAvatar extends StatelessWidget {
     return '${head(parts.first)}${head(parts[1])}';
   }
 
+  /// Mirrors `AppState.avatarImage`: an absolute URL passes through, anything
+  /// else is an API path that needs the base URL in front of it.
+  String? get _photoUrl {
+    final raw = avatarUrl?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    return raw.startsWith('http') ? raw : '$baseUrl$raw';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fallback = _initialsCircle();
+    final url = _photoUrl;
+    if (url == null) return fallback;
+
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: _size,
+        height: _size,
+        fit: BoxFit.cover,
+        headers: token.isEmpty ? null : {'Authorization': 'Bearer $token'},
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : fallback,
+        // A deleted photo, an expired token or no signal all land here, and
+        // all of them mean the same thing to the rider: show the initials.
+        errorBuilder: (_, __, ___) => fallback,
+      ),
+    );
+  }
+
+  Widget _initialsCircle() {
     final initials = _initials;
     return Container(
-      width: 42,
-      height: 42,
+      width: _size,
+      height: _size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -642,6 +729,18 @@ class _CaptainAvatar extends StatelessWidget {
             ),
     );
   }
+}
+
+/// One offer's arrival estimate: the number, and whether it was routed.
+///
+/// The distinction is not cosmetic — a routed number is a promise about the
+/// street network, a fallback is a guess about a straight line, and the card
+/// says which one the rider is looking at.
+class _Eta {
+  const _Eta(this.minutes, {required this.approximate});
+
+  final int minutes;
+  final bool approximate;
 }
 
 /// Shown while waiting for the first offer to arrive.
