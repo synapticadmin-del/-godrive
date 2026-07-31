@@ -540,22 +540,41 @@ captainRoutes.delete("/documents/:type", async (c) => {
 
 // POST /captain/upload — upload a file directly to R2 (multipart/form-data).
 // Returns the R2 key which is then passed to POST /captain/documents.
-const DOC_IMAGE_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
+const DOC_PDF_TYPE = "application/pdf";
+
+// Canonical Content-Type per stored extension. GET /captain/file replays the
+// value stored here, so this map is the complete set of types this endpoint can
+// ever serve back — nothing a client sends can widen it. Captains legitimately
+// hold PDF licences, insurance certificates and permits, so PDF is accepted
+// alongside the photo formats.
+const DOC_EXT_CONTENT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: DOC_PDF_TYPE,
+};
+
+// The only declared types that get any say at all, and only in the narrow
+// container-verified case below. Everything else is decided by the bytes.
+const DOC_HEIC_DECLARED: Record<string, string> = {
   "image/heic": "heic",
   "image/heif": "heif",
 };
 
+// The first bytes are read once and handed to the two pure predicates below, so
+// the file is not re-sliced per check and both can be unit tested without a
+// File.
+const readDocHead = async (file: File): Promise<Uint8Array> =>
+  new Uint8Array(await file.slice(0, 16).arrayBuffer());
+
 // The Flutter clients send the part without a real MIME type
-// (application/octet-stream), and the previous revision trusted the filename
+// (application/octet-stream), and an older revision trusted the filename
 // extension — which would also let someone stash a `.html` in the bucket that
-// is later served back by GET /captain/file. Identify the image by its magic
+// is later served back by GET /captain/file. Identify the file by its magic
 // bytes instead, exactly like POST /user/avatar does.
-const sniffDocImageExt = async (file: File): Promise<string | null> => {
-  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+const sniffDocExt = (head: Uint8Array): string | null => {
   if (head.length < 4) return null;
   if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "jpg";
   if (
@@ -574,8 +593,24 @@ const sniffDocImageExt = async (file: File): Promise<string | null> => {
     if (brand === "heic" || brand === "heix" || brand === "hevc" || brand === "hevx") return "heic";
     if (brand === "mif1" || brand === "msf1" || brand === "heif") return "heif";
   }
+  // %PDF- must sit at offset 0. The PDF spec tolerates junk before the header
+  // and some readers honour that, which makes a file that both opens as a PDF
+  // and parses as HTML possible; refusing the offset-shifted case keeps those
+  // two from ever overlapping.
+  if (
+    head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 &&
+    head[4] === 0x2d
+  ) return "pdf";
   return null;
 };
+
+// True when the bytes open with an ISO base media file format box (`ftyp` at
+// offset 4) — the container HEIC, HEIF and AVIF all share. Brand-agnostic on
+// purpose: it is the escape hatch for a real photo whose brand is not in the
+// list above, and it still requires the file to BE a container.
+const isIsoBmffContainer = (head: Uint8Array): boolean =>
+  head.length >= 8 &&
+  head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70;
 
 captainRoutes.post("/upload", async (c) => {
   const user = c.get("user");
@@ -585,20 +620,36 @@ captainRoutes.post("/upload", async (c) => {
   if (file.size === 0) return c.json({ error: "File is empty", code: "EMPTY_FILE" }, 400);
   if (file.size > 10 * 1024 * 1024) return c.json({ error: "File too large (max 10MB)", code: "FILE_TOO_LARGE" }, 400);
 
+  // The bytes decide the type. The previous order checked the declared type
+  // first and skipped sniffing on a hit, so a client could label anything
+  // `image/png` and have it stored and served back under that type — the same
+  // stored-content gap the filename version had, just moved one field along.
   const declaredType = (file.type || "").toLowerCase();
-  let ext = DOC_IMAGE_TYPES[declaredType];
-  let contentType = declaredType;
+  const head = await readDocHead(file);
+  let ext = sniffDocExt(head);
+
   if (!ext) {
-    const sniffed = await sniffDocImageExt(file);
-    if (!sniffed) {
-      return c.json(
-        { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
-        400,
-      );
-    }
-    ext = sniffed;
-    contentType = `image/${sniffed === "jpg" ? "jpeg" : sniffed}`;
+    // One tolerated fallback: an ISO-BMFF container whose brand is not in the
+    // list above. The HEIC/HEIF brand set is open-ended, so a real photo from
+    // an unusual encoder should not be refused — but it must still present a
+    // container. A declared type on its own is never enough, which is what
+    // stops arbitrary bytes being labelled `image/png` and stored as one.
+    const declaredHeic = DOC_HEIC_DECLARED[declaredType];
+    if (declaredHeic && isIsoBmffContainer(head)) ext = declaredHeic;
   }
+
+  if (!ext) {
+    return c.json(
+      {
+        error: "Unsupported file type. Use JPEG, PNG, WebP, HEIC or PDF.",
+        code: "UNSUPPORTED_TYPE",
+      },
+      400,
+    );
+  }
+
+  // Derived from the verified extension, never echoed back from the upload.
+  const contentType = DOC_EXT_CONTENT_TYPE[ext];
 
   const key = `docs/${user.id}/${Date.now()}_${id("f")}.${ext}`;
   await c.env.FILES.put(key, file.stream(), {
@@ -623,7 +674,15 @@ captainRoutes.get("/file/*", async (c) => {
   const obj = await c.env.FILES.get(key);
   if (!obj) return c.json({ error: "Not found", code: "NOT_FOUND" }, 404);
   const headers = new Headers();
-  headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
+  // Legacy objects predate stored contentType metadata; every one of them is an
+  // image, because this endpoint accepted nothing else until PDF was added.
+  const served = obj.httpMetadata?.contentType ?? "image/jpeg";
+  headers.set("Content-Type", served);
   headers.set("Cache-Control", "private, no-store");
+  // Belt and braces for anything already in the bucket from before the upload
+  // guard tightened: nosniff stops a browser second-guessing the declared type,
+  // and a PDF is handed over as a download rather than rendered in this origin.
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (served === DOC_PDF_TYPE) headers.set("Content-Disposition", "attachment");
   return new Response(obj.body, { headers });
 });

@@ -900,8 +900,17 @@ adminRoutes.get("/documents/:id/file", async (c) => {
   const obj = await c.env.FILES.get(doc.r2_key);
   if (!obj) return c.json({ error: "File not found", code: "FILE_NOT_FOUND" }, 404);
   const headers = new Headers();
-  headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
+  const served = obj.httpMetadata?.contentType ?? "image/jpeg";
+  headers.set("Content-Type", served);
   headers.set("Cache-Control", "public, max-age=3600");
+  // This is the higher-value target of the two file routes: the viewer is an
+  // admin, and the file was uploaded by someone else. nosniff stops a browser
+  // second-guessing the declared type, and a PDF is downloaded rather than
+  // rendered in this origin. (Literal rather than shared with captain.ts's
+  // DOC_PDF_TYPE — the accepted-type table wants extracting into
+  // packages/shared, which is tracked separately.)
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (served === "application/pdf") headers.set("Content-Disposition", "attachment");
   return new Response(obj.body, { headers });
 });
 
