@@ -902,7 +902,14 @@ adminRoutes.get("/documents/:id/file", async (c) => {
   const headers = new Headers();
   const served = obj.httpMetadata?.contentType ?? "image/jpeg";
   headers.set("Content-Type", served);
-  headers.set("Cache-Control", "public, max-age=3600");
+  // Identity documents (national ID scans, driving licences) must never sit in
+  // a shared cache. `public` explicitly authorised one, and this route
+  // authenticates with a Bearer header rather than a cookie — so a CDN or
+  // corporate proxy keying on the URL alone could hand a captain's ID scan to a
+  // request carrying no valid token at all. `no-store` additionally keeps the
+  // scan off the disk of a shared admin machine after logout. This is the same
+  // policy GET /captain/file already applies to these very same R2 objects.
+  headers.set("Cache-Control", "private, no-store");
   // This is the higher-value target of the two file routes: the viewer is an
   // admin, and the file was uploaded by someone else. nosniff stops a browser
   // second-guessing the declared type, and a PDF is downloaded rather than
