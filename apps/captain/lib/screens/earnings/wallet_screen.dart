@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
 
@@ -16,6 +17,13 @@ class _WalletScreenState extends State<WalletScreen> {
   List<Map<String, dynamic>> _transactions = [];
   bool _loading = true;
   String? _error;
+
+  /// Numeric-only pattern deliberately: a pattern with month or day *names*
+  /// needs `intl` locale symbol data for the active locale, which throws a
+  /// `LocaleDataException` if it was never initialised. Digits and slashes
+  /// need nothing beyond the built-in fallback and read the same in Arabic.
+  /// Identical to the rider ledger's pattern.
+  static final DateFormat _stamp = DateFormat('dd/MM/yyyy • HH:mm');
 
   @override
   void initState() {
@@ -483,16 +491,19 @@ class _WalletScreenState extends State<WalletScreen> {
     Color muted,
     Color border,
   ) {
+    final go = GoTheme.of(context);
     final strings = AppStrings.of(context);
     final isCredit = tx['direction'] == 'credit';
     final amount = (tx['amount'] as num?)?.toDouble() ?? 0;
-    final note = tx['note']?.toString() ??
-        (isCredit ? strings.creditNoteFallback : strings.debitNoteFallback);
+    // A note that is present but blank or whitespace-only is as useless to read
+    // as a missing one, so it takes the fallback too. Guarding null alone left
+    // those rows with an empty label above the date.
+    final note = tx['note']?.toString().trim();
+    final label = (note == null || note.isEmpty)
+        ? (isCredit ? strings.creditNoteFallback : strings.debitNoteFallback)
+        : note;
 
-    // substring(0,10) throws on timestamps shorter than 10 chars, so trim by
-    // length rather than blindly slicing.
-    final rawDate = tx['created_at']?.toString() ?? '';
-    final date = rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+    final date = _formatStamp(tx['created_at']?.toString());
     final pending = tx['status'] == 'pending';
 
     final amountColor = isCredit ? AppTokens.success : AppTokens.danger;
@@ -510,17 +521,20 @@ class _WalletScreenState extends State<WalletScreen> {
       ),
       child: Row(
         children: [
-          // Direction indicator — filled circle keeps credit/debit visually
-          // distinct even for colour-blind users via the different icons.
+          // Colour carries direction and the glyph carries the reason, so the
+          // row still parses for a colour-blind captain.
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: amountColor.withOpacity(0.1),
+              // A flat 0.1 wash reads noticeably dimmer against the dark
+              // panel than it does on the light one, so the tint lifts after
+              // dark — the same two values the rider ledger uses.
+              color: amountColor.withOpacity(go.isDark ? 0.18 : 0.10),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isCredit ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+              _iconFor(tx['type']?.toString(), isCredit),
               color: amountColor,
               size: 20,
             ),
@@ -531,7 +545,7 @@ class _WalletScreenState extends State<WalletScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  note,
+                  label,
                   style: AppTokens.font(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -554,7 +568,7 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(width: AppTokens.spaceXs),
           // The amount in money-weight numerals so it pops against the label.
           Text(
-            '${isCredit ? "+" : "−"} ${amount.toStringAsFixed(0)} ${strings.egp}',
+            '${isCredit ? "+" : "−"} ${_money(amount)} ${strings.egp}',
             style: AppTokens.money(
               fontSize: 16,
               color: amountColor,
@@ -564,6 +578,69 @@ class _WalletScreenState extends State<WalletScreen> {
         ],
       ),
     );
+  }
+
+  /// `amount` is a REAL column already denominated in EGP — the integer
+  /// `amount_piastres` column exists but is not part of the wallet SELECT, so
+  /// there is nothing to divide by 100 here. Whole values lose the redundant
+  /// trailing zeros; fractional ones keep both places.
+  ///
+  /// This replaced `toStringAsFixed(0)`, which *rounded*: a 12.50 EGP
+  /// commission rendered as `13`. Both wallets read the same
+  /// GET /user/wallet/transactions rows, and the rider ledger never rounded
+  /// them.
+  String _money(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
+
+  /// Timestamps arrive either as the table default `datetime('now')`
+  /// (`YYYY-MM-DD HH:MM:SS`, UTC, no zone marker) or as an ISO string from the
+  /// API helper. The bare form has no `Z`, so parsing it directly would tag UTC
+  /// wall-clock numbers as local and show an Egyptian captain a time three
+  /// hours early. Both shapes are normalised to UTC before converting.
+  ///
+  /// This replaced `substring(0, 10)`, which showed the raw `YYYY-MM-DD` with
+  /// no time at all and left the UTC offset uncorrected.
+  String _formatStamp(String? raw) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) return '';
+    final normalised = value.endsWith('Z') || value.contains('+')
+        ? value
+        : '${value.replaceFirst(' ', 'T')}Z';
+    final parsed = DateTime.tryParse(normalised);
+    if (parsed == null) return value;
+    return _stamp.format(parsed.toLocal());
+  }
+
+  /// The accounting bucket makes the ledger scannable — a captain spots a
+  /// payout among commission deductions by shape before reading a word of it.
+  ///
+  /// `direction` is the credit/debit flag; `type` is the accounting bucket
+  /// (topup, trip_payment, refund, commission, …), so the two are read
+  /// separately. Kept identical to the rider ledger: both screens render the
+  /// same rows from the same route, and any divergence here should be
+  /// deliberate and visible.
+  IconData _iconFor(String? type, bool isCredit) {
+    switch (type) {
+      case 'topup':
+        return Icons.add_card_rounded;
+      case 'trip_payment':
+        return Icons.local_taxi_rounded;
+      case 'refund':
+        return Icons.replay_rounded;
+      case 'promo_credit':
+        return Icons.card_giftcard_rounded;
+      case 'payout':
+        return Icons.account_balance_rounded;
+      case 'commission':
+        return Icons.percent_rounded;
+      case 'adjustment':
+        return Icons.tune_rounded;
+      default:
+        return isCredit
+            ? Icons.arrow_downward_rounded
+            : Icons.arrow_upward_rounded;
+    }
   }
 }
 
