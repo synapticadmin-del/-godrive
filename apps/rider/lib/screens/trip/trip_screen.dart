@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -23,6 +25,7 @@ class TripScreen extends StatefulWidget {
 
 class _TripScreenState extends State<TripScreen> {
   TripWebSocketService? _ws;
+  Timer? _poll;
   Map<String, dynamic>? _trip;
   LatLng? _captainLoc;
   bool _loading = true;
@@ -51,6 +54,7 @@ class _TripScreenState extends State<TripScreen> {
       });
       _fitToRoute();
       _connectWs();
+      _startPolling();
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -151,8 +155,38 @@ class _TripScreenState extends State<TripScreen> {
 
   @override
   void dispose() {
+    _poll?.cancel();
     _ws?.dispose();
     super.dispose();
+  }
+
+  /// The socket is the fast path, not the only path.
+  ///
+  /// `TripRoom` has failed closed before: every rider socket died on connect
+  /// because the room looked itself up by the wrong id, and this screen sat on
+  /// `searching` for the life of the trip because nothing here ever asked the
+  /// API a second time. A ten-second poll is the floor — worst case the rider
+  /// learns about an assignment ten seconds late instead of never.
+  void _startPolling() {
+    _poll?.cancel();
+    _poll = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_status == 'completed' || _status == 'cancelled') {
+        timer.cancel();
+        return;
+      }
+      try {
+        final res = await context.read<AppState>().getTrip(widget.tripId);
+        if (!mounted || res['trip'] is! Map) return;
+        setState(() => _trip = Map<String, dynamic>.from(res['trip'] as Map));
+      } catch (_) {
+        // Offline, or a transient 5xx. The next tick tries again; surfacing a
+        // snackbar every ten seconds would be worse than staying quiet.
+      }
+    });
   }
 
   void _cancelTrip() async {
@@ -469,7 +503,7 @@ class _TripScreenState extends State<TripScreen> {
     final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
     final isArrived = _status == 'arrived';
     return [
-      if (_trip?['captain_name'] != null) _driverCard(text, muted),
+      if (_hasCaptain) _driverCard(text, muted),
       const SizedBox(height: 16),
       Row(children: [
         Icon(isArrived ? Icons.access_time : Icons.directions_car, color: AppTokens.primary, size: 20),
@@ -496,7 +530,7 @@ class _TripScreenState extends State<TripScreen> {
   List<Widget> _inProgressContent(Color text, Color muted) {
     final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
     return [
-      if (_trip?['captain_name'] != null) _driverCard(text, muted),
+      if (_hasCaptain) _driverCard(text, muted),
       const SizedBox(height: 16),
       Row(children: [
         Icon(Icons.navigation, color: AppTokens.primary, size: 20),
@@ -540,25 +574,162 @@ class _TripScreenState extends State<TripScreen> {
       child: const Text('حسنًا'))),
   ];
 
-  Widget _driverCard(Color text, Color muted) => Row(children: [
-    CircleAvatar(radius: 24, backgroundColor: AppTokens.primary.withOpacity(0.15),
-      child: Text((_trip?['captain_name'] as String?)?.substring(0, 1) ?? 'C',
-        style: const TextStyle(color: AppTokens.primary, fontWeight: FontWeight.bold, fontSize: 18))),
-    const SizedBox(width: 12),
-    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(_trip?['captain_name'] ?? 'كابتن', style: AppTokens.font(fontSize: 16, fontWeight: FontWeight.w700, color: text)),
-      if (_trip?['vehicle_plate'] != null)
-        Text(_trip!['vehicle_plate'], style: AppTokens.font(fontSize: 13, color: muted)),
-    ])),
-    if (_trip?['rating_avg'] != null)
-      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: AppTokens.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.star, color: AppTokens.accent, size: 14),
-          const SizedBox(width: 4),
-          Text('${_trip!['rating_avg']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTokens.accent)),
-        ])),
-  ]);
+  /// True once a captain is attached to the trip.
+  ///
+  /// Deliberately keyed on `captain_id` rather than `captain_name`: the name
+  /// is a JOINed convenience that an older API build may not send, and gating
+  /// on it meant a rider with an assigned captain saw no card at all.
+  bool get _hasCaptain => _trip?['captain_id'] != null;
+
+  /// Arabic takes the broken plural for 3–10 and the singular either side.
+  static String _tripsLabel(int n) => (n >= 3 && n <= 10) ? 'رحلات' : 'رحلة';
+
+  /// A swatch for the vehicle colour, so the rider matches the car by sight
+  /// rather than by reading a word off a screen in the dark. Unrecognised
+  /// names get no dot — guessing a colour is worse than omitting it.
+  static const Map<String, Color> _vehicleSwatches = {
+    'أبيض': Colors.white, 'ابيض': Colors.white, 'white': Colors.white,
+    'أسود': Color(0xFF1A1A1A), 'اسود': Color(0xFF1A1A1A), 'black': Color(0xFF1A1A1A),
+    'فضي': Color(0xFFC0C4C8), 'فضى': Color(0xFFC0C4C8), 'silver': Color(0xFFC0C4C8),
+    'رمادي': Color(0xFF8A8F94), 'رمادى': Color(0xFF8A8F94), 'gray': Color(0xFF8A8F94), 'grey': Color(0xFF8A8F94),
+    'أحمر': Color(0xFFD32F2F), 'احمر': Color(0xFFD32F2F), 'red': Color(0xFFD32F2F),
+    'أزرق': Color(0xFF1976D2), 'ازرق': Color(0xFF1976D2), 'blue': Color(0xFF1976D2),
+    'أخضر': Color(0xFF388E3C), 'اخضر': Color(0xFF388E3C), 'green': Color(0xFF388E3C),
+    'أصفر': Color(0xFFFBC02D), 'اصفر': Color(0xFFFBC02D), 'yellow': Color(0xFFFBC02D),
+    'بني': Color(0xFF6D4C41), 'بنى': Color(0xFF6D4C41), 'brown': Color(0xFF6D4C41),
+    'ذهبي': Color(0xFFC9A227), 'ذهبى': Color(0xFFC9A227), 'gold': Color(0xFFC9A227),
+    'بيج': Color(0xFFD8C9A3), 'بيچ': Color(0xFFD8C9A3), 'beige': Color(0xFFD8C9A3),
+  };
+
+  /// Who is coming, how they drive, and which car to look for.
+  ///
+  /// Every field degrades on its own: a captain with no photo, no recorded
+  /// colour or no plate still produces a card that reads as complete rather
+  /// than as a row of gaps.
+  Widget _driverCard(Color text, Color muted) {
+    final go = GoTheme.of(context);
+    final state = context.read<AppState>();
+    final t = _trip ?? const <String, dynamic>{};
+
+    final name = (t['captain_name'] as String?)?.trim();
+    final rating = (t['rating_avg'] as num?)?.toDouble();
+    // Completed trips is what a rider reads "عدد الرحلات" to mean. Fall back
+    // to the ratings count only when an older API build omits the new field.
+    final trips = (t['captain_trips_count'] as num?)?.toInt() ??
+        (t['rating_count'] as num?)?.toInt();
+    final make = (t['vehicle_make'] as String?)?.trim() ?? '';
+    final model = (t['vehicle_model'] as String?)?.trim() ?? '';
+    final year = (t['vehicle_year'] as num?)?.toInt();
+    final colour = (t['vehicle_color'] as String?)?.trim() ?? '';
+    final plate = (t['vehicle_plate'] as String?)?.trim() ?? '';
+
+    final car = <String>[
+      make,
+      model,
+      if (year != null && year > 1950) '$year',
+    ].where((p) => p.isNotEmpty).join(' ');
+    final swatch = _vehicleSwatches[colour.toLowerCase()];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: go.isDark
+            ? Colors.white.withOpacity(0.04)
+            : Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: go.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            _CaptainAvatar(
+              name: name ?? 'كابتن',
+              avatarUrl: t['captain_avatar_url'] as String?,
+              baseUrl: state.baseUrl,
+              token: state.token ?? '',
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (name != null && name.isNotEmpty) ? name : 'كابتن',
+                    style: AppTokens.font(
+                        fontSize: 16, fontWeight: FontWeight.w800, color: text),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    if (rating != null) ...[
+                      const Icon(Icons.star_rounded,
+                          color: AppTokens.accent, size: 15),
+                      const SizedBox(width: 3),
+                      Text(rating.toStringAsFixed(2),
+                          style: AppTokens.font(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: text)),
+                    ],
+                    if (rating != null && trips != null)
+                      Text('  •  ',
+                          style: AppTokens.font(fontSize: 13, color: muted)),
+                    if (trips != null)
+                      Text('$trips ${_tripsLabel(trips)}',
+                          style: AppTokens.font(fontSize: 13, color: muted)),
+                  ]),
+                ],
+              ),
+            ),
+            if (plate.isNotEmpty)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: go.panel,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: go.border, width: 1.5),
+                ),
+                child: Text(plate,
+                    style: AppTokens.font(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: text)),
+              ),
+          ]),
+          if (car.isNotEmpty || colour.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(children: [
+              Icon(Icons.directions_car_filled_rounded,
+                  size: 16, color: muted),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  [car, colour].where((p) => p.isNotEmpty).join('  •  '),
+                  style: AppTokens.font(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: text),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (swatch != null)
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: swatch,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: go.border),
+                  ),
+                ),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _fareRow(double fare, Color muted) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -579,4 +750,86 @@ class _TripScreenState extends State<TripScreen> {
       default: return {'label': status, 'color': AppTokens.lightMuted, 'icon': null};
     }
   }
+}
+
+
+/// The captain's photo, matching the treatment in `CaptainBidsSheet` so the
+/// person the rider chose looks the same before and after acceptance.
+///
+/// `captain_avatar_url` is the API-relative path from `users.avatar_url`, and
+/// `GET /user/avatar/*` is authenticated, so the bearer token rides along with
+/// the image request. A captain with no photo, an expired token and no signal
+/// all resolve to the same thing for the rider: initials.
+class _CaptainAvatar extends StatelessWidget {
+  const _CaptainAvatar({
+    required this.name,
+    required this.baseUrl,
+    required this.token,
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String baseUrl;
+  final String token;
+  final String? avatarUrl;
+
+  static const double _size = 48;
+
+  String get _initials {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return 'ك';
+    String head(String s) => s.substring(0, 1).toUpperCase();
+    if (parts.length == 1) return head(parts.first);
+    return '${head(parts.first)}${head(parts[1])}';
+  }
+
+  /// Mirrors `AppState.avatarImage`: an absolute URL passes through, anything
+  /// else is an API path that needs the base URL in front of it.
+  String? get _photoUrl {
+    final raw = avatarUrl?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    return raw.startsWith('http') ? raw : '$baseUrl$raw';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = _initialsCircle();
+    final url = _photoUrl;
+    if (url == null) return fallback;
+
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: _size,
+        height: _size,
+        fit: BoxFit.cover,
+        headers: token.isEmpty ? null : {'Authorization': 'Bearer $token'},
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : fallback,
+        errorBuilder: (_, __, ___) => fallback,
+      ),
+    );
+  }
+
+  Widget _initialsCircle() => Container(
+        width: _size,
+        height: _size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppTokens.primary.withOpacity(0.15),
+          shape: BoxShape.circle,
+        ),
+        child: Text(
+          _initials,
+          style: const TextStyle(
+            color: AppTokens.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
+        ),
+      );
 }
