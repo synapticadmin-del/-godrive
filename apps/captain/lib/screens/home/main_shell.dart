@@ -73,6 +73,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<void>? _navStartSub;
+  StreamSubscription<Map<String, dynamic>>? _tripAssignedSub;
 
   /// True while in-app turn-by-turn navigation is active — the camera hugs
   /// the captain at a tight zoom and a banner shows the next destination.
@@ -87,6 +88,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     });
     _initLocation();
     _listenForNavigation();
+    _listenForTripAssignment();
   }
 
   @override
@@ -94,6 +96,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _positionSub?.cancel();
     _navStartSub?.cancel();
+    _tripAssignedSub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -125,6 +128,34 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_mapReady && _currentLocation != null) {
           _mapController.move(_currentLocation!, 17.0);
+        }
+      });
+    });
+  }
+
+  /// A trip just became this captain's — they accepted the rider's fare, or
+  /// the rider accepted the captain's price edit. Either way the next thing
+  /// they need is the road, so the shell opens the map and pops anything
+  /// stacked over it (the counter-offer sheet, a pushed detail route).
+  ///
+  /// Without this the captain stayed on the requests list after winning a
+  /// negotiation, with the queue still on screen and no sign the job was
+  /// theirs until they went looking for it.
+  void _listenForTripAssignment() {
+    _tripAssignedSub =
+        context.read<CaptainState>().tripAssigned.listen((_) {
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      setState(() {
+        _tabIndex = _mapIndex;
+        _followMe = true;
+      });
+      HapticFeedback.mediumImpact();
+      // Frame the captain on the map straight away rather than leaving them
+      // wherever the camera was last panned.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_mapReady && _currentLocation != null) {
+          _mapController.move(_currentLocation!, 15.5);
         }
       });
     });
@@ -444,7 +475,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             activeIcon: Icons.explore,
             // Live count of waiting offers, shown only while online — offline
             // the tab presents a go-online CTA rather than a list, so a count
-            // would mislead. CaptainState clears `offers` when going offline.
+            // would mislead. CaptainState clears `offers` when going offline,
+            // and now also drops anything outside the captain's search
+            // radius, so this badge can no longer advertise a trip the
+            // captain deliberately excluded.
             badgeCount: state.online ? state.offers.length : 0,
           ),
           centerDestination: NavCenterDestination(

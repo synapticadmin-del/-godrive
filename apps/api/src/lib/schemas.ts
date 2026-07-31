@@ -186,6 +186,13 @@ export const captainLocationSchema = z.object({
   city: z.string().max(60).optional(),
 });
 
+// The captain's hunting radius, in km. Bounds mirror MIN/MAX_SEARCH_RADIUS_KM
+// in lib/utils.ts — the app offers 5/10/15/25/40 chips, but the endpoint
+// accepts any value in range so the chip set can change without a deploy.
+export const captainSearchRadiusSchema = z.object({
+  radiusKm: z.number().min(1).max(100),
+});
+
 // Captain document registration: the optional identity fields the captain
 // fills in at upload time. All are optional so a captain can still upload a
 // bare photo the way the flow worked before, and so document types without

@@ -12,9 +12,10 @@ import {
   captainProfileSchema,
   captainOnlineSchema,
   captainLocationSchema,
+  captainSearchRadiusSchema,
   documentRegisterSchema,
 } from "../lib/schemas";
-import { id, nowIso } from "../lib/utils";
+import { haversineKm, id, nowIso, resolveSearchRadiusKm } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 
@@ -298,19 +299,57 @@ captainRoutes.get("/earnings", async (c) => {
   });
 });
 
+// POST /captain/search-radius — persist how far out the captain wants work.
+//
+// The radius used to live only in the app's widget state, so it filtered the
+// browsable queue and nothing else: dispatch kept pushing (and FCM kept
+// notifying) trips from the whole 9-cell neighbourhood, and the offers inbox
+// kept badging them. Storing it here makes one number govern every surface.
+captainRoutes.post("/search-radius", async (c) => {
+  const user = c.get("user");
+  const body = await parseBody(c, captainSearchRadiusSchema);
+  if (isResponse(body)) return body;
+
+  const radiusKm = resolveSearchRadiusKm(body.radiusKm);
+
+  const res = await c.env.DB.prepare(
+    `UPDATE captains SET search_radius_km = ?, updated_at = ? WHERE user_id = ?`,
+  )
+    .bind(radiusKm, nowIso(), user.id)
+    .run();
+
+  if (res.meta && res.meta.changes === 0) {
+    return c.json({ error: "Complete captain profile first", code: "NO_PROFILE" }, 400);
+  }
+
+  return c.json({ ok: true, searchRadiusKm: radiusKm });
+});
+
 captainRoutes.get("/nearby-requests", async (c) => {
   const user = c.get("user");
   const latParam = c.req.query("lat");
   const lngParam = c.req.query("lng");
-  const radiusKm = Number(c.req.query("radius") || 15);
 
   const captain = await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`)
     .bind(user.id)
     .first<DbCaptain>();
 
+  // An explicit ?radius= still wins (the chips send one as they are tapped),
+  // but the stored column is the fallback rather than a hardcoded 15 — so a
+  // captain who picked 5km keeps 5km on a cold start, before the app has had
+  // a chance to restate its preference.
+  const radiusKm = resolveSearchRadiusKm(
+    c.req.query("radius"),
+    captain?.search_radius_km,
+  );
+
   // Online guard: offline captains should not receive trip listings.
   if (captain && !captain.is_online && user.role !== "admin") {
-    return c.json({ requests: [], captainLocation: { lat: captain.last_lat ?? 30.0444, lng: captain.last_lng ?? 31.2357 } });
+    return c.json({
+      requests: [],
+      searchRadiusKm: radiusKm,
+      captainLocation: { lat: captain.last_lat ?? 30.0444, lng: captain.last_lng ?? 31.2357 },
+    });
   }
 
   const cLat = latParam ? Number(latParam) : captain?.last_lat ?? 30.0444;
@@ -360,21 +399,9 @@ captainRoutes.get("/nearby-requests", async (c) => {
     city: string;
   }>();
 
-  // Haversine distance helper
-  const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c * 10) / 10;
-  };
-
+  // Distance is measured with the shared haversineKm helper (lib/utils) so
+  // this list, the pushed offers inbox and the dispatch fanout all agree on
+  // whether a given trip is inside the captain's radius.
   const requests = (rows.results || [])
     .map((r) => {
       const captainToPickupKm = haversineKm(cLat, cLng, r.pickup_lat, r.pickup_lng);
@@ -400,7 +427,13 @@ captainRoutes.get("/nearby-requests", async (c) => {
     })
     .filter((r) => r.captain_to_pickup_km <= radiusKm);
 
-  return c.json({ requests, captainLocation: { lat: cLat, lng: cLng } });
+  return c.json({
+    requests,
+    // Echoed so the app can reconcile its chips with what the server actually
+    // applied (a legacy row resolves to the default, a bad param is clamped).
+    searchRadiusKm: radiusKm,
+    captainLocation: { lat: cLat, lng: cLng },
+  });
 });
 
 captainRoutes.get("/offers", async (c) => {
@@ -412,7 +445,11 @@ captainRoutes.get("/offers", async (c) => {
 
   // Online guard: offline captains should not receive trip offers.
   if (captain && !captain.is_online && user.role !== "admin") {
-    return c.json({ trips: [], captainLocation: captain });
+    return c.json({
+      trips: [],
+      searchRadiusKm: resolveSearchRadiusKm(captain.search_radius_km),
+      captainLocation: captain,
+    });
   }
 
   // City scoping mirrors /nearby-requests: offers are only for trips in the
@@ -429,7 +466,35 @@ captainRoutes.get("/offers", async (c) => {
     .bind(city)
     .all<DbTrip>();
 
-  return c.json({ trips: trips.results ?? [], captainLocation: captain });
+  // Radius scoping. City scoping alone let this endpoint hand back every open
+  // request in Cairo, which is what put trips the captain had explicitly
+  // excluded back on their screen: this list feeds the offers badge, so a
+  // 40km-away request still lit up the "رحلات متاحة" tab for a captain
+  // hunting inside 5km. Each row now carries its measured distance too, so a
+  // client never has to re-derive it.
+  const radiusKm = resolveSearchRadiusKm(captain?.search_radius_km);
+  const cLat = captain?.last_lat;
+  const cLng = captain?.last_lng;
+  const rows = trips.results ?? [];
+
+  // With no known position there is nothing to measure from. Falling back to
+  // the city-wide list keeps a captain who has not pushed a fix yet from
+  // seeing an empty queue they cannot explain.
+  const scoped =
+    typeof cLat === "number" && typeof cLng === "number"
+      ? rows
+          .map((t) => ({
+            ...t,
+            captain_to_pickup_km: haversineKm(cLat, cLng, t.pickup_lat, t.pickup_lng),
+          }))
+          .filter((t) => t.captain_to_pickup_km <= radiusKm)
+      : rows;
+
+  return c.json({
+    trips: scoped,
+    searchRadiusKm: radiusKm,
+    captainLocation: captain,
+  });
 });
 
 // GET /captain/document-types — the catalog that drives the onboarding upload

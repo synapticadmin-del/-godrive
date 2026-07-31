@@ -13,7 +13,7 @@ import {
   acceptBidSchema,
 } from "../lib/schemas";
 import type { DbCaptain, DbPricing, DbTrip } from "../lib/types";
-import { id, nowIso } from "../lib/utils";
+import { id, nowIso, resolveSearchRadiusKm } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 import { pushToUser } from "../lib/notifications";
@@ -29,6 +29,45 @@ async function getPricing(db: D1Database, city: string): Promise<DbPricing | nul
       .first<DbPricing>()) ??
     (await db.prepare(`SELECT * FROM pricing_rules WHERE city = 'cairo'`).first<DbPricing>())
   );
+}
+
+/**
+ * Drop captains whose own search radius excludes this pickup.
+ *
+ * [findNearbyCaptains] answers "who is geographically close" from the geohash
+ * neighbourhood; this answers "who actually asked for work this far out". A
+ * captain hunting inside 5km must not be woken by a request 7km away — not by
+ * an inbox card, not by FCM, and not by a badge on a tab.
+ *
+ * Best-effort by design: if the lookup fails we return the discovered list
+ * untouched, because a dispatch that reaches slightly too far is recoverable
+ * (the captain declines) while a dispatch that reaches nobody strands a rider.
+ */
+async function filterByCaptainRadius<T extends { userId: string; distanceKm: number }>(
+  db: D1Database,
+  captains: T[],
+): Promise<T[]> {
+  if (captains.length === 0) return captains;
+  try {
+    const placeholders = captains.map(() => "?").join(", ");
+    const rows = await db
+      .prepare(
+        `SELECT user_id, search_radius_km FROM captains WHERE user_id IN (${placeholders})`,
+      )
+      .bind(...captains.map((cap) => cap.userId))
+      .all<{ user_id: string; search_radius_km: number | null }>();
+
+    const radiusByUser = new Map(
+      (rows.results ?? []).map((row) => [row.user_id, resolveSearchRadiusKm(row.search_radius_km)]),
+    );
+
+    return captains.filter(
+      (cap) => cap.distanceKm <= resolveSearchRadiusKm(radiusByUser.get(cap.userId)),
+    );
+  } catch (e) {
+    console.error("captain radius filter failed", e);
+    return captains;
+  }
 }
 
 async function logEvent(
@@ -400,10 +439,20 @@ tripRoutes.post(
     // to dispatch. Runs in parallel with the audit write above — they are
     // independent, and awaiting them serially used to add a full D1/DO
     // round-trip to every booking.
-    const [nearbyCaptains] = await Promise.all([
+    const [discovered] = await Promise.all([
       findNearbyCaptains(c.env, city, body.pickupLat, body.pickupLng, 10),
       createdEvent,
     ]);
+
+    // Honour each captain's own search radius before anything is sent.
+    //
+    // The 9-cell neighbourhood reaches ~7km, and every captain in it used to
+    // get both an inbox card and an FCM push regardless of the radius they
+    // had chosen in the app. That is the "trips outside my range still
+    // notify me" complaint: the chips filtered one list while dispatch
+    // ignored them entirely. Filtering here means an excluded trip never
+    // reaches the captain on ANY channel.
+    const nearbyCaptains = await filterByCaptainRadius(c.env.DB, discovered);
     const nearby = { captains: nearbyCaptains };
 
     let status: TripStatus = "searching";
@@ -1199,6 +1248,34 @@ tripRoutes.post("/:id/accept-bid", requireRole("rider", "admin"), async (c) => {
 
   const updatedTrip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`).bind(cleanTripId).first<DbTrip>();
   if (updatedTrip) await broadcastTrip(c.env, updatedTrip);
+
+  // Wake the winning captain on their offers socket, not just by FCM.
+  //
+  // broadcastTrip publishes to the trip room, which this captain has not
+  // joined yet — they only open that socket once the trip is theirs. So the
+  // only in-app signal used to be the 8–60s offers poll: the captain sat on
+  // the bid screen after the rider had already accepted, with no idea the job
+  // was won. The inbox event lands in milliseconds and is what flips the app
+  // to the map.
+  try {
+    const inbox = c.env.CAPTAIN_INBOX.get(
+      c.env.CAPTAIN_INBOX.idFromName(selectedBid.captain_id),
+    );
+    await inbox.fetch("https://inbox/push", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "trip.assigned",
+        reason: "bid.accepted",
+        tripId: cleanTripId,
+        bidId: body.bidId,
+        acceptedPrice,
+        at: nowIso(),
+      }),
+    });
+  } catch (e) {
+    // Best-effort: FCM below and the offers poll both still deliver.
+    console.error("bid accepted inbox push failed", selectedBid.captain_id, e);
+  }
 
   // Notify assigned Captain
   await pushToUser({

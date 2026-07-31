@@ -51,6 +51,38 @@ class CaptainState extends ChangeNotifier {
   List<Map<String, dynamic>> offers = [];
   String? error;
 
+  // -------------------------------------------------------------------
+  // Search radius
+  // -------------------------------------------------------------------
+
+  /// How far out the captain wants to be offered work, in km.
+  ///
+  /// This used to be widget state inside the "رحلات متاحة" screen, so it
+  /// filtered that one list and nothing else: the map sheet, the tab badge,
+  /// the pushed offers and the FCM notifications all kept arriving for trips
+  /// the captain had explicitly excluded. It now lives here — persisted
+  /// locally and mirrored onto the captain row (POST /captain/search-radius)
+  /// so dispatch honours it too — and every offer surface reads this one
+  /// number.
+  static const double defaultSearchRadiusKm = 15;
+
+  /// The chip set offered in the UI. Kept beside the value it constrains.
+  static const List<double> searchRadiusOptions = [5, 10, 15, 25, 40];
+
+  double searchRadiusKm = defaultSearchRadiusKm;
+
+  static const _kSearchRadiusKey = 'searchRadiusKm';
+
+  /// True while a radius change is on its way to the server. The 30s
+  /// /auth/me poll adopts the stored column, which would otherwise stomp the
+  /// captain's brand-new choice with the old value mid-flight.
+  bool _radiusPushInFlight = false;
+
+  /// Last GPS fix seen on the shared position stream. Distances are measured
+  /// from here rather than from `captains.last_lat/lng`, which is only as
+  /// fresh as the last successful location push.
+  Position? lastPosition;
+
   StreamSubscription<Position>? _positionStreamSub;
 
   /// Single shared position stream. Both the server location push and the
@@ -115,6 +147,29 @@ class CaptainState extends ChangeNotifier {
       StreamController<void>.broadcast();
   Stream<void> get navigationStart => _navigationStartCtrl.stream;
 
+  /// Fires the moment a trip becomes *this captain's* — whether they accepted
+  /// the rider's fare outright or the rider accepted their counter-offer.
+  ///
+  /// The main shell listens and switches to the map, because that is where
+  /// the job is actually driven: before this, a captain whose price edit was
+  /// accepted stayed on the requests list with no indication they had won the
+  /// trip until they happened to look at another tab.
+  final StreamController<Map<String, dynamic>> _tripAssignedCtrl =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get tripAssigned => _tripAssignedCtrl.stream;
+
+  /// The trip id already announced on [tripAssigned]. Guards against a second
+  /// jump to the map when the poll and the socket both report the same trip.
+  String? _announcedTripId;
+
+  /// Announce a newly assigned trip exactly once.
+  void _announceTripAssigned(Map<String, dynamic> trip) {
+    final tripId = trip['id'] as String?;
+    if (tripId == null || tripId == _announcedTripId) return;
+    _announcedTripId = tripId;
+    if (!_tripAssignedCtrl.isClosed) _tripAssignedCtrl.add(trip);
+  }
+
   /// Begin in-app turn-by-turn navigation to [lat],[lng]. [headingToPickup]
   /// distinguishes "navigate to the rider" from "navigate to the destination"
   /// for the banner copy. This replaces the old behaviour of deep-linking out
@@ -161,6 +216,12 @@ class CaptainState extends ChangeNotifier {
         orElse: () => ThemeMode.system,
       );
     }
+
+    // Restore the radius before the first offers fetch, otherwise the captain
+    // gets one round of 15km results on every cold start regardless of the
+    // 5km they chose yesterday.
+    final savedRadius = prefs.getDouble(_kSearchRadiusKey);
+    if (savedRadius != null && savedRadius > 0) searchRadiusKm = savedRadius;
 
     loading = false;
     notifyListeners();
@@ -323,6 +384,14 @@ class CaptainState extends ChangeNotifier {
     final res = await _get('/auth/me');
     user = Map<String, dynamic>.from(res['user'] as Map);
     captain = res['captain'] == null ? null : Map<String, dynamic>.from(res['captain'] as Map);
+
+    // The stored column is the value dispatch actually filters on, so adopt
+    // it — unless the captain has just changed it and the write is still in
+    // flight, in which case the local choice is the newer truth.
+    final serverRadius = (captain?['search_radius_km'] as num?)?.toDouble();
+    if (!_radiusPushInFlight && serverRadius != null && serverRadius > 0) {
+      searchRadiusKm = serverRadius;
+    }
     // captains.is_online is an INTEGER 0/1 in D1, but tolerate a bool in case
     // the column is ever serialised differently.
     final isOnline = captain?['is_online'];
@@ -495,6 +564,7 @@ class CaptainState extends ChangeNotifier {
       Position? pos;
       try {
         pos = await _position();
+        lastPosition = pos;
       } catch (_) {
         if (value) {
           gpsError = 'تعذّر تحديد موقعك. تأكد من تفعيل GPS.';
@@ -570,6 +640,10 @@ class CaptainState extends ChangeNotifier {
     final settings = _hasActiveTrip ? _tripLocationSettings : _idleLocationSettings;
     _positionStreamSub = Geolocator.getPositionStream(locationSettings: settings).listen(
       (Position pos) {
+        // Remember the fix: the offers filter measures each pickup from here,
+        // so a captain who has driven out of range of a queued request stops
+        // being shown it without waiting for a server round-trip.
+        lastPosition = pos;
         // Fan every fix out to the shared broadcast stream so the map camera
         // (and any other UI consumer) rides the SAME GPS subscription as the
         // server push below — one radio, two listeners.
@@ -612,8 +686,67 @@ class CaptainState extends ChangeNotifier {
     if (!online && activeTrip == null) return;
     try {
       final pos = await _position();
+      lastPosition = pos;
       await pushLocationCoordinates(pos.latitude, pos.longitude);
     } catch (_) {}
+  }
+
+  // -------------------------------------------------------------------
+  // Search radius
+  // -------------------------------------------------------------------
+
+  /// Change how far out the captain wants work.
+  ///
+  /// Writes through in three places because all three matter: locally (so the
+  /// choice survives a restart), to the server (so *dispatch* stops fanning
+  /// out-of-range trips to this captain at all — inbox and FCM included), and
+  /// straight into the current offers list (so the screen corrects itself
+  /// immediately instead of on the next poll).
+  Future<void> setSearchRadius(double km) async {
+    if (km <= 0 || km == searchRadiusKm) return;
+    searchRadiusKm = km;
+    // Re-filter what is already on screen before anything is awaited.
+    offers = offers.where(isWithinSearchRadius).toList();
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_kSearchRadiusKey, km);
+
+    _radiusPushInFlight = true;
+    try {
+      await _post('/captain/search-radius', {'radiusKm': km});
+    } catch (_) {
+      // The local filter still applies; the server just keeps offering a
+      // wider net until the next successful write.
+    } finally {
+      _radiusPushInFlight = false;
+    }
+
+    await refreshOffers();
+  }
+
+  /// True when [offer]'s pickup is inside the captain's chosen radius.
+  ///
+  /// Measured from the live GPS fix when there is one, because the server's
+  /// `captain_to_pickup_km` is derived from the last *pushed* position and
+  /// can lag a moving captain by a minute. Anything we cannot measure is let
+  /// through rather than hidden — a missing coordinate should not silently
+  /// swallow work.
+  bool isWithinSearchRadius(Map<String, dynamic> offer) {
+    final lat = (offer['pickup_lat'] as num?)?.toDouble();
+    final lng = (offer['pickup_lng'] as num?)?.toDouble();
+    final pos = lastPosition;
+
+    double? distanceKm;
+    if (pos != null && lat != null && lng != null) {
+      distanceKm =
+          Geolocator.distanceBetween(pos.latitude, pos.longitude, lat, lng) / 1000;
+    } else {
+      distanceKm = (offer['captain_to_pickup_km'] as num?)?.toDouble();
+    }
+
+    if (distanceKm == null) return true;
+    return distanceKm <= searchRadiusKm;
   }
 
   // -------------------------------------------------------------------
@@ -692,12 +825,17 @@ class CaptainState extends ChangeNotifier {
       onMessage: (msg) {
         final type = msg['type'] as String?;
         // Any inbox event (new offer, offer withdrawn, trip cancelled by the
-        // rider) means the offers list is stale — refetch immediately rather
-        // than waiting out the poll interval.
+        // rider, a bid the rider just accepted) means the offers list is
+        // stale — refetch immediately rather than waiting out the poll
+        // interval. For 'trip.assigned' that refetch is also what surfaces
+        // the new active trip and fires [tripAssigned], which sends the
+        // captain to the map.
         if (type == 'trip.offer' ||
             type == 'trip.cancelled' ||
             type == 'offer.withdrawn' ||
-            type == 'trip.updated') {
+            type == 'trip.updated' ||
+            type == 'trip.assigned' ||
+            type == 'bid.accepted') {
           refreshOffers();
         }
       },
@@ -745,6 +883,7 @@ class CaptainState extends ChangeNotifier {
           // Completed or cancelled on the other side: clear immediately so the
           // captain is never acting on a dead trip, and re-sync the queue.
           activeTrip = null;
+          _announcedTripId = null;
           stopInAppNavigation();
           _disconnectTripWs();
           unawaited(refreshOffers());
@@ -778,6 +917,10 @@ class CaptainState extends ChangeNotifier {
       offers = trips
           .map((e) => Map<String, dynamic>.from(e))
           .where((o) => !_declinedTripIds.contains(o['id']))
+          // Radius guard. The server filters too, but this keeps an older
+          // API build (or a captain who has driven since the last location
+          // push) from putting an out-of-range trip back on the tab badge.
+          .where(isWithinSearchRadius)
           .toList();
 
       final mine = await _get('/trips');
@@ -800,6 +943,10 @@ class CaptainState extends ChangeNotifier {
       if (newTripId != null) {
         if (newTripId != previousTripId) {
           _connectTripWs(newTripId);
+          // A trip appeared that was not here a moment ago — most often the
+          // rider just accepted this captain's price edit. Tell the shell so
+          // it opens the map instead of leaving them on the requests list.
+          _announceTripAssigned(activeTrip!);
         } else if (_tripWs == null) {
           // The socket can die silently: reconnect backoff gives up after a
           // long outage, and _connectTripWs is a no-op for the same tripId,
@@ -810,6 +957,8 @@ class CaptainState extends ChangeNotifier {
         }
       } else {
         _disconnectTripWs();
+        // Nothing active any more: the next assignment is a fresh event.
+        _announcedTripId = null;
       }
 
       // The active trip changed (assigned → none, none → assigned, etc.):
@@ -844,6 +993,8 @@ class CaptainState extends ChangeNotifier {
     _connectTripWs(tripId);
     // A trip just started: escalate the GPS to high-accuracy tracking.
     _syncLocationAccuracy();
+    // Same destination as a won bid — the job is driven on the map.
+    _announceTripAssigned(activeTrip!);
     notifyListeners();
     // Report position immediately so the rider sees the captain moving without
     // waiting for the next stream tick.
@@ -1001,10 +1152,12 @@ class CaptainState extends ChangeNotifier {
     user = null;
     captain = null;
     activeTrip = null;
+    _announcedTripId = null;
     offers = [];
     online = false;
     error = null;
     gpsError = null;
+    lastPosition = null;
     _declinedTripIds.clear();
     _bidTripIds.clear();
     navigationTarget = null;
@@ -1030,6 +1183,7 @@ class CaptainState extends ChangeNotifier {
     _disconnectTripWs();
     _tripEventsCtrl.close();
     _navigationStartCtrl.close();
+    _tripAssignedCtrl.close();
     super.dispose();
   }
 }

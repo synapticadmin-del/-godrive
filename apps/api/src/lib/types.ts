@@ -37,6 +37,14 @@ export type DbCaptain = {
   last_seen_at: string | null;
   rating_avg: number;
   rating_count: number;
+  /**
+   * How far out this captain wants to be offered work, in km (migration
+   * 0018). NULL on legacy rows, resolved through DEFAULT_SEARCH_RADIUS_KM at
+   * read time. It gates the browsable queue, the pushed offers inbox AND the
+   * dispatch fanout — a trip beyond it must never reach the captain, not even
+   * as a badge.
+   */
+  search_radius_km: number | null;
 };
 
 export type DbTrip = {
