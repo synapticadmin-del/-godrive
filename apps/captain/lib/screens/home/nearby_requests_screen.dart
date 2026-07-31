@@ -9,9 +9,16 @@ import 'offer_card.dart';
 
 /// **رحلات متاحة** — the standing queue of nearby ride requests.
 ///
-/// Where the map sheet shows one pushed offer at a time under a 15-second
-/// timer, this is the browsable list: every open request within radius, with
-/// the rider's proposed fare and the same three decisions on each one.
+/// This is now the *only* place a trip offer card appears. The map used to
+/// render the same cards over the road; it no longer does, so the full card —
+/// fare, addresses, rider, and the three decisions — lives here and nowhere
+/// else.
+///
+/// The radius chips write through [CaptainState.setSearchRadius] rather than
+/// filtering this list alone. That one number is persisted, mirrored onto the
+/// captain row and honoured by dispatch, so picking 5km actually stops the
+/// 12km requests from reaching the captain at all — previously they kept
+/// arriving as pushes and kept lighting up this tab's badge.
 ///
 /// Two substantive fixes over the previous version:
 ///
@@ -40,11 +47,13 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
   bool _togglingOnline = false;
   String? _errorMessage;
 
-  /// Search radius in km. inDrive lets the captain tune how far out they want
-  /// to hunt; the previous version hardcoded 15, which is too wide in dense
-  /// Cairo traffic and too narrow on the outskirts.
-  double _radiusKm = 15;
-  static const List<double> _radiusOptions = [5, 10, 15, 25, 40];
+  /// Search radius options in km. inDrive lets the captain tune how far out
+  /// they want to hunt; the previous version hardcoded 15, which is too wide
+  /// in dense Cairo traffic and too narrow on the outskirts.
+  ///
+  /// The selected value itself lives in [CaptainState] — it outlives this
+  /// screen, survives a restart, and gates every other offer surface.
+  static const List<double> _radiusOptions = CaptainState.searchRadiusOptions;
 
   /// Dismissed locally, so a refresh does not resurrect a card the captain
   /// just skipped.
@@ -80,7 +89,8 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
     });
 
     try {
-      final res = await state.apiGet('/captain/nearby-requests?radius=${_radiusKm.round()}');
+      final res = await state
+          .apiGet('/captain/nearby-requests?radius=${state.searchRadiusKm.round()}');
       if (!mounted) return;
 
       final list = (res['requests'] as List? ?? [])
@@ -247,7 +257,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
           ? ListView(
               padding: const EdgeInsets.all(AppTokens.spaceMd),
               children: [
-                _buildRadiusSelector(),
+                _buildRadiusSelector(state.searchRadiusKm),
                 SizedBox(height: MediaQuery.of(context).size.height * 0.06),
                 EmptyState(
                   icon: Icons.radar_rounded,
@@ -265,7 +275,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
               ),
               itemCount: _requests.length + 1,
               itemBuilder: (_, i) {
-                if (i == 0) return _buildRadiusSelector();
+                if (i == 0) return _buildRadiusSelector(state.searchRadiusKm);
                 final req = _requests[i - 1];
                 return OfferCard(
                   key: ValueKey(req.id),
@@ -284,10 +294,19 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
     );
   }
 
+  /// Persist the captain's pick, then refetch. [CaptainState.setSearchRadius]
+  /// also writes it to the server, so dispatch stops sending anything beyond
+  /// it — the chips are a real preference now, not a display filter.
+  Future<void> _selectRadius(double km) async {
+    await context.read<CaptainState>().setSearchRadius(km);
+    if (!mounted) return;
+    await _fetchRequests();
+  }
+
   /// inDrive-style radius chips: the captain tunes how far out they want to
   /// hunt for work, and the list refetches immediately. Kept above the cards
   /// so it is reachable without scrolling to a settings page.
-  Widget _buildRadiusSelector() {
+  Widget _buildRadiusSelector(double selectedKm) {
     final go = GoTheme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: AppTokens.spaceMd),
@@ -314,14 +333,11 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                     const SizedBox(width: AppTokens.spaceXs),
                 itemBuilder: (_, i) {
                   final km = _radiusOptions[i];
-                  final selected = km == _radiusKm;
+                  final selected = km == selectedKm;
                   return ChoiceChip(
                     label: Text(AppStrings.of(context).radiusKm(km.round())),
                     selected: selected,
-                    onSelected: (_) {
-                      setState(() => _radiusKm = km);
-                      _fetchRequests();
-                    },
+                    onSelected: (_) => _selectRadius(km),
                     labelStyle: AppTokens.font(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,

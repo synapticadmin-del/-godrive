@@ -27,7 +27,9 @@ Roles: `rider` | `captain` | `admin`
 Returns: `{ token, user }`
 
 ### `GET /auth/me`
-Requires auth. Returns current user (+ captain profile if any).
+Requires auth. Returns current user (+ captain profile if any). The captain
+object carries `search_radius_km` — the reach the apps and dispatch both
+filter on.
 
 ## Captain
 
@@ -43,6 +45,31 @@ Create/update captain profile (vehicle info).
 ```json
 { "lat": 30.05, "lng": 31.24, "heading": 90, "tripId": "..." }
 ```
+
+### `POST /captain/search-radius`
+```json
+{ "radiusKm": 5 }
+```
+How far out this captain wants work. Accepts 1–100 km (values outside the
+range are clamped, not rejected) and returns `{ ok, searchRadiusKm }`.
+
+This is the **single** radius the whole system honours:
+
+- `GET /captain/nearby-requests` uses it when no `?radius=` is supplied
+- `GET /captain/offers` filters the pushed queue by it
+- `POST /trips` dispatch skips captains whose radius excludes the pickup, so
+  an out-of-range trip generates neither an inbox card nor an FCM push
+
+### `GET /captain/nearby-requests?radius=&lat=&lng=`
+Open requests in the captain's city, filtered to `radius` km from the captain
+(an explicit `?radius=` wins, otherwise the stored `search_radius_km`,
+otherwise 15). Returns `{ requests, searchRadiusKm, captainLocation }`; each
+request carries `captain_to_pickup_km`.
+
+### `GET /captain/offers`
+The pushed offer queue. City-scoped **and** radius-scoped, measured from the
+captain's last known position; rows carry `captain_to_pickup_km`. Returns
+`{ trips, searchRadiusKm, captainLocation }`. Empty while offline.
 
 ### `GET /captain/earnings?from=&to=`
 Simple completed-trips summary.
@@ -76,6 +103,21 @@ List my trips.
 ### `POST /trips/:id/start` (captain)
 ### `POST /trips/:id/complete` (captain)
 
+### `POST /trips/:id/bid` (captain)
+```json
+{ "counterPrice": 65 }
+```
+A price edit. Does **not** assign the trip — the rider still chooses.
+
+### `POST /trips/:id/accept-bid` (rider)
+```json
+{ "bidId": "bid_..." }
+```
+Assigns the trip at the bid price. The winning captain is notified on three
+channels: the trip room broadcast, an FCM push, and a `trip.assigned` event on
+their offers inbox socket — the last is what moves the captain app straight to
+the map to drive the trip.
+
 ### `POST /trips/:id/rate`
 ```json
 { "score": 5, "comment": "great" }
@@ -91,6 +133,16 @@ Server events:
 - `location.captain`
 - `trip.offer` (captain)
 - `error`
+
+### `GET /ws/captain/offers`
+The captain's own inbox. Auth as the first message
+(`{"type":"auth","token":"<jwt>"}`).
+
+Server events:
+- `trip.offer` — a new request inside the captain's radius
+- `offer.withdrawn` / `trip.cancelled` — the request is gone
+- `trip.assigned` — this captain won the trip (`reason: "bid.accepted"` when
+  the rider accepted a price edit)
 
 ## Admin
 

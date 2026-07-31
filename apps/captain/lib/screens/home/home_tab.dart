@@ -3,18 +3,27 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
-import 'offer_card.dart';
 import 'active_trip_panel.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 /// The captain's map tab: a glanceable status header, the go-online control,
-/// and the offers sheet — all floating over the map owned by MainShell.
+/// and — once a trip is running — the active trip panel, all floating over the
+/// map owned by MainShell.
 ///
-/// The important change here is that **going online is now a visible, primary
-/// control**. It used to be a side effect of tapping the centre nav button,
-/// which is undiscoverable: a new captain had no way to learn that the logo
-/// button was also the earn/don't-earn switch. Category leaders all give this
-/// its own large pill, and so do we now.
+/// **Offer cards do not belong here.** This sheet used to render the full
+/// OfferCard list on top of the map, so every incoming request covered the
+/// road with a countdown, fare, addresses and three buttons — duplicating the
+/// screen that exists for exactly that job ("رحلات متاحة", one tap away in
+/// the bar's first slot, with a live count on its badge). The map's job is
+/// driving: the captain's own status, the go-online control, and the trip they
+/// are currently on. Browsing and deciding on offers happens on the offers
+/// page, where the full card lives.
+///
+/// The important change before that was that **going online is a visible,
+/// primary control**. It used to be a side effect of tapping the centre nav
+/// button, which is undiscoverable: a new captain had no way to learn that the
+/// logo button was also the earn/don't-earn switch. Category leaders all give
+/// this its own large pill, and so do we now.
 ///
 /// The idle state also does real work instead of showing a bare sentence: it
 /// tells the captain whether they are actually reachable (socket status) and
@@ -41,7 +50,6 @@ class HomeTab extends StatelessWidget {
     final approval = state.captain?['approval_status'] ?? state.captain?['status'];
     final isApproved = approval == 'approved';
     final activeTrip = state.activeTrip;
-    final offers = state.offers;
 
     // `name` may be null, empty or whitespace — indexing [0] throws on an
     // empty string, so the initial is derived defensively.
@@ -74,8 +82,7 @@ class HomeTab extends StatelessWidget {
         else
           Align(
             alignment: Alignment.bottomCenter,
-            child: _OffersSheet(
-              offers: offers,
+            child: _StatusSheet(
               online: online,
               busy: busy,
               isApproved: isApproved,
@@ -213,18 +220,20 @@ class _StatusHeader extends StatelessWidget {
   }
 }
 
-/// The bottom sheet. Three distinct states — offline, online-and-waiting, and
-/// offers-present — each with a clear next action.
-class _OffersSheet extends StatelessWidget {
-  const _OffersSheet({
-    required this.offers,
+/// The map's bottom sheet while no trip is running: am I earning, am I
+/// reachable, and the switch that changes it.
+///
+/// It deliberately carries no offer cards. Waiting requests are counted on the
+/// "رحلات متاحة" tab badge and opened, read and answered on that screen — the
+/// map stays a map.
+class _StatusSheet extends StatelessWidget {
+  const _StatusSheet({
     required this.online,
     required this.busy,
     required this.isApproved,
     required this.onToggleOnline,
   });
 
-  final List<Map<String, dynamic>> offers;
   final bool online;
   final bool busy;
   final bool isApproved;
@@ -232,17 +241,7 @@ class _OffersSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // strings is used in _idleBody which re-resolves it; this local was dead.
     final go = GoTheme.of(context);
-
-    // Strict online guard: trip offer cards must NEVER render while the
-    // captain is offline. Going offline clears CaptainState.offers, but a
-    // captain can still toggle offline with cards briefly in memory, and
-    // tapping a stale offer then hits an endpoint that refuses it (403
-    // OFFLINE). Gating the whole list on `online` guarantees an offline
-    // captain falls through to the idle body — the offline status banner and
-    // the go-online control — instead of stale, un-actionable offers.
-    final hasOffers = online && offers.isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -265,10 +264,7 @@ class _OffersSheet extends StatelessWidget {
               const SizedBox(height: AppTokens.spaceSm),
               _grabHandle(context),
               const SizedBox(height: AppTokens.spaceMd),
-              if (hasOffers)
-                Flexible(child: _offersList())
-              else
-                _idleBody(context),
+              _idleBody(context),
               const SizedBox(height: AppTokens.spaceMd),
             ],
           ),
@@ -286,21 +282,6 @@ class _OffersSheet extends StatelessWidget {
         color: go.border,
         borderRadius: BorderRadius.circular(AppTokens.radiusPill),
       ),
-    );
-  }
-
-  Widget _offersList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceMd),
-      itemCount: offers.length,
-      // Keyed by trip id: without a key Flutter reuses the State of whichever
-      // card previously sat at this index, so an expiring countdown would
-      // carry over onto a brand-new offer.
-      itemBuilder: (_, i) => OfferCard(
-        key: ValueKey(offers[i]['id']),
-        offer: offers[i],
-      ).animate().fadeIn(delay: (60 * i).ms).slideY(begin: 0.15, end: 0),
     );
   }
 

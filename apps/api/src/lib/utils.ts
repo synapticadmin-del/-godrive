@@ -103,6 +103,57 @@ export function asBool(v: string | undefined, fallback = false): boolean {
   return v === "true" || v === "1" || v === "yes";
 }
 
+/* ------------------------------------------------------------------ */
+/* Captain search radius                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Great-circle distance in km, rounded to 100m.
+ *
+ * Lives here rather than inline in a route because three separate surfaces
+ * now have to agree on "is this trip inside the captain's radius": the
+ * browsable queue, the pushed offers inbox, and the dispatch fanout. Two
+ * copies of this formula would eventually disagree by a rounding step and
+ * put a trip in one list but not the other.
+ */
+export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+/** Radius applied to captains whose row predates migration 0018. */
+export const DEFAULT_SEARCH_RADIUS_KM = 15;
+
+/** Bounds accepted from a client. Anything outside is clamped, not rejected. */
+export const MIN_SEARCH_RADIUS_KM = 1;
+export const MAX_SEARCH_RADIUS_KM = 100;
+
+/**
+ * Resolve the radius to apply for a captain: an explicit request value wins,
+ * then the stored column, then the default. Always returns a finite number
+ * inside [MIN, MAX] so it can be compared against a distance without further
+ * guarding — an unguarded NaN here would silently pass every filter and put
+ * the far-away trips straight back in the captain's inbox.
+ */
+export function resolveSearchRadiusKm(...candidates: Array<number | string | null | undefined>): number {
+  for (const candidate of candidates) {
+    if (candidate == null || candidate === "") continue;
+    const n = Number(candidate);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    return Math.min(MAX_SEARCH_RADIUS_KM, Math.max(MIN_SEARCH_RADIUS_KM, n));
+  }
+  return DEFAULT_SEARCH_RADIUS_KM;
+}
+
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
