@@ -1,5 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import {
+  FILE_EXT_CONTENT_TYPE,
+  isImageFileExt,
+  isIsoBmffContainer,
+  SNIFF_HEAD_BYTES,
+  sniffFileExt,
+  type StoredFileExt,
+} from "@synaptic-go/shared";
 import type { DbUser } from "../lib/types";
 import { nowIso, id } from "../lib/utils";
 import { authMiddleware, type AppEnv } from "../middleware/auth";
@@ -22,49 +30,17 @@ const AVATAR_PREFIX = "avatars/";
 const AVATAR_ROUTE = "/user/avatar/";
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
-/// Extension is derived from the declared MIME type, never from the uploaded
-/// filename — a filename is attacker-controlled and would let someone stash a
-/// `.html` in the bucket that we later serve back.
-const AVATAR_TYPES: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
+/// An avatar is a photograph. The accepted set, the byte signatures and the
+/// canonical Content-Type all live in @synaptic-go/shared alongside their tests,
+/// shared with POST /captain/upload — this sniffer used to be a second, untested
+/// copy of that logic. The document route additionally accepts PDF; an avatar
+/// does not, which is enforced with isImageFileExt below.
+///
+/// Only HEIC/HEIF may fall back to the declared type, and only when the bytes
+/// present a genuine ISO-BMFF container.
+const AVATAR_HEIC_DECLARED: Record<string, StoredFileExt> = {
   "image/heic": "heic",
   "image/heif": "heif",
-};
-
-/// Some clients (notably the Flutter apps' `http.MultipartFile.fromPath`
-/// without an explicit `contentType`) send the part with no real MIME type —
-/// it arrives as `application/octet-stream` or empty. Rather than reject a
-/// perfectly good JPEG, read the first bytes and identify the format from its
-/// magic numbers. Returns the stored extension, or null when the payload does
-/// not look like any accepted image.
-const sniffImageExt = async (file: File): Promise<string | null> => {
-  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-  if (head.length < 4) return null;
-  // JPEG: FF D8 FF
-  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "jpg";
-  // PNG: 89 50 4E 47 0D 0A 1A 0A
-  if (
-    head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47 &&
-    head[4] === 0x0d && head[5] === 0x0a && head[6] === 0x1a && head[7] === 0x0a
-  ) return "png";
-  // WebP: "RIFF" .... "WEBP"
-  if (
-    head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 &&
-    head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50
-  ) return "webp";
-  // HEIC/HEIF: ISO-BMFF "ftyp" box with a heic/heif/mif1/msf1 brand.
-  if (
-    head.length >= 12 &&
-    head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70
-  ) {
-    const brand = String.fromCharCode(head[8], head[9], head[10], head[11]);
-    if (brand === "heic" || brand === "heix" || brand === "hevc" || brand === "hevx") return "heic";
-    if (brand === "mif1" || brand === "msf1" || brand === "heif") return "heif";
-  }
-  return null;
 };
 
 /// `/user/avatar/<userId>/<file>` (what the column stores, and what the app
@@ -153,25 +129,33 @@ userRoutes.post("/avatar", async (c) => {
     return c.json({ error: "Image too large (max 5MB)", code: "FILE_TOO_LARGE" }, 400);
   }
 
+  // The bytes decide the type. The previous order checked the declared type
+  // first, skipped sniffing on a hit, and then stored that same client-supplied
+  // string as the object's Content-Type — so a client could label anything
+  // `image/png` and have it stored and served back under that type. The stored
+  // extension was never taken from the filename, but the declared type was just
+  // as much the client's choice.
   const declaredType = (file.type || "").toLowerCase();
-  // Prefer the declared type when it is one we accept; otherwise (missing or
-  // a generic octet-stream, which is what several of the mobile clients send
-  // for a perfectly valid photo) fall back to sniffing the magic bytes. The
-  // stored extension is still derived from the image itself, never from the
-  // uploaded filename.
-  let ext = AVATAR_TYPES[declaredType];
-  let contentType = declaredType;
-  if (!ext) {
-    const sniffed = await sniffImageExt(file);
-    if (!sniffed) {
-      return c.json(
-        { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
-        400,
-      );
-    }
-    ext = sniffed;
-    contentType = `image/${sniffed === "jpg" ? "jpeg" : sniffed}`;
+  const head = new Uint8Array(await file.slice(0, SNIFF_HEAD_BYTES).arrayBuffer());
+  let ext: StoredFileExt | null = sniffFileExt(head);
+
+  if (!ext && isIsoBmffContainer(head)) {
+    // Genuine ISO-BMFF container with a brand the sniffer does not name: honour
+    // an explicit HEIC/HEIF declaration, since that registry is open-ended.
+    ext = AVATAR_HEIC_DECLARED[declaredType] ?? null;
   }
+
+  // An avatar must be a photograph. PDF is a valid captain document but is not
+  // a face, and this column feeds an <img>/Image.network in both apps.
+  if (!ext || !isImageFileExt(ext)) {
+    return c.json(
+      { error: "Unsupported image type. Use JPEG, PNG, WebP or HEIC.", code: "UNSUPPORTED_TYPE" },
+      400,
+    );
+  }
+
+  // Canonical, derived from the verified bytes — never the client's string.
+  const contentType = FILE_EXT_CONTENT_TYPE[ext];
 
   // The timestamp + UUID make every upload a distinct URL, which is what lets
   // the mobile client cache avatars forever and still see a change instantly.
@@ -226,6 +210,9 @@ userRoutes.get("/avatar/*", async (c) => {
   headers.set("Content-Type", obj.httpMetadata?.contentType ?? "image/jpeg");
   // The key is unique per upload, so a given URL's bytes never change.
   headers.set("Cache-Control", "private, max-age=31536000, immutable");
+  // Every avatar is a byte-verified image, so nothing here should ever be
+  // content-sniffed into something executable. Matches the two document routes.
+  headers.set("X-Content-Type-Options", "nosniff");
   return new Response(obj.body, { headers });
 });
 
