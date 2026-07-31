@@ -1033,27 +1033,3 @@ class CaptainState extends ChangeNotifier {
     super.dispose();
   }
 }
-ference.
-    // Remove only the keys this class owns instead of prefs.clear() (which
-    // used to wipe the saved theme too), and drop the tokens from secure
-    // storage explicitly.
-    await _secureStorage.delete(key: 'token');
-    await _secureStorage.delete(key: 'refreshToken');
-    await prefs.remove('user');
-    notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _stopLocationStream();
-    _stopApprovalPolling();
-    _positionCtrl.close();
-    offersTimer?.cancel();
-    _wsDebounce?.cancel();
-    offersWs?.dispose();
-    _disconnectTripWs();
-    _tripEventsCtrl.close();
-    _navigationStartCtrl.close();
-    super.dispose();
-  }
-}
