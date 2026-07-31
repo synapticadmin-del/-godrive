@@ -145,12 +145,15 @@ class _WalletScreenState extends State<WalletScreen> {
                       onRetry: _fetchWallet,
                     )
                   else if (_transactions.isEmpty)
+                    // No action here on purpose: the balance card above already
+                    // carries the top-up button, and on an empty wallet both
+                    // land on screen together — the same call to action twice,
+                    // the second one louder than the first. EmptyState renders
+                    // no button when actionLabel/onAction are omitted.
                     EmptyState(
                       icon: Icons.receipt_long_outlined,
                       title: strings.noTransactionsYet,
                       subtitle: strings.transactionsWillAppearHere,
-                      actionLabel: strings.topUpTitle,
-                      onAction: _openTopUp,
                     )
                   else
                     ..._transactions.map(_buildTransactionRow),
