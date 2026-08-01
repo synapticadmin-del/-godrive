@@ -1,0 +1,84 @@
+# Proposed CI workflow for T14 / P0.2 — localisation guards.
+#
+# Supplied as .txt because the review tooling has no `workflows` permission
+# on this repository. Apply by hand to .github/workflows/l10n.yml.
+#
+# Depends on the extended scripts/check_l10n_parity.py described in
+# docs/plan/14-i18n-rtl-content.md §6 P0.2, plus the checked-in baseline
+# scripts/l10n_baseline.json.
+
+name: l10n
+
+on:
+  pull_request:
+    paths:
+      - "apps/rider/lib/**"
+      - "apps/captain/lib/**"
+      - "packages/flutter_shared/lib/**"
+      - "apps/admin/src/**"
+      - "scripts/check_l10n_parity.py"
+      - "scripts/l10n_baseline.json"
+  push:
+    branches: [main]
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Existing checks (duplicate members, abstract coverage, locale drift)
+      # plus the three added in P0.2:
+      #   --check-inline-budget : per-file Arabic-literal counts may not increase
+      #   --check-orphans       : unreferenced AppStrings members may not increase
+      #   --check-no-arb        : .arb files / AppLocalizations must not reappear
+      - name: check_l10n_parity
+        run: |
+          python3 scripts/check_l10n_parity.py \
+            --check-inline-budget \
+            --check-orphans \
+            --check-no-arb
+
+      # Cheap belt-and-braces greps. These duplicate parts of the script on
+      # purpose: if someone edits the script to pass, these still fail.
+      - name: no revived ARB pipeline
+        run: |
+          if git ls-files '*.arb' | grep -q .; then
+            echo "::error::.arb files are deleted by design (see docs/plan/14-i18n-rtl-content.md P0.1)"
+            git ls-files '*.arb'
+            exit 1
+          fi
+          if grep -rn "AppLocalizations" --include='*.dart' apps/ packages/ | grep -v '/generated/'; then
+            echo "::error::AppLocalizations is not the catalogue; use AppStrings"
+            exit 1
+          fi
+
+      - name: no Arabic-Indic digits in source
+        run: |
+          if grep -rnP '[\x{0660}-\x{0669}]' --include='*.dart' apps/ packages/; then
+            echo "::error::Western digits only — see docs/COPY_STYLE_AR.md and P1.5"
+            exit 1
+          fi
+
+      # Enforced from P1.2 onward, once GoIcons lands. Keep commented until then.
+      # - name: directional icons must go through GoIcons
+      #   run: |
+      #     if grep -rn "Icons\.\(arrow_back\|arrow_forward\|chevron_left\|chevron_right\|send\)" \
+      #          --include='*.dart' apps/ packages/ \
+      #          | grep -v 'go_icons.dart'; then
+      #       echo "::error::use GoIcons.back/forward/drillIn/send — they mirror for RTL"
+      #       exit 1
+      #     fi
+
+      # Enforced from P1.3 onward, once the lexicon sweep lands.
+      # - name: banned terminology
+      #   run: |
+      #     if grep -rn "سائق\|العميل\|موقف النزول\|موقف الراكب\|التكلفة\|ملغاة\|جاري " \
+      #          --include='*.dart' apps/ packages/; then
+      #       echo "::error::see docs/COPY_STYLE_AR.md for the agreed term"
+      #       exit 1
+      #     fi
