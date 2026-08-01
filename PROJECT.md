@@ -147,6 +147,16 @@ nothing else in this file.**
 
 > **Scope note:** OTP was descoped by the operator for this pass — the flow is suspended, so brief questions 1–2 are an explicit exclusion, not a clean bill of health. Two consequences are recorded in the document: the suspended routes are still mounted and can still mint accounts, and with OTP off there is now **no password-reset or account-recovery path of any kind**.
 
+### T02 — Authorization, RBAC & Object-Level Access
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/60 · **Doc:** `docs/plan/02-authorization-rbac-idor.md` · **By:** `chat-20260801-1214-a0bd` · **Date:** 2026-08-01
+- **Verdict:** Role gates (BFLA) are in good shape and `trips.ts` does object-level scoping properly and consistently — but that discipline is a convention, not a mechanism, and the three places it was not applied are each severe: the fleet roster is readable with no account, the client is trusted to state what it owes, and the trip-sharing safety feature does not work at all.
+- **Blockers (S1):** 3 — `POST /trips/estimate` is registered above its router's auth middleware and returns every online captain's id, name and distance to anonymous callers (`apps/api/src/routes/trips.ts:315`, guard at `:346`, response at `:342`); the Paymob intention takes `amount` and `tripId` from the request body with no ownership check and no server-side fare derivation, so any trip — including another rider's — can be settled for 1 EGP (`apps/api/src/routes/payments.ts:13`, `:46`, `:74`, settlement `:200-205`); `GET /safety/track/:token` sits under the blanket auth guard and its emitted URL omits the `/safety` prefix, so the share link 401s then 404s while `POST /safety/share` still returns `ok: true` (`apps/api/src/routes/safety.ts:11`, `:83`, `:90`).
+- **Top action:** Before any production traffic, move the estimate route under the auth guard and strip captain identities from its response, and derive payment amounts server-side from the trip row while binding `tripId` to the caller. Both are S-effort. Then add the auth-posture regression suite (P0.5) so an ordering mistake can never silently reappear in any route file.
+- **Hands off to:** T01 (revocation on the request path — `SESSIONS` KV is bound but never consulted; OTP routes confirmed still mounted at `routes/auth.ts:52`/`:131`), T03 (payout has no maximum), T04 (webhook legacy branch credits a wallet with no amount check, `routes/payments.ts:248-265`), T06 (bidding and the open-trip list both bypass the `search_radius_km` contract), T07 (the DO `pendingAuth` handoff is unverified — `needs-check`), T08 (`users` has no admin tier column), T11, T17 (raw captain phone; SOS accepts any trip id), T18, T22 (audit writes fail silently, `lib/audit.ts:33-36`), T24, T25, T27.
+
+> **Method note:** three routing claims were verified by executing real Hono 4.7.11 rather than reading the source. One overturned a finding already written up as an S1 — `use("/admin/*")` *does* match the bare `/admin` path, so `companies.ts` is **not** a cross-tenant breach. The document lists 12 such verified non-findings in §4.1 so they are not re-raised or "fixed".
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
