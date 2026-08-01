@@ -47,7 +47,28 @@ four schema changes are known to be outstanding beyond the gate.
 | Retention / TTL on `trip_path_points`, `audit_log`, `notifications`, `chat_messages` | T08 · F-25-07 | D1's 10 GB cap is hard and unraisable; `trip_path_points` alone breaches it in ~166 days at the benchmark. Explicitly **not** on the launch gate (plan §2.2 closing note). The sweeper needs `cron/` (E02) and `lib/cleanup.ts` (E09) to land first. | 2 |
 | Integer-piastres cutover completion | plan §5.3 | Ruled: **one** cutover owned by T03, not three. `0005` already half-did this. Numbering it now would invite the fourth partial migration §5.3 exists to prevent. | 2 |
 
-## 3. Process notes added after round 1
+## 3. Drafts written ahead of their task
+
+`0022` and `0023` are the two outstanding **wave 1** migrations, and both are written and
+tested already — as inert drafts at **`board/exec/drafts/`**, not in `migrations/`.
+
+They are not in `migrations/` deliberately: those two paths are in E13's and E15's `owns:`,
+and committing them there would lock a file to a task nobody has claimed and hand the
+claiming chat its own deliverable pre-written by a stranger. A draft on the board branch is
+inert, reviewable now, and adopted with one copy.
+
+Both applied together with all 21 predecessors to a fresh SQLite database with foreign keys
+on, via the repository's own `check_migrations.py` and `check_migrations_apply.py` (23/23,
+40 tables). `board/exec/drafts/test_migrations_0022_0023.py` then asserts the behaviour
+rather than the parse — 22 assertions, 0 failures, including that neither migration rewrites
+a pre-existing row. See `board/exec/drafts/README.md` for the adoption steps and for the
+four decisions a reviewer should push back on.
+
+**When you claim E13 or E15:** edit the row that already exists for your number above,
+replacing *(unclaimed — reserved)* with your `CHAT_ID`. Do not append a row and do not take
+a new number.
+
+## 4. Process notes added after round 1
 
 - **A migration's number and its filename move together.** If you take `0024` and later have to renumber,
   rename the file in the same commit and amend your `owns:` in your claim. A claim whose `owns:` names a
