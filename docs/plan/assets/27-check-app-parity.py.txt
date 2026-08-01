@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""check_app_parity.py — fail the build when rider and captain drift apart.
+
+Companion to check_l10n_parity.py. Five checks, each independently skippable:
+
+  widgets  a class defined in BOTH apps but not in packages/flutter_shared
+  strings  an Arabic literal >= 8 chars in BOTH apps but not in app_strings.dart
+  arabic   hardcoded Arabic literals per app, ratcheted against a baseline
+  deps     a package whose version constraint differs between the two pubspecs
+  status   the Dart TripStatus enum vs TRIP_TRANSITIONS in packages/shared
+
+Exit 0 clean, 1 on a hard failure, 0 with warnings when --warn-only.
+"""
+from __future__ import annotations
+import argparse, json, re, sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+RIDER, CAPTAIN = ROOT / "apps/rider/lib", ROOT / "apps/captain/lib"
+SHARED = ROOT / "packages/flutter_shared/lib"
+STRINGS = SHARED / "l10n/app_strings.dart"
+TS_STATE = ROOT / "packages/shared/src/index.ts"
+
+# Twins that may legitimately exist in both apps while extraction is in flight.
+# This set may only ever SHRINK. Adding to it requires a reviewer's sign-off.
+ALLOWED_TWIN_CLASSES = {
+    "SosScreen", "TripChatScreen", "SplashScreen", "LoginScreen", "WalletScreen",
+}
+ALLOWED_DEP_DELTAS = {"webview_flutter"}   # rider-only: Paymob top-up WebView
+ARABIC_BASELINE = {"rider": 302, "captain": 30}
+
+ARABIC = re.compile(r"[؀-ۿ]")
+CLASS_RE = re.compile(r"^\s*class\s+([A-Z]\w+)", re.M)
+LITERAL_RE = re.compile(r"'([^'\n]*)'|\"([^\"\n]*)\"")
+DEP_RE = re.compile(r"^  ([a-z_0-9]+):\s*(\S+)\s*$", re.M)
+
+
+def dart_files(root: Path):
+    return [p for p in root.rglob("*.dart") if "/l10n/generated/" not in p.as_posix()]
+
+
+def classes(root: Path) -> dict[str, str]:
+    found = {}
+    for f in dart_files(root):
+        for m in CLASS_RE.finditer(f.read_text(encoding="utf-8")):
+            found.setdefault(m.group(1), f"{f.relative_to(ROOT)}:{f.read_text(encoding='utf-8')[:m.start()].count(chr(10)) + 1}")
+    return found
+
+
+def arabic_literals(root: Path) -> dict[str, str]:
+    """Arabic string literals in screen code, keyed by literal -> first path:line."""
+    out = {}
+    for f in dart_files(root):
+        if "/screens/" not in f.as_posix():
+            continue
+        for i, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("//") or not ARABIC.search(line):
+                continue
+            for m in LITERAL_RE.finditer(line):
+                lit = m.group(1) or m.group(2) or ""
+                if ARABIC.search(lit):
+                    out.setdefault(lit.strip(), f"{f.relative_to(ROOT)}:{i}")
+    return out
+
+
+def deps(pubspec: Path) -> dict[str, str]:
+    body = pubspec.read_text(encoding="utf-8")
+    body = body.split("dev_dependencies:")[0]
+    return {m.group(1): m.group(2) for m in DEP_RE.finditer(body)}
+
+
+def check_widgets(fail, warn):
+    shared = set(classes(SHARED))
+    both = set(classes(RIDER)) & set(classes(CAPTAIN))
+    for name in sorted(both - shared - ALLOWED_TWIN_CLASSES):
+        fail(f"widgets: `{name}` is defined in BOTH apps and is not in flutter_shared")
+    for name in sorted(ALLOWED_TWIN_CLASSES & (both - shared)):
+        warn(f"widgets: `{name}` still duplicated (allowlisted — extract it)")
+
+
+def check_strings(fail, warn):
+    known = STRINGS.read_text(encoding="utf-8") if STRINGS.exists() else ""
+    r, c = arabic_literals(RIDER), arabic_literals(CAPTAIN)
+    for lit in sorted(set(r) & set(c)):
+        if len(lit) >= 8 and lit not in known:
+            fail(f"strings: {lit!r} is hardcoded in both apps ({r[lit]}, {c[lit]}) "
+                 f"and absent from app_strings.dart")
+
+
+def check_arabic(fail, warn):
+    for app, root in (("rider", RIDER), ("captain", CAPTAIN)):
+        n = len(arabic_literals(root))
+        base = ARABIC_BASELINE[app]
+        if n > base:
+            fail(f"arabic: {app} hardcoded literals rose {base} -> {n}; "
+                 f"use AppStrings for new copy")
+        elif n < base:
+            warn(f"arabic: {app} improved {base} -> {n}; lower the baseline")
+
+
+def check_deps(fail, warn):
+    r, c = deps(ROOT / "apps/rider/pubspec.yaml"), deps(ROOT / "apps/captain/pubspec.yaml")
+    for pkg in sorted(set(r) & set(c)):
+        if r[pkg] != c[pkg]:
+            fail(f"deps: {pkg} is {r[pkg]} (rider) vs {c[pkg]} (captain)")
+    for pkg in sorted(set(r) ^ set(c)):
+        if pkg not in ALLOWED_DEP_DELTAS and pkg != "flutter_shared":
+            fail(f"deps: {pkg} exists in only one app and is not allowlisted")
+
+
+def check_status(fail, warn):
+    ts = TS_STATE.read_text(encoding="utf-8")
+    block = re.search(r"TRIP_TRANSITIONS[^{]*\{(.*?)\n\};", ts, re.S)
+    if not block:
+        warn("status: could not parse TRIP_TRANSITIONS — skipping")
+        return
+    canonical = set(re.findall(r"^\s*(\w+):", block.group(1), re.M))
+    dart = SHARED / "models/trip_status.dart"
+    if not dart.exists():
+        warn("status: trip_status.dart not present yet (see plan P0.1)")
+        return
+    body = dart.read_text(encoding="utf-8")
+    enum = re.search(r"enum\s+TripStatus\s*\{(.*?)\}", body, re.S)
+    got = {re.sub(r"([A-Z])", lambda m: "_" + m.group(1).lower(), v.strip()).lstrip("_")
+           for v in enum.group(1).split(",") if v.strip()} if enum else set()
+    for s in sorted(canonical - got):
+        fail(f"status: `{s}` is in TRIP_TRANSITIONS but missing from the Dart enum")
+    for s in sorted(got - canonical):
+        fail(f"status: `{s}` is in the Dart enum but not in TRIP_TRANSITIONS")
+
+
+CHECKS = {"widgets": check_widgets, "strings": check_strings, "arabic": check_arabic,
+          "deps": check_deps, "status": check_status}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", nargs="*", choices=sorted(CHECKS), default=sorted(CHECKS))
+    ap.add_argument("--warn-only", action="store_true")
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args()
+
+    failures: list[str] = []
+    warnings: list[str] = []
+    for name in args.only:
+        CHECKS[name](failures.append, warnings.append)
+
+    if args.json:
+        print(json.dumps({"failures": failures, "warnings": warnings}, ensure_ascii=False, indent=2))
+    else:
+        for w in warnings:
+            print(f"WARN  {w}")
+        for f in failures:
+            print(f"FAIL  {f}")
+        print(f"\n{len(failures)} failure(s), {len(warnings)} warning(s)")
+    return 1 if failures and not args.warn_only else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
