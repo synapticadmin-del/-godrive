@@ -327,6 +327,14 @@ nothing else in this file.**
 - **Top action:** Self-host OSRM on the Egypt extract (~169 MB, ~$10–20/mo) and stop pricing bookings off a straight line — return `503` instead. The whole P0 set is 4 items, 3 of them under a day; a licensed stack costs ~$40–80/month at 1,000 trips/day, against a current bill of zero and an exposure of the entire platform.
 - **Hands off to:** T27, T05, T03, T02, T06, T08, T22, T25
 
+### T24 — Performance, Cost & Scale
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/80 · **Doc:** `docs/plan/24-performance-cost-scale.md` · **By:** chat-20260801-1416-2cd9 · **Date:** 2026-08-01
+- **Verdict:** Survivable but badly accounted — $6,688/month at 10k trips/day (9.3% of commission) where $274 would do, and D1 hits its hard 10 GB ceiling in ~144 days at that volume, which stops the platform outright.
+- **Blockers (S1):** 4 — admin dashboard polling scans the whole `trips` table ~4x every 8s and is the single biggest line item at every tier (~629B D1 rows/month); unsimplified OSRM polylines stored per trip with no retention job fill D1 in 29–144 days; the KV rate limiter costs $1,140/month at $5/M writes, more than everything it protects; 1,409 D1 writes per completed trip of which 97% is telemetry overwritten seconds later.
+- **Top action:** Four to six engineering days of P0 — KV-cache the admin aggregates, make the date predicates sargable, move live position out of D1 into the GeoCell DO that already owns it, and get the rate-limit counter off KV — takes the bill from $6,688 to $274/month (95.9%) and infra from 9.3% to 0.4% of commission.
+- **Hands off to:** T07 (hibernation is correct but the in-memory session map silently drops frames after eviction — do not fix it by removing hibernation), T08 (radius filter applied after SQL LIMIT), T02/T05 (PII in the captains payload; prod and staging share one D1 id), T22 (none of the cost metrics are instrumented), T25 (retention period is a legal call), T26 (staging not isolated), T27 (duplicated `trip_ws.dart` means cadence fixes must be made twice)
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
