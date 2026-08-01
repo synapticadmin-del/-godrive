@@ -87,10 +87,18 @@ github__create_or_update_file {
 
 ### 2.5 Read the outcome
 
+This exact rejection has been verified against this repository — it is what a
+lost race looks like:
+
+```
+File already exists at board/claims/TNN.md. You must provide the current
+file's SHA when updating.
+```
+
 | Result | Meaning | Do |
 |---|---|---|
 | success | you may own it | go to 2.6 — still verify |
-| error mentions `sha`, `already exists`, or `422` | another chat got there first | back to 2.1, next candidate |
+| `File already exists` / mentions `sha` / `422` | another chat got there first | back to 2.1, next candidate |
 | error `409` / `expected <sha> but was <sha>` | the branch ref moved under you | sleep 3–10 s (random), back to 2.1 |
 | any other error | transient | retry once, then back to 2.1 |
 
