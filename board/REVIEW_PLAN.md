@@ -1,7 +1,7 @@
 # REVIEW_PLAN — Synaptic Go
 ## خطة المراجعة التفصيلية الموزّعة على شاتات
 
-26 independent tasks. No task depends on another's output. Any chat may claim
+28 independent tasks. No task depends on another's output. Any chat may claim
 any unclaimed task; the lowest-numbered one is the convention.
 
 **Before you touch this file: it is read-only.** Your only write on this branch
@@ -13,11 +13,16 @@ is your own `board/claims/TNN.md`. See `board/PROTOCOL.md`.
 | Base branch | `main` |
 | Board branch | `review-board` |
 | Deliverable | one document per task at `docs/plan/NN-slug.md`, one PR into `main` |
+| Central record | every chat appends its summary block to `PROJECT.md` at the repo root |
 | Phase | **review + plan only** — no product code changes in these PRs |
 
 ---
 
 ## Task index
+
+> **T27 and T28 were added after the first round.** They sit at the end of the
+> numbering, so the auto-claim order reaches them last. If you want them early,
+> use the pinned-task prompt in `board/NEW_CHAT_PROMPT.md`.
 
 
 ### A — Foundation & safety-critical
@@ -44,6 +49,8 @@ is your own `board/claims/TNN.md`. See `board/PROTOCOL.md`.
 | **T13** | Motion, Micro-interactions & Perceived Performance | الحركة والتفاعلات الدقيقة والأداء المُدرَك | `plan/13-motion-micro-interactions` | [`tasks/T13.md`](tasks/T13.md) |
 | **T14** | Localisation, RTL & Content Design | التعريب والاتجاه والمحتوى | `plan/14-i18n-rtl-content` | [`tasks/T14.md`](tasks/T14.md) |
 | **T15** | Accessibility & Inclusive Design | إتاحة الاستخدام والتصميم الشامل | `plan/15-accessibility-inclusive-design` | [`tasks/T15.md`](tasks/T15.md) |
+| **T27** | Cross-App Parity — Rider ↔ Captain ↔ Admin | مطابقة التطبيقين مع بعض والاتساق الكامل | `plan/27-cross-app-parity-consistency` | [`tasks/T27.md`](tasks/T27.md) |
+| **T28** | Motion Development — Shared Animation Library & Signature Moments | تطوير الموشن — مكتبة الحركة المشتركة واللحظات المميّزة | `plan/28-motion-development-build` | [`tasks/T28.md`](tasks/T28.md) |
 
 ### C — Feature parity & new capability
 

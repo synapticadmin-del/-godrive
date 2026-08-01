@@ -160,6 +160,14 @@ Read `board/tasks/TNN.md` — that is your brief. Then:
 - **Subagents are allowed and encouraged** for parallel file reading. You stay
   the owner of the deliverable.
 - **Never ask the user anything.** Decide, document the assumption, keep going.
+- **Cross-app parity is everyone's job.** If your track touches the rider app
+  or the captain app, look at the same surface in the *other* app before you
+  write a word. The two apps are two halves of one trip and they have drifted:
+  duplicated screens (`trip_chat_screen.dart`, `trip_ws.dart`, wallet, SOS,
+  splash, login), diverging theme adoption, and inconsistent vocabulary. Any
+  mismatch you walk past goes in your `## Cross-cutting notes` addressed to
+  **T27**, which owns the problem systematically. Never fix one app's screen in
+  your plan without saying what the other app must do to match.
 - Large tool results get written to disk — read them with shell tools rather
   than pulling them wholesale into context.
 
@@ -195,7 +203,8 @@ github__create_pull_request {
 
 ### 5.4 Never
 
-- push to `main`
+- push to `main` — with exactly one exception, your `PROJECT.md` entry in
+  section 6 below. Nothing else you produce goes near `main` outside a PR.
 - merge or close any PR (yours or anyone's)
 - touch `.github/workflows/**` — the GitHub App has no `workflows` permission
   and the push will fail. Put proposed CI YAML inside your document as a fenced
@@ -205,7 +214,77 @@ github__create_pull_request {
 
 ---
 
-## 6. Release the claim
+## 6. Record your entry in `PROJECT.md` (on `main`)
+
+`PROJECT.md` at the repository root is the project's central record. Every
+chat adds one block to it when its work is done, so that the whole review can
+be read in five minutes without opening 28 pull requests.
+
+**This is the only write to `main` you are permitted.** It is append-only and
+it is guarded by a sentinel.
+
+### 6.1 Read it fresh
+
+```
+github__get_file_contents {
+  owner: OWNER, repo: REPO, path: "PROJECT.md", ref: "refs/heads/main"
+}
+```
+
+Keep the returned blob **sha** — you need it to write.
+
+### 6.2 Insert your block
+
+Find this line:
+
+```
+<!-- TRACK-ENTRIES:END -->
+```
+
+Insert your block **immediately before it**. Change nothing else in the file —
+not a heading, not another track's block, not a space. If your entry for this
+task already exists (a retry after a partial failure), replace your own block
+rather than adding a second one.
+
+Your block:
+
+```markdown
+### TNN — <Task title>
+
+- **PR:** <url> · **Doc:** `docs/plan/NN-slug.md` · **By:** <CHAT_ID> · **Date:** <UTC>
+- **Verdict:** <one sentence on the health of this axis — be blunt>
+- **Blockers (S1):** <count> — <up to three, one line each; write "none" if none>
+- **Top action:** <the single most valuable thing to do about this axis>
+- **Hands off to:** <task ids whose owners need to know something you found, or "—">
+```
+
+### 6.3 Write it back
+
+```
+github__create_or_update_file {
+  owner: OWNER, repo: REPO,
+  branch: "main",
+  path: "PROJECT.md",
+  message: "docs(project): TNN — <short verdict>",
+  content: <the full file with your block inserted>,
+  sha: <the sha from 6.1>
+}
+```
+
+### 6.4 Handle the conflict
+
+Another chat finishing in the same minute will move the file under you and you
+will get `409` / `expected <sha> but was <sha>`. That is normal and it is not
+an error you report — it means someone else's entry landed first.
+
+**Re-read the file (6.1) to get the new sha and the new content, re-insert your
+block, and write again.** Never reuse a stale sha and never write content you
+fetched before the conflict — that would erase the other chat's entry. Retry up
+to 5 times with a short random pause between attempts.
+
+---
+
+## 7. Release the claim
 
 Update `board/claims/TNN.md` on `review-board` — **with** the `sha` this time:
 
@@ -219,14 +298,14 @@ step: an unreleased claim looks like a crashed chat and someone will redo it.
 
 ---
 
-## 7. Report back to the user
+## 8. Report back to the user
 
 Two lines. Task id + PR URL. Optionally one line for the single most alarming
 finding. Do **not** paste the document into chat — it is in the PR.
 
 ---
 
-## 8. Hard rules
+## 9. Hard rules
 
 1. One task per chat. When the claim is released, stop.
 2. Read-only on `board/REVIEW_PLAN.md`, `board/PROTOCOL.md`, `board/TEMPLATE.md`,
@@ -235,3 +314,7 @@ finding. Do **not** paste the document into chat — it is in the PR.
    document. Never edit another track's file.
 4. Your document must be useful to an engineer who has not read the codebase:
    concrete, ordered, and costed.
+5. `PROJECT.md` is append-only and shared. Insert your block before the
+   sentinel, preserve everything else byte for byte, and re-read on every
+   conflict. Overwriting another track's entry is the one mistake in this
+   protocol that destroys someone else's work.
