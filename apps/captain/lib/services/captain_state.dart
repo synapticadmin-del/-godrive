@@ -85,6 +85,63 @@ class CaptainState extends ChangeNotifier {
 
   StreamSubscription<Position>? _positionStreamSub;
 
+  // -------------------------------------------------------------------
+  // Publish pacing and heartbeat (E11 / F-06-02, F-07-01)
+  // -------------------------------------------------------------------
+
+  /// Unconditional publish, independent of movement.
+  ///
+  /// The location stream only fires when the captain *moves* (50 m idle,
+  /// 10 m on a trip). A captain parked at a rank, queueing at a light or
+  /// waiting outside a school therefore emitted nothing at all — and the
+  /// server's presence record ages out after 120 s, so a perfectly available
+  /// captain silently stopped being dispatchable while their app still showed
+  /// them online (F-06-02). Movement is not the same thing as availability;
+  /// this timer publishes availability.
+  ///
+  /// 20 s against a 120 s presence window leaves six missed beats of margin
+  /// before a captain disappears, and costs three requests a minute while
+  /// stationary.
+  static const Duration _heartbeatInterval = Duration(seconds: 20);
+
+  Timer? _heartbeatTimer;
+
+  /// Minimum wall-clock gap between two location POSTs.
+  ///
+  /// The server allows 30 per 60 s. The old client published every fix, and a
+  /// 10 m distance filter at driving speed fires every 0.5–1.2 s — 50 to 116
+  /// posts a minute, or 1.7–3.9x the limit. Everything over the line was
+  /// rejected with 429 and dropped, which is what made the rider's map freeze
+  /// for 38–47 s and then teleport the car (F-07-01).
+  ///
+  /// 3 s caps this client at 20/min, two thirds of the budget, leaving room
+  /// for /online, retries and a burst when the captain crosses a cell
+  /// boundary. The server advertises the same figure as `minPublishIntervalMs`
+  /// on every heartbeat response and this value follows it, so the two cannot
+  /// drift apart.
+  static const Duration _defaultMinPublishInterval = Duration(seconds: 3);
+
+  Duration _minPublishInterval = _defaultMinPublishInterval;
+
+  DateTime? _lastPublishAt;
+
+  /// Newest fix that has not been sent yet. Deliberately a single slot rather
+  /// than a queue: if two fixes arrive inside one window the older one is
+  /// worthless, and a queue would spend the whole drive replaying stale
+  /// positions a minute behind the car.
+  double? _pendingLat;
+  double? _pendingLng;
+  Timer? _publishFlushTimer;
+
+  /// True once the Android foreground service is carrying the GPS stream, so
+  /// backgrounding the app no longer has to end the shift.
+  bool _foregroundServiceActive = false;
+
+  /// Set when the app took the captain offline on its own because it could not
+  /// keep tracking in the background. Resuming puts them back online rather
+  /// than leaving them to notice and fix it themselves.
+  bool _autoOfflineFromBackground = false;
+
   /// Single shared position stream. Both the server location push and the
   /// map camera subscribe to this one broadcast stream instead of each
   /// opening its own GPS stream — two independent `getPositionStream`
@@ -616,14 +673,48 @@ class CaptainState extends ChangeNotifier {
   /// and the rider is watching the captain approach. With no active trip a
   /// coarser fix is plenty to keep the captain on the dispatch map, so we
   /// drop to medium accuracy and a wide filter and let the GPS radio rest.
-  static LocationSettings get _idleLocationSettings => const LocationSettings(
-        accuracy: LocationAccuracy.medium,
-        distanceFilter: 50, // only wake the radio when the captain moves 50m
+  ///
+  /// These filters govern the *stream*, not the network. The publish rate is
+  /// paced separately in [pushLocationCoordinates], so a tight filter no
+  /// longer means a flood of POSTs — the map still gets every fix it can
+  /// draw, and the server gets one every [_minPublishInterval].
+  static const LocationAccuracy _idleAccuracy = LocationAccuracy.medium;
+  static const int _idleDistanceFilter = 50;
+  static const LocationAccuracy _tripAccuracy = LocationAccuracy.high;
+  static const int _tripDistanceFilter = 10;
+
+  /// Build the platform's location settings.
+  ///
+  /// On Android this returns [AndroidSettings] carrying a
+  /// [ForegroundNotificationConfig], which is what actually keeps the GPS
+  /// stream alive once the app is no longer on screen. Without it Android
+  /// stops delivering updates to a backgrounded process within seconds, while
+  /// the server still has `is_online = 1` — so the captain kept receiving
+  /// offers they could not see and riders watched a car that never moved
+  /// (F-06-03, F-10-01). It happens every time a captain opens Google Maps,
+  /// which is to say on every single trip.
+  ///
+  /// The notification is not decoration: Android requires a visible ongoing
+  /// notification for a foreground service, and the captain is entitled to
+  /// know their location is being published.
+  LocationSettings _locationSettings({required bool activeTrip}) {
+    final accuracy = activeTrip ? _tripAccuracy : _idleAccuracy;
+    final distanceFilter = activeTrip ? _tripDistanceFilter : _idleDistanceFilter;
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return AndroidSettings(
+        accuracy: accuracy,
+        distanceFilter: distanceFilter,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'GoDrive — أنت متصل',
+          notificationText: 'يتم تحديث موقعك لاستقبال الرحلات',
+          enableWakeLock: true,
+        ),
       );
-  static LocationSettings get _tripLocationSettings => const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // precise tracking while on a trip
-      );
+    }
+
+    return LocationSettings(accuracy: accuracy, distanceFilter: distanceFilter);
+  }
 
   /// True while a trip is in a state that justifies high-accuracy GPS.
   bool get _hasActiveTrip {
@@ -634,10 +725,20 @@ class CaptainState extends ChangeNotifier {
 
   bool _lifecyclePaused = false;
 
+  /// True when this platform can keep publishing location with the app in the
+  /// background. Only Android, and only via the foreground service configured
+  /// above. Everywhere else, backgrounding genuinely ends tracking — and the
+  /// honest response to that is to tell the server, not to leave a stale
+  /// `is_online = 1` behind.
+  bool get _canTrackInBackground =>
+      defaultTargetPlatform == TargetPlatform.android;
+
   void _startLocationStream() {
     _stopLocationStream();
-    if (_lifecyclePaused) return; // app is backgrounded — stay off the radio
-    final settings = _hasActiveTrip ? _tripLocationSettings : _idleLocationSettings;
+    if (_lifecyclePaused && !_canTrackInBackground) return;
+    final settings = _locationSettings(activeTrip: _hasActiveTrip);
+    _foregroundServiceActive =
+        defaultTargetPlatform == TargetPlatform.android;
     _positionStreamSub = Geolocator.getPositionStream(locationSettings: settings).listen(
       (Position pos) {
         // Remember the fix: the offers filter measures each pickup from here,
@@ -646,7 +747,8 @@ class CaptainState extends ChangeNotifier {
         lastPosition = pos;
         // Fan every fix out to the shared broadcast stream so the map camera
         // (and any other UI consumer) rides the SAME GPS subscription as the
-        // server push below — one radio, two listeners.
+        // server push below — one radio, two listeners. The map gets the full
+        // rate; only the network publish is paced.
         if (!_positionCtrl.isClosed) _positionCtrl.add(pos);
         if (online || activeTrip != null) {
           pushLocationCoordinates(pos.latitude, pos.longitude);
@@ -654,31 +756,102 @@ class CaptainState extends ChangeNotifier {
       },
       onError: (_) {},
     );
+    _startHeartbeat();
   }
 
   void _stopLocationStream() {
     _positionStreamSub?.cancel();
     _positionStreamSub = null;
+    _foregroundServiceActive = false;
+    _stopHeartbeat();
+  }
+
+  /// Arm the unconditional heartbeat. Idempotent.
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
+      if (!online && activeTrip == null) return;
+      final pos = lastPosition;
+      if (pos == null) {
+        // No fix yet this session — go and get one rather than skipping the
+        // beat, otherwise a captain who went online indoors never appears.
+        unawaited(pushLocation());
+        return;
+      }
+      pushLocationCoordinates(pos.latitude, pos.longitude);
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _publishFlushTimer?.cancel();
+    _publishFlushTimer = null;
+    _pendingLat = null;
+    _pendingLng = null;
   }
 
   /// Re-evaluate the GPS accuracy profile after a trip-state transition. If
   /// the stream is running and the desired profile changed (idle ↔ trip),
   /// restart the stream with the new settings. A no-op when the stream is
-  /// off (offline or backgrounded).
+  /// off (offline, or backgrounded on a platform that cannot track).
   void _syncLocationAccuracy() {
-    if (_positionStreamSub == null || _lifecyclePaused) return;
+    if (_positionStreamSub == null) return;
+    if (_lifecyclePaused && !_canTrackInBackground) return;
     _startLocationStream();
   }
 
+  /// Publish a position, never faster than [_minPublishInterval].
+  ///
+  /// Fixes arriving inside the window are not dropped and not queued — the
+  /// newest one replaces whatever was waiting and is sent when the window
+  /// opens. The captain's true current position is the only one worth having,
+  /// and this way the server always receives that rather than a backlog.
   Future<void> pushLocationCoordinates(double lat, double lng) async {
     if (!online && activeTrip == null) return;
+
+    final now = DateTime.now();
+    final last = _lastPublishAt;
+    final elapsed = last == null ? null : now.difference(last);
+
+    if (elapsed != null && elapsed < _minPublishInterval) {
+      _pendingLat = lat;
+      _pendingLng = lng;
+      if (_publishFlushTimer == null) {
+        _publishFlushTimer = Timer(_minPublishInterval - elapsed, () {
+          _publishFlushTimer = null;
+          final pLat = _pendingLat;
+          final pLng = _pendingLng;
+          _pendingLat = null;
+          _pendingLng = null;
+          if (pLat != null && pLng != null) {
+            unawaited(_sendLocation(pLat, pLng));
+          }
+        });
+      }
+      return;
+    }
+
+    await _sendLocation(lat, lng);
+  }
+
+  /// The actual POST. Only [pushLocationCoordinates] and its flush timer call
+  /// this, so every publish passes through the pacing above.
+  Future<void> _sendLocation(double lat, double lng) async {
+    _lastPublishAt = DateTime.now();
     try {
-      await _post('/captain/location', {
+      final res = await _post('/captain/location', {
         'lat': lat,
         'lng': lng,
         'city': 'cairo',
         if (activeTrip != null) 'tripId': activeTrip!['id'],
       });
+      // Adopt the server's own pacing advice so the client cannot drift out
+      // of step with a limit that changes on the server.
+      final advised = res['minPublishIntervalMs'];
+      if (advised is num && advised > 0) {
+        _minPublishInterval = Duration(milliseconds: advised.round());
+      }
     } catch (_) {}
   }
 
@@ -1075,33 +1248,91 @@ class CaptainState extends ChangeNotifier {
   // App lifecycle (pause the radio + polling while backgrounded)
   // -------------------------------------------------------------------
 
-  /// Called by the main shell's WidgetsBindingObserver. Backgrounding the app
-  /// pauses the GPS stream and the offers poll — the biggest battery drains —
-  /// and foregrounding restores them. FCM still wakes the app for real work.
+  /// Called by the main shell's WidgetsBindingObserver.
+  ///
+  /// Backgrounding used to do one thing: kill the GPS stream. It did not tell
+  /// the server, so `captains.is_online` stayed 1 with no fixes arriving
+  /// behind it (F-06-03, F-10-01). Dispatch kept selecting the captain, the
+  /// offers inbox kept pushing to an app that was not listening, and the
+  /// rider's map kept showing a car that had stopped moving. This happens on
+  /// every trip, because navigating means opening Google Maps.
+  ///
+  /// Now there are two cases, and the difference between them is whether the
+  /// platform can honestly keep tracking:
+  ///
+  ///  * **Android, online** — the foreground service configured in
+  ///    [_locationSettings] carries the GPS stream. Nothing stops. Only the
+  ///    offers poll pauses, because the socket already covers it.
+  ///  * **Anything else** — tracking really does end, so the server is told.
+  ///    A captain marked offline is better than a captain marked online who
+  ///    cannot be reached. Resuming puts them back where they were.
   void handleAppLifecycleState(AppLifecycleState state) {
     switch (state) {
-      case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
+        // Transient: the notification shade, an incoming call banner, the app
+        // switcher. Deliberately ignored — the previous version treated this
+        // as a full background and dropped the GPS stream every time a
+        // notification arrived.
+        break;
+      case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
         if (_lifecyclePaused) return;
         _lifecyclePaused = true;
-        _stopLocationStream();
         offersTimer?.cancel();
         offersTimer = null;
+
+        final working = online || activeTrip != null;
+        if (working && _canTrackInBackground) {
+          // The foreground service keeps the stream and the heartbeat alive.
+          // Leaving them running is the entire point of having one.
+          break;
+        }
+
+        _stopLocationStream();
+        if (online) {
+          _autoOfflineFromBackground = true;
+          online = false;
+          unawaited(_publishOfflineForBackground());
+          notifyListeners();
+        }
         break;
       case AppLifecycleState.resumed:
         if (!_lifecyclePaused) return;
         _lifecyclePaused = false;
-        // Restore the GPS stream (if the captain is online / on a trip) and
-        // re-arm the poll, then re-sync immediately so anything missed while
-        // backgrounded shows up without waiting for the next tick.
-        if (online || activeTrip != null) _startLocationStream();
+        if (_autoOfflineFromBackground) {
+          // Put the captain back to work rather than making them notice a
+          // switch flipped itself while they were in the navigation app.
+          _autoOfflineFromBackground = false;
+          unawaited(setOnline(true));
+        } else if (online || activeTrip != null) {
+          if (_positionStreamSub == null) _startLocationStream();
+        }
         _restartOffersTimer();
         unawaited(refreshOffers());
         break;
       case AppLifecycleState.detached:
+        // Last chance to stop claiming to be online. Best effort: the process
+        // may not survive long enough for the request to leave.
+        if (online) unawaited(_publishOfflineForBackground());
         break;
     }
+  }
+
+  /// Tell the server the captain is no longer trackable.
+  ///
+  /// Sends the last known fix so the GeoCell presence record is deleted
+  /// immediately rather than lingering until it ages out — otherwise dispatch
+  /// keeps offering trips to a captain who has just gone dark.
+  Future<void> _publishOfflineForBackground() async {
+    final pos = lastPosition;
+    try {
+      await _post('/captain/online', {
+        'online': false,
+        if (pos != null) 'lat': pos.latitude,
+        if (pos != null) 'lng': pos.longitude,
+        'city': 'cairo',
+      });
+    } catch (_) {}
   }
 
   Future<Map<String, dynamic>> earnings() => _get('/captain/earnings');
@@ -1161,6 +1392,9 @@ class CaptainState extends ChangeNotifier {
     _declinedTripIds.clear();
     _bidTripIds.clear();
     navigationTarget = null;
+    _autoOfflineFromBackground = false;
+    _lastPublishAt = null;
+    _minPublishInterval = _defaultMinPublishInterval;
     final prefs = await SharedPreferences.getInstance();
     // Signing out ends the session, not the person's display preference.
     // Remove only the keys this class owns instead of prefs.clear() (which
