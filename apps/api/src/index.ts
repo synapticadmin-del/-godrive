@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { TripRoom } from "./durable-objects/TripRoom";
 import { GeoCell } from "./durable-objects/GeoCell";
@@ -16,11 +17,15 @@ import { searchRoutes } from "./routes/search";
 import { walletRoutes } from "./routes/wallet";
 import { deviceRoutes } from "./routes/devices";
 import { safetyRoutes } from "./routes/safety";
-import { intercityRoutes } from "./routes/intercity";
-import { companyRoutes } from "./routes/companies";
+// `intercityRoutes` and `companyRoutes` are deliberately NOT imported: both
+// verticals are unmounted for launch (§2.1 of the execution plan, gate item 3).
+// The route modules still exist and are E04's to reject at the schema level;
+// unmounting here is what makes /intercity/* and /companies/* 404 today.
+// These are G1‡ — disabled, not fixed — and nothing in wave 1 re-mounts them.
 import { authMiddleware, type AppEnv } from "./middleware/auth";
 import { rateLimit } from "./middleware/rateLimit";
-import { runExpiredDataCleanup } from "./lib/cleanup";
+import { checkHealth } from "./lib/health";
+import { handleScheduled } from "./cron/scheduled";
 
 export { TripRoom, GeoCell, CaptainInbox, OfferScheduler };
 
@@ -36,6 +41,26 @@ const ALLOWED_ORIGINS = [
   "http://localhost:4173",
   "http://127.0.0.1:4173",
 ];
+
+// ---------------------------------------------------------------------------
+// Reserved mount point: request-correlation id — E12.
+//
+// Registered ahead of every other middleware and every route, which is the
+// position E12's brief asks for ("mounted ahead of all routes (E02 left the
+// mount point)"). It is a passthrough today because `middleware/requestId.ts`
+// does not exist yet and belongs to E12.
+//
+// SEAM — read this before assuming E12 can just merge. The two public route
+// mounts further down late-bind through `await import()` because their target
+// *modules* already exist and only the export is missing. That trick is not
+// available here: the module itself is absent, so a literal `import()` of it
+// fails to bundle and fails `tsc` today. Activating this therefore needs the
+// one thing this file is about to forbid — an edit to `index.ts` after the
+// freeze. Flagged on the PR; E12 needs an explicit one-line exemption rather
+// than a quiet reach across the boundary.
+app.use("*", async (_c, next) => {
+  await next();
+});
 
 app.use(
   "*",
@@ -87,8 +112,10 @@ app.get("/", (c) =>
       "paymob-real",
       "internal-wallet",
       "scheduled-trips",
-      "intercity",
-      "b2b-companies",
+      // "intercity" and "b2b-companies" are no longer advertised here: both
+      // are unmounted for launch and every path under them answers 404.
+      // Advertising a 404 as a feature is the same class of untruth as the
+      // "authorities are notified" SOS copy E05 deleted.
       "safety-sos",
       "trip-share",
       "in-call-chat",
@@ -96,14 +123,110 @@ app.get("/", (c) =>
   }),
 );
 
-app.get("/health", (c) =>
-  c.json({
-    ok: true,
-    service: "synaptic-go-api",
-    version: c.env.APP_VERSION ?? "0.3.0",
-    time: new Date().toISOString(),
-  }),
-);
+// Delegates to lib/health.ts. That module is E12's next, and its signature
+// already carries an awaitable body and an explicit status so a real probe can
+// answer 503 on a broken binding without reopening this file.
+app.get("/health", async (c) => {
+  const { status, body } = await checkHealth(c.env);
+  return c.json(body, status);
+});
+
+// ---------------------------------------------------------------------------
+// Public mounts — the paths that must resolve without a JWT.
+//
+// Both point at exports that are not on `main` yet: `publicUserRoutes` is
+// written and waiting in E16's PR #92, and `publicSafetyRoutes` is E13's,
+// which has not started. This file freezes when this task merges, so this is
+// the last opportunity to create either mount at all.
+//
+// Why they late-bind instead of importing normally: a static
+// `import { publicUserRoutes } from "./routes/user"` does not compile against
+// `main` today, and CI gates on `tsc --noEmit`. Copying the handlers in here
+// instead would fork the exact payload E13 is tasked with redacting, into a
+// file nobody may edit afterwards. So the target module — which does exist, so
+// the bundle resolves — is probed for the export at request time. While the
+// export is absent the request falls through to the authenticated router,
+// which is precisely today's behaviour, and no route changes meaning.
+//
+// CONTRACT for E13 and E16. Paths inside a public router are relative to the
+// mount prefix, i.e. ordinary `app.route(prefix, router)` semantics:
+//     routes/user.ts    → export const publicUserRoutes    with "/deletion-request"
+//     routes/safety.ts  → export const publicSafetyRoutes  with "/track/:token"
+// E16's PR #92 already matches this exactly. E13 can lift its existing
+// `safetyRoutes.get("/track/:token")` handler across unchanged.
+// ---------------------------------------------------------------------------
+
+// Derived from Hono's own Context rather than the global workers-types
+// `ExecutionContext`. The two have drifted — workers-types now carries a
+// `tracing` member Hono's does not — and the object actually being passed here
+// is the one Hono hands us, so taking the type from the same place keeps this
+// correct across future type-package bumps.
+type HonoExecutionContext = Context<AppEnv>["executionCtx"];
+
+type MountableRouter = {
+  fetch: (
+    request: Request,
+    env: Env,
+    ctx: HonoExecutionContext,
+  ) => Response | Promise<Response>;
+};
+
+async function resolveOptionalRouter(
+  load: () => Promise<Record<string, unknown>>,
+  exportName: string,
+): Promise<MountableRouter | null> {
+  const candidate = (await load())[exportName] as MountableRouter | undefined;
+  return candidate && typeof candidate.fetch === "function" ? candidate : null;
+}
+
+/** Re-address the request the way a sub-router sees it: without the mount prefix. */
+function withoutMountPrefix(c: Context<AppEnv>, prefix: string): Request {
+  const url = new URL(c.req.url);
+  url.pathname = url.pathname.slice(prefix.length) || "/";
+  return new Request(url, c.req.raw);
+}
+
+// GET/POST /user/deletion-request — the unauthenticated deletion entry point
+// the app stores require. Without it the store-listing URL answers 401 and the
+// listing is rejected (gate item 12). Falls through to the authenticated
+// userRoutes, and so still 401s, until E16 merges.
+app.use("/user/deletion-request", async (c, next) => {
+  const router = await resolveOptionalRouter(() => import("./routes/user"), "publicUserRoutes");
+  if (!router) return next();
+  return router.fetch(withoutMountPrefix(c, "/user"), c.env, c.executionCtx);
+});
+
+// GET /safety/track/:token — the one /safety path that must be public. Today
+// it sits behind `safetyRoutes.use("*", authMiddleware)` (safety.ts:11), so the
+// family member holding a share link gets a 401 instead of the trip. Mounted
+// ahead of the authenticated router; inert until E13 exports the handler.
+app.use("/safety/track/*", async (c, next) => {
+  const router = await resolveOptionalRouter(() => import("./routes/safety"), "publicSafetyRoutes");
+  if (!router) return next();
+  return router.fetch(withoutMountPrefix(c, "/safety"), c.env, c.executionCtx);
+});
+
+// ---------------------------------------------------------------------------
+// Launch shape: /intercity and /companies are off (gate item 3).
+//
+// Dropping the two `app.route(...)` mounts is necessary but NOT sufficient, and
+// this is the one part of the task that does not work the obvious way.
+// `searchRoutes` and `walletRoutes` are both mounted at "/" and both open with
+// `use("*", authMiddleware)` — a `*` at the root matches every path in the app.
+// So an unmounted path is still matched by that middleware and answers
+// 401 UNAUTHORIZED long before it can reach `app.notFound()`. Verified: with the
+// mounts simply removed, `GET /intercity/quote` returns 401, not 404.
+//
+// 401 is the wrong answer for a vertical that no longer exists — it reads as
+// "authenticate and try again", which is exactly the invitation the launch
+// shape is meant to withdraw. These paths are therefore terminated explicitly,
+// ahead of the "/" mounts. Registered before them, so they short-circuit.
+//
+// This block is the enforcement point for the client-side half E05 shipped; the
+// schema-level rejection is still E04's.
+for (const path of ["/intercity", "/intercity/*", "/companies", "/companies/*"]) {
+  app.all(path, (c) => c.json({ error: "Not found", code: "NOT_FOUND" }, 404));
+}
 
 app.route("/auth", authRoutes);
 app.route("/captain", captainRoutes);
@@ -118,8 +241,8 @@ app.route("/", walletRoutes);
 // New: comprehensive transport platform
 app.route("/user", deviceRoutes);     // POST /user/device, DELETE /user/device
 app.route("/safety", safetyRoutes);  // sos, share/track, chat
-app.route("/intercity", intercityRoutes);
-app.route("/companies", companyRoutes);
+// /intercity and /companies are intentionally not mounted — see the import
+// block. Both now fall through to app.notFound() and return 404.
 
 // WebSocket upgrade for live trip room.
 // Auth: the Authorization header or a (deprecated) ?token= query param are
@@ -264,109 +387,10 @@ export default {
   },
 
   // ---- Scheduled (cron) triggers ----
-  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    const now = new Date().toISOString();
-
-    // Daily expired-data cleanup. The "*/1 * * * *" trigger fires this handler
-    // every minute, so gate on a KV last-run key (24h TTL) to run once a day.
-    try {
-      const lastRun = await env.SESSIONS.get("cleanup:last-run");
-      if (!lastRun) {
-        const result = await runExpiredDataCleanup(env);
-        await env.SESSIONS.put("cleanup:last-run", now, { expirationTtl: 86400 });
-        console.log("cleanup: daily run complete", JSON.stringify(result));
-      }
-    } catch (e) {
-      console.error("cleanup error", e);
-    }
-
-    // Dispatch due scheduled trips: flip status to searching and send offers.
-    try {
-      const due = await env.DB.prepare(
-        `SELECT d.id AS dispatch_id, d.trip_id, t.pickup_lat, t.pickup_lng, t.dropoff_lat,
-                t.dropoff_lng, t.city, t.estimated_fare, t.currency
-         FROM scheduled_trip_dispatch d
-         JOIN trips t ON t.id = d.trip_id
-         WHERE d.status = 'pending' AND d.scheduled_for <= ?
-           AND t.status = 'searching'`,
-      )
-        .bind(now)
-        .all();
-      for (const row of (due.results ?? []) as Array<{
-        dispatch_id: string;
-        trip_id: string;
-        pickup_lat: number;
-        pickup_lng: number;
-        dropoff_lat: number;
-        dropoff_lng: number;
-        city: string;
-        estimated_fare: number;
-        currency: string;
-      }>) {
-        // Mark dispatched to avoid duplicate processing
-        await env.DB.prepare(
-          `UPDATE scheduled_trip_dispatch SET status = 'dispatched', dispatched_at = ? WHERE id = ? AND status = 'pending'`,
-        )
-          .bind(now, row.dispatch_id)
-          .run();
-        // Push a notification to admins (the actual /trips create already
-        // drives nearest-captain matching through GeoCell; scheduled trips
-        // flip their status to `offered` automatically once a captain sees
-        // them in their inbox).
-        const admins = await env.DB.prepare(`SELECT id FROM users WHERE role = 'admin'`).all<{ id: string }>();
-        const { pushToUser } = await import("./lib/notifications");
-        for (const admin of admins.results ?? []) {
-          await pushToUser({
-            env,
-            userId: admin.id,
-            topic: "scheduled.trip.dispatch",
-            title: "رحلة مجدولة نشطة الآن",
-            body: `الرحلة ${row.trip_id} تم تفعيلها في ${row.city}.`,
-            data: { tripId: row.trip_id },
-          });
-        }
-      }
-    } catch (e) {
-      console.error("scheduled dispatch error", e);
-    }
-
-    // On the 1st of each month, generate B2B invoices for active companies.
-    try {
-      const day = new Date().getUTCDate();
-      if (day === 1) {
-        const companies = await env.DB.prepare(
-          `SELECT id FROM companies WHERE status = 'active'`,
-        ).all<{ id: string }>();
-        const periodEnd = new Date();
-        const periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth() - 1, 1);
-        for (const cmp of companies.results ?? []) {
-          const sum = await env.DB.prepare(
-            `SELECT COUNT(*) AS trips, COALESCE(SUM(COALESCE(final_fare, estimated_fare, 0)), 0) AS total
-             FROM trips WHERE company_id = ? AND billed_to_company = 1
-               AND datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?)`,
-          )
-            .bind(cmp.id, periodStart.toISOString(), periodEnd.toISOString())
-            .first<{ trips: number; total: number }>();
-          if (sum && sum.trips > 0) {
-            const { id: invId } = await import("./lib/utils");
-            await env.DB.prepare(
-              `INSERT INTO company_invoices
-                (id, company_id, period_start, period_end, total_trips, total_amount, status, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, 'issued', datetime('now'))`,
-            )
-              .bind(invId("inv"), cmp.id, periodStart.toISOString(), periodEnd.toISOString(), sum.trips, sum.total)
-              .run();
-            // Mark the billed trips as settled so next month doesn't re-count.
-            await env.DB.prepare(
-              `UPDATE trips SET billed_to_company = 0 WHERE company_id = ? AND created_at >= ? AND created_at < ?`,
-            )
-              .bind(cmp.id, periodStart.toISOString(), periodEnd.toISOString())
-              .run();
-          }
-        }
-      }
-    } catch (e) {
-      console.error("monthly invoice error", e);
-    }
-  },
+  //
+  // One dispatcher, in src/cron/. It switches on `event.cron` so each job runs
+  // on the schedule it was written for, and a job that throws now fails the
+  // invocation instead of being swallowed into console.error while Cloudflare
+  // records success (T22 F-22-03). The job bodies moved across unchanged.
+  scheduled: handleScheduled,
 };
