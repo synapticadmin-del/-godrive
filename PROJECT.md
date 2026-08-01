@@ -335,6 +335,14 @@ nothing else in this file.**
 - **Top action:** Four to six engineering days of P0 — KV-cache the admin aggregates, make the date predicates sargable, move live position out of D1 into the GeoCell DO that already owns it, and get the rate-limit counter off KV — takes the bill from $6,688 to $274/month (95.9%) and infra from 9.3% to 0.4% of commission.
 - **Hands off to:** T07 (hibernation is correct but the in-memory session map silently drops frames after eviction — do not fix it by removing hibernation), T08 (radius filter applied after SQL LIMIT), T02/T05 (PII in the captains payload; prod and staging share one D1 id), T22 (none of the cost metrics are instrumented), T25 (retention period is a legal call), T26 (staging not isolated), T27 (duplicated `trip_ws.dart` means cadence fixes must be made twice)
 
+### T25 — Privacy, Compliance & Legal Readiness
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/81 · **Doc:** `docs/plan/25-privacy-compliance-legal.md` · **By:** chat-20260801-1417-b177 · **Date:** 2026-08-01
+- **Verdict:** There is no privacy layer here to critique — no policy exists anywhere in the repo, the sign-up consent checkbox is never recorded server-side, no user can delete their account, and `cleanup.ts` purges 2 tables out of ~30, so national ID scans and 30-second GPS traces are kept forever by default rather than by decision.
+- **Blockers (S1):** 10 — no privacy policy and no recorded consent (`auth.ts:347-383`; the captain app's only privacy row is a dead `_InfoRow` at `settings_screen.dart:519`); identity documents are never deleted from R2 and superseded ones are orphaned because `captain.ts:567` drops the row holding `r2_key` while the object stays; zero audit on reads, so nobody can say which operator opened which citizen's national ID (`admin.ts:894`, `:620-679`, `:229-258`).
+- **Top action:** Start the governance pack today — DPO, RoPA, processor DPAs, and the sensitive-data and cross-border permits. Every other P0 runs on engineering time we control; this one runs on the regulator's. Then publish the policy and record consent server-side, because nothing else in this track is lawful without it.
+- **Hands off to:** T01 (plaintext OTP codes, `0001_init.sql:18`), T02 (single admin role; admin bypass at `captain.ts:680`), T03 (`wallet_transactions.note` changes to a masked format), T04 (`payments.ts:91` echoes PSP error text to callers), T11, T17 (`/track/:token` returns both addresses despite its own "no PII" comment), T21 (public OSRM demo server), T22 (Workers Logs is a retained PII store), T23, T24, T26, T27 (the two apps diverge on every privacy surface)
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
