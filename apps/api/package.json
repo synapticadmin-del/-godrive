@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "bash ./deploy.sh",
+    "deploy:prod": "bash ./deploy.sh prod",
+    "deploy:staging": "bash ./deploy.sh staging",
+    "test": "vitest run",
+    "test:deploy": "bash ./deploy.sh --self-test",
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply synaptic-go --local",
-    "db:migrate:remote": "wrangler d1 migrations apply synaptic-go --remote",
+    "db:migrate:remote": "wrangler d1 migrations apply synaptic-go --remote --env prod",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
@@ -18,6 +22,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.12.21",
     "@cloudflare/workers-types": "^4.20250620.0",
     "typescript": "^5.8.3",
     "wrangler": "^4.22.0"
