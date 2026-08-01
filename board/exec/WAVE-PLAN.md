@@ -60,7 +60,7 @@ the file lock rather than go faster.
 | Task | Title | Gate | Depends on |
 |---|---|---|---|
 | **E08** | Settlement correctness: accept settles offered_price, cash floor, one money primitive | 6,+R1 | E03, E12 |
-| **E09** | Trip lifecycle: expiry sweeper, active-trip recovery, scheduled dispatch | 7,9 | E03, E02 |
+| **E09** | Trip lifecycle: expiry sweeper, active-trip recovery, scheduled dispatch | 7,9,11 | E03, E02, E15 |
 | **E10** | Rider client: active-trip recovery and the discarded 409 tripId | 7 | E09 |
 | **E11** | Captain location pipeline: heartbeat, foreground service, cadence, interpolation | 8 | — |
 | **E12** | Observability spine: correlation id, structured log, real /health, cron dead-man | 14 | E02 |
