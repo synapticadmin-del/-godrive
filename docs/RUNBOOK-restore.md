@@ -32,7 +32,7 @@ year old is back to being a claim.
 Reproduce the drill at any time, from a clean checkout, with no credentials and no network:
 
 ```bash
-./scripts/backup-d1.sh --rehearse
+bash scripts/backup-d1.sh --rehearse
 ```
 
 ---
@@ -53,7 +53,7 @@ Three rules, in order of how much damage breaking them does.
    repository's post-mortems have turned on what a table looked like *before* the fix.
 
 ```bash
-./scripts/backup-d1.sh prod --keep-local ./incident-$(date -u +%Y%m%dT%H%M%SZ)
+bash scripts/backup-d1.sh prod --keep-local ./incident-$(date -u +%Y%m%dT%H%M%SZ)
 ```
 
 ---
@@ -115,7 +115,7 @@ npx wrangler r2 object get "synaptic-go-backups/$KEY.manifest.json"  --file ./ma
 
 ```bash
 sha256sum ./restore.sql          # must equal .sha256 in manifest.json
-./scripts/backup-d1.sh --check-dump ./restore.sql
+bash scripts/backup-d1.sh --check-dump ./restore.sql
 ```
 
 `--check-dump` loads the file into a throwaway local database and reports the table list, the row

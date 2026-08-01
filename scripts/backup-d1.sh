@@ -38,15 +38,15 @@
 # ---------------------------------------------------------------------------
 # Usage
 # ---------------------------------------------------------------------------
-#   ./scripts/backup-d1.sh <env>                  # <env> is REQUIRED: prod | staging
-#   ./scripts/backup-d1.sh prod
-#   ./scripts/backup-d1.sh prod --dry-run         # print every command, run none
-#   ./scripts/backup-d1.sh prod --keep-local DIR  # also leave the dump on disk
-#   ./scripts/backup-d1.sh prod --bucket NAME     # default: synaptic-go-backups
+#   bash scripts/backup-d1.sh <env>                  # <env> is REQUIRED: prod | staging
+#   bash scripts/backup-d1.sh prod
+#   bash scripts/backup-d1.sh prod --dry-run         # print every command, run none
+#   bash scripts/backup-d1.sh prod --keep-local DIR  # also leave the dump on disk
+#   bash scripts/backup-d1.sh prod --bucket NAME     # default: synaptic-go-backups
 #
-#   ./scripts/backup-d1.sh --self-test            # assert the guards hold (offline)
-#   ./scripts/backup-d1.sh --rehearse             # dump/restore drill on a scratch db
-#   ./scripts/backup-d1.sh --check-dump FILE.sql  # validate a dump before importing it
+#   bash scripts/backup-d1.sh --self-test            # assert the guards hold (offline)
+#   bash scripts/backup-d1.sh --rehearse             # dump/restore drill on a scratch db
+#   bash scripts/backup-d1.sh --check-dump FILE.sql  # validate a dump before importing it
 #
 # Auth comes from CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID in the
 # environment, or from `wrangler login` state — the same inputs deploy.sh uses.
@@ -76,10 +76,10 @@ step() { printf '\n==> %s\n' "$*"; }
 
 usage() {
   cat >&2 <<'USAGE'
-usage: ./scripts/backup-d1.sh <env> [--bucket NAME] [--keep-local DIR] [--dry-run]
-       ./scripts/backup-d1.sh --self-test
-       ./scripts/backup-d1.sh --rehearse [--keep]
-       ./scripts/backup-d1.sh --check-dump FILE.sql
+usage: bash scripts/backup-d1.sh <env> [--bucket NAME] [--keep-local DIR] [--dry-run]
+       bash scripts/backup-d1.sh --self-test
+       bash scripts/backup-d1.sh --rehearse [--keep]
+       bash scripts/backup-d1.sh --check-dump FILE.sql
 
   <env>          REQUIRED. The wrangler environment whose D1 database to export,
                  validated against the [env.*] blocks in apps/api/wrangler.toml.
@@ -771,7 +771,7 @@ while [[ $# -gt 0 ]]; do
     --bucket)     BUCKET="${2:-}"; [[ -n "$BUCKET" ]] || die "--bucket needs a name"; shift 2 ;;
     --keep-local) KEEP_LOCAL="${2:-}"; [[ -n "$KEEP_LOCAL" ]] || die "--keep-local needs a directory"; shift 2 ;;
     -h|--help)    usage; exit 0 ;;
-    --env)        die "pass the environment positionally: ./scripts/backup-d1.sh ${2:-<env>}" ;;
+    --env)        die "pass the environment positionally: bash scripts/backup-d1.sh ${2:-<env>}" ;;
     -*)           die "unknown option: $1" ;;
     *)
       [[ -z "$ENVIRONMENT" ]] || die "unexpected extra argument: $1"
@@ -797,7 +797,7 @@ if [[ -z "$ENVIRONMENT" ]]; then
   printf '  indistinguishable from a backup of the right one until the day you\n' >&2
   printf '  need it, and that is the day it has to be right.\n\n' >&2
   printf '  Choose an environment explicitly:\n' >&2
-  while IFS= read -r e; do printf '    ./scripts/backup-d1.sh %s\n' "$e" >&2; done <<<"$VALID_ENVS"
+  while IFS= read -r e; do printf '    bash scripts/backup-d1.sh %s\n' "$e" >&2; done <<<"$VALID_ENVS"
   printf '\n' >&2
   exit 1
 fi
@@ -936,4 +936,4 @@ fi
 printf '\nbackup-d1.sh: done.\n'
 printf '  object    r2://%s/%s\n' "$BUCKET" "$KEY"
 printf '  restore   see docs/RUNBOOK-restore.md — restore into a NEW database, never in place\n'
-printf '  inspect   ./scripts/backup-d1.sh --check-dump <downloaded file>\n'
+printf '  inspect   bash scripts/backup-d1.sh --check-dump <downloaded file>\n'

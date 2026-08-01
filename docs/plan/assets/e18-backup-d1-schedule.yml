@@ -91,13 +91,13 @@ jobs:
       # catch a broken backup script on a morning when nothing else would.
 
       - name: Self-test the backup script
-        run: ./scripts/backup-d1.sh --self-test
+        run: bash scripts/backup-d1.sh --self-test
 
       # The restore drill, run nightly. A restore procedure that silently rots
       # is the failure this whole job exists to prevent — and the drill is what
       # noticed that a .dump-shaped export cannot be replayed in table order.
       - name: Rehearse the restore
-        run: ./scripts/backup-d1.sh --rehearse
+        run: bash scripts/backup-d1.sh --rehearse
 
       # --- Guard -----------------------------------------------------------
 
@@ -133,7 +133,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: ./scripts/backup-d1.sh "${{ inputs.environment || 'prod' }}" --keep-local ./backup-out
+        run: bash scripts/backup-d1.sh "${{ inputs.environment || 'prod' }}" --keep-local ./backup-out
 
       - name: Verify the dump we just stored
         if: steps.guard.outputs.configured == 'true'
@@ -141,7 +141,7 @@ jobs:
           set -euo pipefail
           dump=$(find ./backup-out -name '*.sql' -print -quit)
           [ -n "$dump" ] || { echo "::error::no dump was produced"; exit 1; }
-          ./scripts/backup-d1.sh --check-dump "$dump"
+          bash scripts/backup-d1.sh --check-dump "$dump"
           {
             echo "### Backup complete"
             echo ""
