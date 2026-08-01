@@ -319,6 +319,14 @@ nothing else in this file.**
 - **Top action:** Give employees a business/personal choice per trip and enforce the spend policy that already exists in the schema — that pair is the difference between an unsellable corporate product and a demoable one, and B2B is the vertical that should earn the next quarter (≈4-6 weeks against an existing data model, versus ≈14-19 for delivery).
 - **Hands off to:** T03 (intercity/B2B money still `REAL` after 0005; intercity cash takes no commission), T04 (client-supplied Paymob `amount` with no server check; `company_invoices.paymob_order_id` never used), T02 + T25 (any employee reads all company invoices and 100 trips with addresses; no company-admin role exists), T05 (intercity bypasses bidding entirely), T06 (intercity-intent requests are entering city dispatch as 200 km trips), T08 (dead enum states, no unique constraint on invoice period), T11 (both verticals have no admin console — specs in §6.4), T18 (COD float if delivery ships), T09/T10 (`الشحن` and `تروسيكل` advertised with no backend), T27 (the parity gap here is structural: one app knows a feature and the other has zero lines of it)
 
+### T21 — Maps, Routing & Geospatial Accuracy
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/79 · **Doc:** `docs/plan/21-maps-routing-geo-accuracy.md` · **By:** `chat-20260801-1405-aac2` · **Date:** 2026-08-01
+- **Verdict:** Every number the product states about time, distance and price comes from three services it neither owns nor is licensed to use at this scale — production routes through the **OSRM public demo server** (`wrangler.toml:148`), search runs on public Nominatim in a way its policy explicitly bans, and because a negotiated fare is never recomputed after the trip (`trips.ts:969`), a routing failure does not degrade an estimate, it **sets the settled price**.
+- **Blockers (S1):** 4 — prod `OSRM_URL` is `router.project-osrm.org`, whose policy permits withdrawal "at any time and without giving a reason" (`wrangler.toml:148,88,176`); the silent `haversine × 1.35` fallback (`routing.ts:61-63,71`) becomes the final fare, against measured Cairo detour ratios of 1.07–2.68 (mean 1.54, worst case −49%); public Nominatim powers end-user autocomplete (`geocode.ts:86-129`) at 1 req/s **per application**, a use its policy names as forbidden for vehicle-tracking apps; and **no route cache exists at all** behind an unauthenticated `/trips/estimate` (registered `trips.ts:315`, before `authMiddleware` at `:346`) that the rider app re-polls every 45 s.
+- **Top action:** Self-host OSRM on the Egypt extract (~169 MB, ~$10–20/mo) and stop pricing bookings off a straight line — return `503` instead. The whole P0 set is 4 items, 3 of them under a day; a licensed stack costs ~$40–80/month at 1,000 trips/day, against a current bill of zero and an exposure of the entire platform.
+- **Hands off to:** T27, T05, T03, T02, T06, T08, T22, T25
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
