@@ -287,6 +287,14 @@ nothing else in this file.**
 - **Top action:** Generate both platforms' tokens from one committed source with a CI drift check — `apps/admin/src/design/tokens.ts` is 248 lines carrying the *correct* brand hex and imported by nothing, which is exactly how the two greens survived review.
 - **Hands off to:** T27, T16, T14, T09, T10, T11, T22
 
+### T14 — Localisation, RTL & Content Design
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/75 · **Doc:** `docs/plan/14-i18n-rtl-content.md` · **By:** `chat-20260801-1329-a653` · **Date:** 2026-08-01
+- **Verdict:** There are **two string catalogues and the documented one is dead** — `AppLocalizations.delegate` is registered in neither app, so all 208 ARB entries are unreachable while 545 members of a hand-written `AppStrings` do the real work, and `check_l10n_parity.py` passes green because it guards the catalogue where drift is already a compile error and never opens the ARB files; underneath that, the captain app genuinely finished its migration (53 inline Arabic literals, 11 `isAr` ternaries) and the rider app never started (**359** and **187**), so the language switch the rider app offers in four places produces a half-Arabic UI.
+- **Blockers (S1):** 3 — the ARB/`gen-l10n` pipeline is dead code that silently swallows any string added to it (`apps/rider/lib/main.dart:59-63`); selecting English leaves most of the rider app in Arabic while 201 already-translated members sit orphaned; ~62 of ~71 API error codes ship English text that the client renders verbatim, so every failure path in an Arabic-first product speaks English — three call sites show the Dart wrapper too (`Exception: file required`).
+- **Top action:** Delete the ARB tree, make `AppStrings` the only catalogue, and repoint `check_l10n_parity.py` at what can actually break — a per-file inline-Arabic-literal ratchet that fails CI on any increase. That is ~2 days, it stops the 359 from growing while the rider migration is scheduled, and it removes the trap that let `pickup` ship as `موقف النزول` (drop-off) and `goOnline` as "connect to the internet" — the latter telling a captain with full 4G to fix his internet on the empty state that gates his shift.
+- **Hands off to:** T27, T17, T19, T23, T08, T22, T25, T26, T12, T05
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
