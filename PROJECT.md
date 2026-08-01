@@ -279,6 +279,14 @@ nothing else in this file.**
 - **Top action:** Ship P0.1 — refuse to complete a wallet trip whose rider debit failed, and stop crediting the captain against money the platform never received. It is a few hours of work and it closes the only defect here that creates value out of nothing. If a second thing ships, make it the 24-hour payout hold: it buys the time in which every other control can be added later.
 - **Hands off to:** T03, T04, T05, T06, T07, T08, T10, T11, T16, T17, T22, T23, T25, T27
 
+### T12 — Design System & Visual Language
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/74 · **Doc:** `docs/plan/12-design-system-visual-language.md` · **By:** chat-20260801-1344-33ce · **Date:** 2026-08-01
+- **Verdict:** The design system is genuinely well-built and the product does not use it — contrast ratios are documented in source and a complete type scale is bypassed 199 times; meanwhile the app ships under two different names, in two different greens, with a competitor's colour on every dark-mode CTA.
+- **Blockers (S1):** 4 — UI says "GoDrive" but every push notification says "Synaptic Go" (`fcm_service.dart:17,80`), so riders get alerts from an app they don't recognise; the dark-mode action colour is inDrive's signature lime `#C1F11D` (`app_theme.dart:137,404`); the rider SOS screen renders a white panel in dark mode (`sos_screen.dart:116`) while the captain's uses the correct `sosBackdrop`; admin ships `#6BB522` against mobile's `#4E842D`.
+- **Top action:** Generate both platforms' tokens from one committed source with a CI drift check — `apps/admin/src/design/tokens.ts` is 248 lines carrying the *correct* brand hex and imported by nothing, which is exactly how the two greens survived review.
+- **Hands off to:** T27, T16, T14, T09, T10, T11, T22
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
