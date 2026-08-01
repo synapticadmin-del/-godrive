@@ -1171,11 +1171,16 @@ tripRoutes.post("/:id/bid", requireRole("captain", "admin"), async (c) => {
   });
 
   // Tell the rider's trip room the status moved to `offered`. Every other
-  // mutating endpoint here broadcasts; this one did not, and the omission was
-  // load-bearing: the rider only opens CaptainBidsSheet when it sees status
-  // `offered`, and the 5s GET /trips/:id/bids poll lives INSIDE that sheet. No
-  // broadcast → no sheet → no poll → the counter-offer was never fetched, so a
+  // mutating endpoint here broadcasts; this one did not, and the omission used
+  // to be fatal: the rider mounted its offers panel only when it saw status
+  // `offered`, and the 5s GET /trips/:id/bids poll lived inside that panel. No
+  // broadcast → no panel → no poll → the counter-offer was never fetched, so a
   // captain who bid on a trip still in `searching` was invisible to the rider.
+  //
+  // That gate is gone — the offers list is mounted for the whole waiting phase
+  // now, so the poll finds a bid whether or not this broadcast lands. The
+  // broadcast stays because it is what keeps the rider's trip object, panel
+  // heading and status pill current instead of trailing the 10s fallback poll.
   const updatedTrip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
     .bind(cleanTripId)
     .first<DbTrip>();
