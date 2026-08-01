@@ -1,0 +1,66 @@
+# Proposed CI workflow — token drift guard (see docs/plan/12-design-system-visual-language.md, P1.1)
+#
+# NOT installed by this PR. The review-phase GitHub App has no `workflows`
+# permission, so this is delivered as a text asset. Copy to
+# .github/workflows/token-drift.yml when P1.1 lands.
+#
+# What it guards: design/tokens.json is the single source of truth. Generated
+# outputs for Flutter and the admin console are committed. If someone hand-edits
+# a generated file, or edits tokens.json without regenerating, this fails.
+# Without this check the generator is decoration — F-12-04 came back once already.
+
+name: token-drift
+
+on:
+  pull_request:
+    paths:
+      - 'design/tokens.json'
+      - 'scripts/gen-tokens.mjs'
+      - 'packages/flutter_shared/lib/theme/tokens.g.dart'
+      - 'apps/admin/src/design/tokens.g.css'
+  push:
+    branches: [main]
+
+jobs:
+  verify-generated-tokens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate tokens from source
+        run: node scripts/gen-tokens.mjs
+
+      - name: Fail if generated output differs from committed
+        run: |
+          if ! git diff --quiet -- \
+              packages/flutter_shared/lib/theme/tokens.g.dart \
+              apps/admin/src/design/tokens.g.css; then
+            echo "::error::Generated token files are out of date."
+            echo "Run 'node scripts/gen-tokens.mjs' and commit the result."
+            echo "Do not hand-edit tokens.g.dart or tokens.g.css."
+            git --no-pager diff -- \
+              packages/flutter_shared/lib/theme/tokens.g.dart \
+              apps/admin/src/design/tokens.g.css
+            exit 1
+          fi
+          echo "Generated tokens are in sync with design/tokens.json."
+
+      - name: Guard against reintroduced literals
+        run: |
+          fail=0
+          # The admin must not carry a second brand green (F-12-04).
+          if grep -rn --include=*.css --include=*.ts --include=*.tsx \
+               -i '#6bb522' apps/admin/src; then
+            echo "::error::#6bb522 reintroduced — the admin brand green must come from tokens."
+            fail=1
+          fi
+          # Arbitrary Tailwind hex in shared UI components (F-12-16).
+          if grep -rn --include=*.tsx 'bg-\[#\|text-\[#' apps/admin/src/components/ui; then
+            echo "::error::Arbitrary hex in components/ui — use semantic token classes."
+            fail=1
+          fi
+          exit $fail
