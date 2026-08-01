@@ -47,15 +47,19 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>يحتاج التطبيق للتحديد الدقيق لموقعك لتوفير الخدمة وتأكيد الانطلاق والوصول</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>تحديد موقعك لتحديث رحلاتك ومتابعة السائق</string>
 	<key>NSCameraUsageDescription</key>
 	<string>يحتاج التطبيق للوصول للكاميرا لالتقاط المستندات والصورة الشخصية</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>يحتاج التطبيق لمعرض الصور لرفع صور المستندات المطلوبة</string>
+	<!-- `location` is deliberately absent: the rider app takes one-shot foreground
+	     fixes only (Geolocator.getCurrentPosition / getLastKnownPosition) and opens no
+	     position stream, so declaring the background-location mode claimed a capability
+	     the app does not have and invited an App Review rejection. Android never
+	     declared it either. Do not re-add it without a background implementation.
+	     `remote-notification` stays: main.dart:21 registers a
+	     FirebaseMessaging.onBackgroundMessage handler, which needs it. -->
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>location</string>
 		<string>remote-notification</string>
 	</array>
 </dict>
