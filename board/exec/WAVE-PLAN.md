@@ -179,7 +179,7 @@ Net effect on the schedule: **none.** Four dependency edges were added and the r
 | Round | Task | Owns |
 |---|---|---|
 | 0 | **E00** | `.github/workflows/deploy.yml` |
-| 1 | **E01** | `apps/api/package.json` · `apps/api/deploy.sh` · `docs/DEPLOYMENT.md` |
+| 1 | **E01** | `apps/api/package.json` · `apps/api/deploy.sh` · `docs/DEPLOYMENT.md` · `package-lock.json` |
 | 1 | **E05** | `apps/rider/lib/screens/home/vehicle_selector.dart` · `apps/rider/lib/screens/safety/sos_screen.dart` |
 | 1 | **E06** | `apps/api/src/routes/wallet.ts` · `migrations/@NEXT_payout_requests.sql` |
 | 1 | **E11** | `apps/captain/lib/services/` · `apps/captain/lib/screens/home/` · `apps/captain/android/app/src/main/AndroidManifest.xml` · `apps/api/src/routes/captain.ts` · `apps/api/src/durable-objects/TripRoom.ts` · `apps/api/src/durable-objects/GeoCell.ts` · `apps/api/src/durable-objects/CaptainInbox.ts` · `packages/flutter_shared/lib/widgets/animated_vehicle_marker.dart` · `packages/flutter_shared/lib/motion/go_motion.dart` |
