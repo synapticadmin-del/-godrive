@@ -189,13 +189,31 @@ effect. Naming the gap is a correct outcome. Silently widening your blast radius
 5. Add your block to `PROJECT.md` on `main` — append before `<!-- TRACK-ENTRIES:END -->`, byte for
    byte, re-reading on conflict. This is still the only write to `main` you may make.
 
+> **If that push is rejected with `GH006 … Required status check is expected`, stop and report it — do
+> not work around it.** It means branch protection was enabled without a bypass for the identity chats
+> push as. GitHub blocks a direct push to a branch carrying required status checks, because the commit
+> being pushed has no checks yet, and this step is by design a direct push. The fix is a repository
+> **ruleset** with a bypass actor (classic branch protection cannot exempt an app from status checks),
+> and it belongs to whoever holds `E00`. Opening a PR for your `PROJECT.md` block instead is **not** an
+> acceptable workaround: five parallel chats appending to one file through five PRs is precisely the
+> conflict this direct-append rule exists to avoid.
+
 ## 6. Migrations
 
-Three tasks need one (E06, E13, E16) and more will follow. The next free number is **0020**.
+Four tasks need one — **E06** (`0020`), **E16** (`0021`), **E13** (`0022`) and **E15** (`0023`) — and
+more will follow. **`board/exec/MIGRATION-LOCK.md` is the only authority on the number.** Do not read
+the next free number from this file; it went stale within the hour last time. Do not read it from a
+directory listing either — two chats will pick the same one.
 
-Claim it by editing `board/exec/MIGRATION-LOCK.md` **with** its `sha`, appending your row. If you get
-a `409`, someone took your number — re-read, take the next one, and rename your file. Never guess a
-number from the repository listing; two chats will pick the same one.
+`0020` and `0021` are taken. `0022` and `0023` are **reserved** against E13 and E15: their briefs used
+to carry `migrations/@NEXT_….sql` in `owns:`, and a placeholder path cannot be intersected against
+another claim, so the §3 file lock was silently weaker for the only two unstarted tasks that touch the
+schema. If you claim E13 or E15, fill your chat id into the row that is already there — do not take a
+new number.
+
+For anything else: edit `MIGRATION-LOCK.md` **with** its `sha`, appending your row and bumping the next
+free number. On `409`, re-read, take the next one, and rename your file in the same commit — a claim
+whose `owns:` names a file that does not exist locks nothing.
 
 Migrations are forward-only. Your PR states the rollback (a forward repair migration, or a restore)
 and confirms it against the rehearsed restore from E18. Four existing backfills are irreversible;
@@ -212,6 +230,11 @@ times in the code as root R3 of the plan: a value defined, and nothing ever call
 So:
 
 - The author moves the finding to `awaiting-verification` and **stops**. The author never closes it.
+- **A human merges.** This was unstated until round 1 ended with five tasks `done`, five green PRs and
+  zero effect on `main`, at which point every remaining task correctly refused to start — `depends_on`
+  requires a *merged* dependency, and no task in the board owned the merge. It is `E00`'s standing duty
+  now (see `E00.md` §4). If you are blocked because a dependency is `done` but unmerged, say exactly
+  that and stop; do not merge it yourself and do not branch off the dependency's branch to get around it.
 - A **different chat** verifies against `main` *after* the merge. It reads the code as it now exists,
   re-runs the reproduction from the original finding, and posts the result on the PR and as a line in
   `PROJECT.md`.

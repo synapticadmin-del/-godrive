@@ -15,7 +15,7 @@ the schedule below is computed from the briefs' `depends_on` and `owns` fields, 
 |---|---|---|
 | **0** | 1 human | **E00** |
 | **1** | 5 chats | **E01** · **E05** · **E06** · **E11** · **E16** |
-| **2** | 3 chats | **E02** · **E17** · **E18** |
+| **2** | 4 chats | **E02** · **E17** · **E18** · **E20** |
 | **3** | 3 chats | **E03** · **E12** · **E13** |
 | **4** | 4 chats | **E04** · **E08** · **E14** · **E15** |
 | **5** | 3 chats | **E07** · **E09** · **E19** |
@@ -95,14 +95,18 @@ Within every later round, the listed tasks are also fully parallel — that is w
 
 ## 4. Gate items that no single PR can close
 
-**7 of the 16 gate items are delivered by more than one task.** The fix and the place it takes
+**9 of the 16 gate items are delivered by more than one task.** The fix and the place it takes
 effect live in files owned by different chats, so the item is only true once *every* listed PR has merged
 and been verified. **A verifier who closes one of these on the first PR closes it wrong** — that is root
 R3 exactly: work declared done at the point of definition rather than effect.
 
-This table is generated from the `gate_items:` field of every brief. It is not curated, so it cannot
-silently fall out of date the way a hand-written list did — the first version of this section listed three
-items and got one of them wrong, which an executing chat caught before a verifier did.
+This table was generated from the `gate_items:` field of every brief, and that turned out **not** to be
+sufficient. Round 1 finished with three independent chats each reporting a row missing from it: E06 for
+item 4, E11 for item 8, E16 for item 12, and E05 correcting the span of items 3 and 10. The generator reads
+`gate_items:`, but a split only exists when the *second* half lands in a file the first task does not own —
+and that fact lives in prose, not in a field. Rows for **8** and **12** were added by hand on 2026-08-01
+after round 1; treat this table as curated-and-verified, not as self-maintaining, and add a row the moment
+you find your task is half of one.
 
 | Gate item | Closed by | Unblocked by | Verify only when |
 |---|---|---|---|
@@ -111,10 +115,12 @@ items and got one of them wrong, which an executing chat caught before a verifie
 | **4** — the payout debit cannot mint money | `E06` + `E14` | — | both merged |
 | **6** — settlement pays the price that was agreed | `E08` + `E09` | `E03` | both merged |
 | **7** — a rider is never locked out of booking | `E09` + `E10` | `E03` | both merged |
+| **8** — the captain stays visible | `E11` + `E20` | — | both merged |
 | **10** — the safety features do not lie or leak | `E05` + `E09` + `E13` + `E14` | `E02` | all 4 merged |
 | **11** — no price is ever computed off a straight line | `E09` + `E15` | — | both merged |
+| **12** — deletion and consent actually reachable | `E16` + `E02` + **human** | — | both merged **and** counsel signed off |
 
-The remaining items have a single closing task and may be verified on their own PR: **1** → `E00` · **5** → `E07` · **8** → `E11` · **9** → `E09` · **12** → `E16` · **13** → `E17` · **14** → `E12` · **15** → `E18` · **16** → `E19`.
+The remaining items have a single closing task and may be verified on their own PR: **1** → `E00` · **5** → `E07` · **9** → `E09` · **13** → `E17` · **14** → `E12` · **15** → `E18` · **16** → `E19`.
 
 Three of the multi-task items are worth calling out because the split is not obvious from the briefs:
 
@@ -127,6 +133,16 @@ Three of the multi-task items are worth calling out because the split is not obv
   that lies.
 - **Item 6** and **item 11** are definition/call-site pairs: `E08` and `E15` write the primitive, `E09`
   owns `trips.ts` and is the only task that can point the code at it.
+- **Item 8** is a pipeline/consumer pair, found by `E11` mid-run. `E11` fixes the captain end — heartbeat,
+  foreground service, paced publishing — and ships `AnimatedVehicleMarker`, but the widget has no caller:
+  the rider screens that render the car are `apps/rider/lib/screens/trip/trip_screen.dart` and
+  `home_screen.dart`, which were in nobody's `owns`. Better data arriving at an unchanged marker still
+  teleports. `E20` owns that wiring. Do not close item 8 on PR #91.
+- **Item 12** is three-way and one of the three is not an engineer. `E16` writes the handler, the policy
+  and the migration; `E02` mounts `publicUserRoutes` in the frozen `index.ts` — without which the
+  store-listing deletion URL returns 401 and the listing is rejected; and a **human** supplies the
+  controller identity left as `TODO(legal)`, counsel's review of `docs/legal/`, and the two store URLs.
+  Calendar, not effort. `E16` flagged this from inside its own run.
 
 ## 5. Proof the partition is safe
 
@@ -210,6 +226,7 @@ Net effect on the schedule: **none.** Four dependency edges were added and the r
 | 2 | **E02** | `apps/api/src/index.ts` · `apps/api/src/cron/` · `apps/api/src/lib/health.ts` |
 | 2 | **E17** | `apps/rider/android/app/build.gradle` · `apps/captain/android/app/build.gradle` · `apps/rider/ios/Runner/Info.plist` · `apps/captain/ios/Runner/Info.plist` |
 | 2 | **E18** | `scripts/backup-d1.sh` · `docs/RUNBOOK-restore.md` |
+| 2 | **E20** | `apps/rider/lib/screens/trip/trip_screen.dart` · `apps/rider/lib/screens/home/home_screen.dart` |
 | 3 | **E03** | `apps/api/src/routes/trips.ts` · `apps/api/src/lib/settlement.ts` · `apps/api/src/lib/dispatch.ts` |
 | 3 | **E12** | `apps/api/src/middleware/requestId.ts` · `apps/api/src/lib/log.ts` · `apps/api/src/lib/audit.ts` · `apps/api/src/lib/health.ts` |
 | 3 | **E13** | `apps/api/src/routes/safety.ts` · `migrations/@NEXT_sos_lifecycle.sql` |
@@ -227,6 +244,15 @@ needs it, you have found a seam the same way the ones in §7 were found: say so 
 `apps/api/src/durable-objects/OfferScheduler.ts` and `GeoCell.ts` were unowned until this pass — both
 are live and bound, and an unowned live file is a collision waiting for two chats to notice it.
 
+**Still unowned after round 1, deliberately.** Three files were reached for by a round-1 task and left
+alone correctly. They are recorded here so the next chat does not rediscover them as novel:
+
+| File | Wanted by | Ruling |
+|---|---|---|
+| `packages/flutter_shared/lib/l10n/app_strings.dart` | `E11` (SOS copy at `:2588`/`:3637`/`:4537`/`:5583`) and `E16` (consent + deletion strings) | It **is** in `E16`'s brief `owns:` — but `E16`'s claim file omitted it, and `E16` shipped a per-screen `_t(context, ar, en)` rather than editing it. So the copy fix is still outstanding and the file is still effectively unowned. Two independent tasks blocking on one file is an ownership gap, not two workarounds. Needs a Wave-2 task; a 5,664-line three-place edit is not a spare-capacity job. |
+| `apps/api/src/middleware/auth.ts` | `E16` (a stateless JWT stays valid for its remaining lifetime after account deletion) | Bounded and documented in `docs/legal/account-deletion.md` §4. One check against `users.deleted_at`, which `0021` creates. Not gate-blocking — the session cannot be *extended*, only outlived. Wave 2. |
+| `apps/api/tsconfig.json` | `E19` (`include: ["src/**/*"]` does not cover `apps/api/test/`) | Reported by `E01`. `E19` will hit this the moment it starts. Assign it to `E19`'s `owns:` before round 5, or `E19` stops at the same seam. |
+
 ## 9. Not in this wave
 
 **Flutter tests are out of scope, deliberately.** `apps/rider/test/` and `apps/captain/test/` hold only
@@ -241,3 +267,26 @@ does not exist. That line is now conditional.
 Wave 2 (98 G2 findings) and Wave 3 (316 G3) are scoped in §6.3 of the plan. The dead-code sweep (root
 R3), the accessibility block, T27's shared component layer and the cost programme are all Wave 2 or
 later, deliberately. Do not pull them forward — §8 of the plan explains what each is waiting on.
+
+## 10. Changelog
+
+The board is a shared file. When it changes underneath you, this is where to look.
+
+### 2026-08-01 — post-round-1 reconciliation (`chat-20260801-1910-a4e5`, at the board owner's instruction)
+
+Round 1 closed with five tasks `done`, five PRs green, and nothing merged. Every later task correctly
+reported *"no unblocked task"*. That stall exposed four defects in the board itself, all fixed here:
+
+1. **Nobody owned `merge`.** §8 of PROTOCOL-EXEC forbids every chat from merging; §7 assumes a merge
+   happens between author and verifier; §1 of this file listed one human task whose scope did not
+   include it. Fixed: `E00` gains a standing merge duty and the round boundary is now explicit.
+2. **§4 was three rows short**, and its claim to be generated-not-curated was wrong. Items **8** and
+   **12** added; the header now says what the generator can and cannot see.
+3. **Two `owns:` entries were placeholders.** `migrations/@NEXT_sos_lifecycle.sql` (E13) and
+   `@NEXT_route_source.sql` (E15) cannot be intersected against another claim, so the §3 file lock was
+   silently weaker for the two tasks that touch the schema. Numbers **0022** and **0023** are now
+   reserved and the filenames are concrete.
+4. **Gate item 8 had no owner for its second half.** `E20` added — `E11` ships the marker, `E20` wires
+   it into the two rider screens that render the car.
+
+No product code was touched, no PR merged, no claim altered.
