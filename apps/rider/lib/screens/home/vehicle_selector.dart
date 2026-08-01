@@ -26,10 +26,25 @@ class VehicleCategoryStrip extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final bool isArabic;
 
-  /// Freight and tuk-tuk are temporarily suspended: they stay visible so riders
+  /// Intercity, freight and tuk-tuk are suspended: they stay visible so riders
   /// can see the service exists and is coming, but are not selectable. Removing
   /// the chips outright would read as "this app doesn't do freight" rather than
   /// "not yet".
+  ///
+  /// `intercity` ("سفر") is suspended for the launch shape, not for capacity.
+  /// Tapping it used to put the rider into travel mode and then book an
+  /// *ordinary city trip* — a 220 km journey quoted and dispatched as if it
+  /// were a Cairo hop, because no client ever called the intercity endpoints
+  /// (T20 F-20-01). A chip that silently reroutes is worse than one that says
+  /// "قريباً", so until the vertical is actually wired up it stays off.
+  ///
+  /// `enabled: false` is the entire disablement, and it is airtight: a
+  /// suspended chip is built with a null `onTap` (see [build] below), so
+  /// `onChanged` never fires for it, and `home_screen.dart` assigns
+  /// `_category` from exactly two places — that callback, and travel mode's
+  /// exit button, which resets to `'ride'`. The field initialiser is `'ride'`
+  /// too. No path is left in the rider app that can set the category to
+  /// `intercity`.
   static const _categories = <_Category>[
     _Category('ride', 'رحلة', 'Ride', 'assets/images/icons/cat_ride.png'),
     _Category(
@@ -37,6 +52,7 @@ class VehicleCategoryStrip extends StatelessWidget {
       'سفر',
       'Intercity',
       'assets/images/icons/cat_intercity.png',
+      enabled: false,
     ),
     _Category(
       'freight',

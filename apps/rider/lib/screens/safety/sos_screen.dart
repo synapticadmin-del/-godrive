@@ -24,15 +24,34 @@ class _SosScreenState extends State<SosScreen> {
     final appState = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    // Resolved here for the same reason, and because the dialog must follow the
+    // active brightness: it used to be pinned to AppTokens.lightPanel/lightText
+    // and lit up a pure-white sheet in the middle of a night trip (T12 F-12-03).
+    final go = GoTheme.of(context);
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTokens.lightPanel,
+        backgroundColor: go.panel,
         title: Text('تحذير', style: AppTokens.font(color: AppTokens.danger)),
-        content: Text('هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك للسلطات وإدارة التطبيق.', style: AppTokens.font(color: AppTokens.lightText)),
+        // What this dialog promises is what the API actually does: POST
+        // /safety/sos writes an open row to sos_alerts and pushes a
+        // notification to the admin users. It does not dial 122/123/180 and
+        // nothing in this app can (T17 F-17-06). The previous copy — "سيتم
+        // إرسال موقعك للسلطات" — told the rider help was on its way from the
+        // emergency services, which is the single most dangerous thing this
+        // product could get wrong.
+        content: Text(
+          'هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك الحالي إلى فريق تشغيل GoDrive '
+          'لمتابعة رحلتك. التطبيق لا يتصل بالشرطة أو الإسعاف — لو في خطر مباشر اتصل بـ 122 أو 123 بنفسك.',
+          style: AppTokens.font(color: go.text),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(foregroundColor: go.muted),
+            child: const Text('إلغاء'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTokens.danger),
             onPressed: () => Navigator.pop(ctx, true),
@@ -81,7 +100,7 @@ class _SosScreenState extends State<SosScreen> {
         'lng': pos.longitude,
       });
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('تم إرسال نداء الطوارئ بنجاح مع تحديد موقعك')));
+      messenger.showSnackBar(const SnackBar(content: Text('تم إبلاغ فريق تشغيل GoDrive وإرسال موقعك الحالي')));
       navigator.pop();
     } catch (e) {
       if (!mounted) return;
@@ -110,10 +129,21 @@ class _SosScreenState extends State<SosScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The emergency backdrop is deliberately the same near-black red in both
+    // brightnesses, exactly as the captain app already does it: a glimpse of
+    // this screen has to read as "emergency" and never as a normal app screen.
+    // The token lives in AppTokens so both apps share one definition, and it
+    // replaces the hardcoded white AppBar that used to blind a rider at night.
     return Scaffold(
+      backgroundColor: AppTokens.sosBackdrop,
       appBar: AppBar(
-        title: Text('الطوارئ والسلامة', style: AppTokens.font()),
-        backgroundColor: AppTokens.lightPanel,
+        title: Text(
+          'الطوارئ والسلامة',
+          style: AppTokens.font(color: Colors.white70),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white70,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -142,7 +172,7 @@ class _SosScreenState extends State<SosScreen> {
             const SizedBox(height: 48),
             Text(
               'اضغط على الزر أعلاه في حالة الطوارئ القصوى فقط',
-              style: AppTokens.font(color: AppTokens.lightMuted, fontSize: 16),
+              style: AppTokens.font(color: Colors.white70, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
