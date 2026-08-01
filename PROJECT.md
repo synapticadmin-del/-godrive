@@ -137,6 +137,16 @@ nothing else in this file.**
 
 <!-- TRACK-ENTRIES:START -->
 
+### T01 — Auth, Identity & Sessions
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/59 · **Doc:** `docs/plan/01-auth-identity-sessions.md` · **By:** `chat-20260801-1201-378c` · **Date:** 2026-08-01
+- **Verdict:** The cryptographic primitives are sound, but the session *lifecycle* is not — a stolen token cannot be detected, cannot be revoked, and cannot even be ended by the user, and the only live login route has no bot defence at all.
+- **Blockers (S1):** 3 — refresh rotation is non-atomic and has no reuse detection, so one stolen token becomes a silent permanent session (`apps/api/src/routes/auth.ts:279-295`); no client anywhere calls `POST /auth/logout`, so "log out" leaves a valid 30-day refresh token alive (`apps/rider/lib/services/app_state.dart:452-455`); Turnstile is wired only to the suspended OTP route, leaving `/auth/login` and `/auth/register` unprotected, and it fails open when the secret is absent (`apps/api/src/routes/auth.ts:71`, `apps/api/src/lib/turnstile.ts:17-27`).
+- **Top action:** Wire both apps to the `/auth/logout` endpoint that already exists — it is a one-line client fix that closes an S1 — then land client single-flight refresh *before* making server-side rotation atomic, or the security fix becomes a mass-logout incident for captains.
+- **Hands off to:** T27 (rider and captain session logic has diverged — captain drops rotated refresh tokens; extract a shared `SessionManager`), T02 (role is read from the JWT with no per-object check), T04 (Paymob webhook is unauthenticated by design — confirm HMAC verification), T08 (`refresh_tokens` needs `family_id` and `device_id`), T18 (reuse-detection events are the fraud signal you want), T22 and T25 (identity-document reads are unaudited), T24 (`/geocode/*` is public and proxies a paid upstream).
+
+> **Scope note:** OTP was descoped by the operator for this pass — the flow is suspended, so brief questions 1–2 are an explicit exclusion, not a clean bill of health. Two consequences are recorded in the document: the suspended routes are still mounted and can still mint accounts, and with OTP off there is now **no password-reset or account-recovery path of any kind**.
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
