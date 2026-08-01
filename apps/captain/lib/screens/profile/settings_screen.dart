@@ -1,11 +1,36 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../documents/document_upload_screen.dart';
 import '../safety/sos_screen.dart';
+
+/// Where the published policy lives.
+///
+/// TODO(legal): replace with the policy hosted on the product domain once one
+/// exists. Until then this points at the canonical text in the repository, which
+/// is publicly readable and renders in a browser. The same URL has to go in both
+/// store listings — see `docs/legal/README.md`.
+const String kPrivacyPolicyUrl =
+    'https://github.com/synapticadmin-del/-godrive/blob/main/docs/legal/privacy-policy.ar.md';
+
+/// Copy for the privacy band.
+///
+/// The class doc below promises this file carries no inline Arabic literals, and
+/// until now it did not. The exception is deliberate and bounded:
+/// `packages/flutter_shared/lib/l10n/app_strings.dart` is owned by no task in
+/// this execution wave and WAVE-PLAN §8 forbids editing an unowned file, so the
+/// new privacy copy has nowhere else to live. The one key that already exists —
+/// `privacyPolicy` — is still read from AppStrings. Reported as a seam on the
+/// E16 PR; fold these in once that file has an owner.
+String _t(BuildContext context, String ar, String en) =>
+    Localizations.localeOf(context).languageCode == 'ar' ? ar : en;
 
 /// Captain profile and settings screen.
 ///
@@ -18,7 +43,9 @@ import '../safety/sos_screen.dart';
 ///      an accidental tap.
 ///
 /// All copy is read from [AppStrings] (resolved from the ambient locale) so
-/// this file carries no inline Arabic literals — see `app_strings.dart`.
+/// this file carries no inline Arabic literals — see `app_strings.dart`. The
+/// single exception is the privacy band added for launch-gate item 12, whose
+/// keys have nowhere to live while `app_strings.dart` is unowned; see [_t].
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -31,6 +58,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// the avatar tap target and shows a spinner over it so a captain cannot
   /// fire a second upload before the first one lands.
   bool _busyAvatar = false;
+
+  /// Same guard for the two privacy round-trips, which are slower and, in the
+  /// deletion case, irreversible.
+  bool _busyExport = false;
+  bool _busyDelete = false;
 
   @override
   void initState() {
@@ -514,14 +546,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
               text: go.text,
               muted: go.muted,
             ),
-            _RowDivider(border: go.border),
-            _InfoRow(
+          ]),
+
+          const SizedBox(height: AppTokens.spaceLg),
+
+          // ── Privacy and data ───────────────────────────────────────────
+          // Launch-gate item 12. The privacy row used to live in the About card
+          // above as an _InfoRow with an empty value and no onTap — a label that
+          // named a policy which did not exist and went nowhere when tapped. It
+          // is a _NavRow here because it now opens something.
+          _SectionTitle(
+            title: _t(context, 'الخصوصية والبيانات', 'Privacy & data'),
+            muted: go.muted,
+          ),
+          _SettingsCard(panel: go.panel, border: go.border, children: [
+            _NavRow(
               icon: Icons.privacy_tip_rounded,
               iconColor: AppTokens.primary,
               title: strings.privacyPolicy,
-              value: '',
+              subtitle: _t(context, 'ما نجمعه ولماذا', 'What we collect, and why'),
               text: go.text,
               muted: go.muted,
+              border: go.border,
+              onTap: _openPolicy,
+            ),
+            _RowDivider(border: go.border),
+            _NavRow(
+              icon: Icons.download_rounded,
+              iconColor: AppTokens.info,
+              title: _t(context, 'تصدير بياناتي', 'Export my data'),
+              subtitle: _busyExport
+                  ? _t(context, 'جارٍ التحضير…', 'Preparing…')
+                  : _t(
+                      context,
+                      'ملف JSON بكل ما نحتفظ به عنك',
+                      'A JSON file of everything we hold about you',
+                    ),
+              text: go.text,
+              muted: go.muted,
+              border: go.border,
+              onTap: _busyExport ? () {} : _exportData,
+            ),
+            _RowDivider(border: go.border),
+            _NavRow(
+              icon: Icons.person_remove_rounded,
+              iconColor: AppTokens.danger,
+              title: _t(context, 'حذف الحساب', 'Delete account'),
+              subtitle: _busyDelete
+                  ? _t(context, 'جارٍ الحذف…', 'Deleting…')
+                  : _t(context, 'إجراء نهائي لا يمكن التراجع عنه', 'Permanent and cannot be undone'),
+              text: AppTokens.danger,
+              muted: go.muted,
+              border: go.border,
+              onTap: _busyDelete ? () {} : _deleteAccount,
             ),
           ]),
 
@@ -560,6 +637,172 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  // ---------------------------------------------------------------------
+  // Privacy and data — launch-gate item 12
+  // ---------------------------------------------------------------------
+
+  Future<void> _openPolicy() async {
+    final uri = Uri.parse(kPrivacyPolicyUrl);
+    // The same two-step the splash screen uses: external browser first, platform
+    // default as the fallback for devices that refuse the external intent.
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    }
+  }
+
+  /// GET /user/export → hand the JSON to the share sheet.
+  ///
+  /// A captain's export is the larger of the two: it carries the identity fields
+  /// and document metadata as well as the trip and ledger history.
+  Future<void> _exportData() async {
+    if (_busyExport) return;
+    setState(() => _busyExport = true);
+    final state = context.read<CaptainState>();
+    try {
+      final data = await state.apiGet('/user/export');
+      if (!mounted) return;
+      await Share.share(
+        const JsonEncoder.withIndent('  ').convert(data),
+        subject: _t(context, 'بياناتي على GoDrive', 'My GoDrive data'),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _toast(_t(context, 'تعذّر تصدير البيانات: $e', 'Could not export your data: $e'));
+    } finally {
+      if (mounted) setState(() => _busyExport = false);
+    }
+  }
+
+  /// DELETE /user/account, behind a confirmation that has to be typed.
+  ///
+  /// The dialog names what survives the erasure as well as what goes: the
+  /// earnings ledger and the consent record both outlive the account, and
+  /// telling a captain "everything is deleted" would be false.
+  Future<void> _deleteAccount() async {
+    final confirmed = await _confirmDeletion();
+    if (confirmed != true || _busyDelete) return;
+
+    setState(() => _busyDelete = true);
+    final state = context.read<CaptainState>();
+    final navigator = Navigator.of(context);
+    try {
+      await state.apiDelete('/user/account');
+      await state.logout();
+      if (!mounted) return;
+      // Same collapse-to-root as logout: SettingsScreen lives inside MainShell's
+      // IndexedStack, so a bare pop would empty the navigator.
+      navigator.popUntil((route) => route.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      // The server refuses deletion during a live trip (ACTIVE_TRIP) and while
+      // the wallet is in credit (BALANCE_OUTSTANDING) — a captain with unpaid
+      // earnings must not be able to delete their claim to them.
+      _toast('$e');
+    } finally {
+      if (mounted) setState(() => _busyDelete = false);
+    }
+  }
+
+  Future<bool?> _confirmDeletion() {
+    final word = _t(context, 'حذف', 'DELETE');
+    final controller = TextEditingController();
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final dialogGo = GoTheme.of(ctx);
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final matches = controller.text.trim() == word;
+            return AlertDialog(
+              title: Text(
+                _t(ctx, 'حذف الحساب نهائيًا', 'Delete your account'),
+                style: AppTokens.font(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _t(
+                        ctx,
+                        'سيُحذف: اسمك ورقم هاتفك وبريدك وصورتك، وبيانات رخصتك ورقمك القومي، وصور وثائقك.',
+                        'Deleted: your name, phone, email and photo, your licence and national ID '
+                            'details, and your uploaded document images.',
+                      ),
+                      style: AppTokens.font(fontSize: 14, height: 1.6),
+                    ),
+                    const SizedBox(height: AppTokens.spaceSm),
+                    Text(
+                      _t(
+                        ctx,
+                        'سيبقى: سجل أرباحك والرحلات المرتبطة به (التزام محاسبي) وسجل موافقتك وبلاغات '
+                            'السلامة — كلها مفصولة عن هويتك.',
+                        'Kept: your earnings ledger and its trips (an accounting obligation), your '
+                            'consent record and safety reports — all detached from your identity.',
+                      ),
+                      style: AppTokens.font(
+                        fontSize: 12,
+                        height: 1.6,
+                        color: dialogGo.muted,
+                      ),
+                    ),
+                    const SizedBox(height: AppTokens.spaceMd),
+                    Text(
+                      _t(ctx, 'اكتب «$word» للتأكيد', 'Type "$word" to confirm'),
+                      style: AppTokens.font(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: AppTokens.spaceSm),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      style: AppTokens.font(fontSize: 14, color: dialogGo.text),
+                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      onChanged: (_) => setDialogState(() {}),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(
+                    AppStrings.of(ctx).cancelAction,
+                    style: AppTokens.font(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: dialogGo.action,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  // Disabled until the word matches: an irreversible action
+                  // should not be reachable by a mis-tap.
+                  onPressed: matches ? () => Navigator.pop(ctx, true) : null,
+                  child: Text(
+                    _t(ctx, 'حذف الحساب', 'Delete account'),
+                    style: AppTokens.font(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: matches ? AppTokens.danger : dialogGo.muted,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Shows a confirmation dialog before logging out.
