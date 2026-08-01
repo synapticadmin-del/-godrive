@@ -93,17 +93,40 @@ started first regardless of who is free:
 
 Within every later round, the listed tasks are also fully parallel — that is what §5 proves.
 
-## 4. Gate items that span two tasks
+## 4. Gate items that no single PR can close
 
-Three gate items cannot be closed by one PR, because the fix and its call site live in files owned by
-different tasks. **A verifier who closes these on the first PR closes them wrong** — that is root R3,
-the habit of declaring work done at the point of definition rather than effect.
+**7 of the 16 gate items are delivered by more than one task.** The fix and the place it takes
+effect live in files owned by different chats, so the item is only true once *every* listed PR has merged
+and been verified. **A verifier who closes one of these on the first PR closes it wrong** — that is root
+R3 exactly: work declared done at the point of definition rather than effect.
 
-| Gate item | Definition side | Call-site side | Closes when |
+This table is generated from the `gate_items:` field of every brief. It is not curated, so it cannot
+silently fall out of date the way a hand-written list did — the first version of this section listed three
+items and got one of them wrong, which an executing chat caught before a verifier did.
+
+| Gate item | Closed by | Unblocked by | Verify only when |
 |---|---|---|---|
-| **6** — settlement pays the agreed price | `E08` fixes the primitive in `settlement.ts` | `E09` points `trips.ts:829` at it | both merged and verified |
-| **10** — safety data is not leaked | `E13` redacts and exports revocation | `E09` calls it at trip end; `E14` builds the console | all three merged |
-| **11** — no straight-line pricing | `E15` adds `allowFallback` + the migration | `E09` flips booking to `false` and writes `route_source` | both merged and verified |
+| **2** — no more bare `wrangler deploy` | `E00` + `E01` | — | both merged |
+| **3** — the launch shape is enforced, not just intended | `E04` + `E05` | `E02` | both merged |
+| **4** — the payout debit cannot mint money | `E06` + `E14` | — | both merged |
+| **6** — settlement pays the price that was agreed | `E08` + `E09` | `E03` | both merged |
+| **7** — a rider is never locked out of booking | `E09` + `E10` | `E03` | both merged |
+| **10** — the safety features do not lie or leak | `E05` + `E09` + `E13` + `E14` | `E02` | all 4 merged |
+| **11** — no price is ever computed off a straight line | `E09` + `E15` | — | both merged |
+
+The remaining items have a single closing task and may be verified on their own PR: **1** → `E00` · **5** → `E07` · **8** → `E11` · **9** → `E09` · **12** → `E16` · **13** → `E17` · **14** → `E12` · **15** → `E18` · **16** → `E19`.
+
+Three of the multi-task items are worth calling out because the split is not obvious from the briefs:
+
+- **Item 3** is three-way: `E02` unmounts `/intercity` and `/companies`, `E04` makes the server reject
+  them, and `E05` stops the rider client from offering the سفر chip at all. Disabling the client without
+  the server guard leaves the endpoint live to anyone with curl.
+- **Item 10** is the widest in the gate — `E05` deletes the false "authorities are notified" claim,
+  `E13` redacts the share payload and exports revocation, `E09` calls that revocation at trip end, and
+  `E14` gives an operator somewhere to see an SOS. Any one of them alone still leaves a safety feature
+  that lies.
+- **Item 6** and **item 11** are definition/call-site pairs: `E08` and `E15` write the primitive, `E09`
+  owns `trips.ts` and is the only task that can point the code at it.
 
 ## 5. Proof the partition is safe
 
@@ -205,6 +228,15 @@ needs it, you have found a seam the same way the ones in §7 were found: say so 
 are live and bound, and an unowned live file is a collision waiting for two chats to notice it.
 
 ## 9. Not in this wave
+
+**Flutter tests are out of scope, deliberately.** `apps/rider/test/` and `apps/captain/test/` hold only
+the default `widget_test.dart` scaffold, are owned by no task, and `ci.yml` runs `flutter analyze` but
+**never `flutter test`** — so a Dart test added during this wave would execute nowhere. Gate item 16 is
+scoped to the API money paths (`E19`) for that reason. Wiring `flutter test` into CI needs an edit to
+`.github/workflows/ci.yml`, which no agent can make; it belongs with the other human workflow steps in
+`E00`. Chats whose brief names no tests should say so in the PR and stop — several briefs previously
+carried a blanket "tests are not optional" line that sent at least one chat looking for a harness that
+does not exist. That line is now conditional.
 
 Wave 2 (98 G2 findings) and Wave 3 (316 G3) are scoped in §6.3 of the plan. The dead-code sweep (root
 R3), the accessibility block, T27's shared component layer and the cost programme are all Wave 2 or
