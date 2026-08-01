@@ -351,6 +351,14 @@ nothing else in this file.**
 - **Top action:** Run the `git mv` in `docs/DEPLOYMENT.md:3-13` and tick three branch-protection boxes — under an hour, needs a human with the `workflows` permission, and it removes three S1s at once.
 - **Hands off to:** T03 (payout insert has no idempotency key at `wallet.ts:123-130`), T04 (Paymob HMAC field list contradicts its own comment at `paymob.ts:152-183`), T05 (`minFare` clamped before discount, `index.ts:104-105`), T06 (captain double-booking TOCTOU at `trips.ts:854-859`), T07 (DO session state lost on eviction), T08 (migration checker asserts no schema), T11 (admin has zero tests; four `system_config` keys read by no product code), T22 (rollback-on-error-rate is our joint deliverable), T26 (`flutter test` never runs in CI), T27 (three different lint standards; both apps duplicate the same untestable networking pattern)
 
+### T26 — Mobile Release Engineering & Store Readiness
+
+- **PR:** https://github.com/synapticadmin-del/-godrive/pull/83 · **Doc:** `docs/plan/26-mobile-release-store-readiness.md` · **By:** chat-20260801-1420-39cc · **Date:** 2026-08-01
+- **Verdict:** The app cannot be uploaded to Google Play today and would be rejected by both stores on several independent grounds; mobile release engineering is at zero, and the release infrastructure is one Windows laptop.
+- **Blockers (S1):** 8 — `targetSdk 34` is below Play's API 35 floor (`build.gradle:51`); release builds silently fall back to **debug signing** when `key.properties` is absent, i.e. on every machine but one (`build.gradle:71`); no account deletion endpoint or UI, which both stores have required since 2022/2024 (`routes/user.ts`). Plus: no force-upgrade gate, background location declared on iOS but implemented nowhere, Firebase config absent while its plugin is mandatory, no CI artefact, and every build defaulting to production D1.
+- **Top action:** Build the force-upgrade gate (P0.4 — `GET /config/app` + a `426` middleware + `device_tokens.app_version`, all on the existing `system_config` table). It is the mechanism that turns every other mobile mistake from a two-week migration of the installed base into a two-hour incident, and nothing else should ship to a store before it exists.
+- **Hands off to:** T23 (CI overlap; the API deploy workflow is still uninstalled at `docs/ci/deploy-api.yml`; branch protection may not be enforced, which would make every gate advisory; zero Flutter tests exist), T25 (privacy policy URL and data-safety declarations are store-blocking, and the deletion design retains an anonymised ledger), T27 (rider declares iOS Always-location it never uses while captain has it stripped on Android; 2.75 MB of byte-identical assets duplicated; `generate: true` on captain only), T22, T19, T14, T18, T24
+
 <!-- TRACK-ENTRIES:END -->
 
 ---
