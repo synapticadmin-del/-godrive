@@ -2,12 +2,39 @@ import { DurableObject } from "cloudflare:workers";
 
 type ClientRole = "rider" | "captain" | "admin" | "unknown";
 
-type Session = {
-  ws: WebSocket;
+/**
+ * Per-connection state.
+ *
+ * This is stored on the socket itself via `ws.serializeAttachment()`, **not**
+ * in an instance field (F-07-02). `ctx.acceptWebSocket()` opts this object
+ * into hibernation: when the room goes idle Cloudflare evicts the instance and
+ * reconstructs it on the next event, at which point every instance field is
+ * back to its initial value while the sockets are still open and still
+ * connected to real people.
+ *
+ * With the state in a `Map<WebSocket, Session>` that produced two bugs, and
+ * the more serious one was not the obvious one:
+ *
+ *  * `webSocketMessage` looked the socket up, got `undefined`, and therefore
+ *    read `session?.pendingAuth` as falsy — so a socket that had **never
+ *    completed the auth handshake** was promoted to a trusted client by the
+ *    act of the room going quiet for a minute. It could then publish
+ *    `location.captain` frames into the room.
+ *  * `broadcast` fell through to `ctx.getWebSockets()` for "hibernation API
+ *    sockets", and that loop had no way to tell a pending-auth socket from an
+ *    authenticated one — so it sent the trip's live location to sockets that
+ *    had never proved who they were.
+ *
+ * An attachment survives hibernation, so both checks now work on a woken
+ * instance. It must stay JSON-serialisable: no `WebSocket`, no timers.
+ */
+type Attachment = {
   role: ClientRole;
   userId?: string;
   /** True until the first-message {"type":"auth"} handshake completes. */
   pendingAuth?: boolean;
+  /** Epoch ms after which a still-pending socket is refused. */
+  authDeadline?: number;
   /** The real `trips.id` for this room — see resolveTripId(). */
   tripId?: string;
 };
@@ -27,10 +54,26 @@ const AUTH_TIMEOUT_MS = 10_000;
  * socket with code 4401.
  */
 export class TripRoom extends DurableObject<Env> {
-  sessions: Map<WebSocket, Session> = new Map();
+  /**
+   * Best-effort timers for the awake case only. A `setTimeout` cannot survive
+   * hibernation, which is why the deadline is also written into the
+   * attachment and re-checked on every message.
+   */
   authTimers: Map<WebSocket, number> = new Map();
   /** In-memory cache of this room's trips.id — see resolveTripId(). */
   private tripIdCache?: string;
+
+  private attachmentOf(ws: WebSocket): Attachment {
+    try {
+      return (ws.deserializeAttachment() as Attachment | null) ?? { role: "unknown" };
+    } catch {
+      return { role: "unknown" };
+    }
+  }
+
+  private setAttachment(ws: WebSocket, attachment: Attachment) {
+    ws.serializeAttachment(attachment);
+  }
 
   /**
    * The real `trips.id` this room belongs to.
@@ -107,10 +150,10 @@ export class TripRoom extends DurableObject<Env> {
       const tripId = await this.resolveTripId(url.searchParams.get("tripId"));
 
       if (url.searchParams.get("pendingAuth") === "1") {
-        this.sessions.set(server, {
-          ws: server,
+        this.setAttachment(server, {
           role: "unknown",
           pendingAuth: true,
+          authDeadline: Date.now() + AUTH_TIMEOUT_MS,
           tripId,
         });
         this.armAuthTimeout(server);
@@ -120,7 +163,7 @@ export class TripRoom extends DurableObject<Env> {
       } else {
         const role = (url.searchParams.get("role") as ClientRole) || "unknown";
         const userId = url.searchParams.get("userId") || undefined;
-        this.sessions.set(server, { ws: server, role, userId, tripId });
+        this.setAttachment(server, { role, userId, tripId });
 
         server.send(
           JSON.stringify({
@@ -148,9 +191,16 @@ export class TripRoom extends DurableObject<Env> {
         heading?: number;
       };
 
-      const session = this.sessions.get(ws);
+      const session = this.attachmentOf(ws);
 
-      if (session?.pendingAuth) {
+      if (session.pendingAuth) {
+        // The timer that would normally have closed this socket does not
+        // survive hibernation, so the deadline is enforced here too. Without
+        // this a woken pending socket could sit open indefinitely.
+        if (session.authDeadline !== undefined && Date.now() > session.authDeadline) {
+          this.closeUnauthorised(ws);
+          return;
+        }
         // Until authenticated the only acceptable message is the auth
         // handshake; everything else is dropped silently.
         if (data.type === "auth") {
@@ -170,7 +220,7 @@ export class TripRoom extends DurableObject<Env> {
           lat: data.lat,
           lng: data.lng,
           heading: data.heading ?? null,
-          userId: session?.userId ?? null,
+          userId: session.userId ?? null,
           at: new Date().toISOString(),
         };
         await this.ctx.storage.put("lastLocation", payload);
@@ -183,12 +233,24 @@ export class TripRoom extends DurableObject<Env> {
 
   async webSocketClose(ws: WebSocket) {
     this.clearAuthTimeout(ws);
-    this.sessions.delete(ws);
   }
 
   async webSocketError(ws: WebSocket) {
     this.clearAuthTimeout(ws);
-    this.sessions.delete(ws);
+  }
+
+  private closeUnauthorised(ws: WebSocket) {
+    try {
+      ws.send(JSON.stringify({ type: "auth.failed" }));
+    } catch {
+      /* ignore */
+    }
+    this.clearAuthTimeout(ws);
+    try {
+      ws.close(4401, "Unauthorized");
+    } catch {
+      /* already closed */
+    }
   }
 
   /**
@@ -196,20 +258,9 @@ export class TripRoom extends DurableObject<Env> {
    * checks the /ws/trips/:id route performs for header/query auth: token
    * validity, access-token type, then trip membership (rider/captain/admin).
    */
-  private async completeAuth(ws: WebSocket, session: Session, token?: string) {
-    const fail = () => {
-      try {
-        ws.send(JSON.stringify({ type: "auth.failed" }));
-      } catch {
-        /* ignore */
-      }
-      this.clearAuthTimeout(ws);
-      this.sessions.delete(ws);
-      ws.close(4401, "Unauthorized");
-    };
-
+  private async completeAuth(ws: WebSocket, session: Attachment, token?: string) {
     if (!token) {
-      fail();
+      this.closeUnauthorised(ws);
       return;
     }
 
@@ -217,7 +268,7 @@ export class TripRoom extends DurableObject<Env> {
       const { verifyToken } = await import("../lib/jwt");
       const user = await verifyToken(token, this.env.JWT_SECRET, this.env.JWT_ISSUER);
       if (user.typ === "refresh") {
-        fail();
+        this.closeUnauthorised(ws);
         return;
       }
 
@@ -227,25 +278,29 @@ export class TripRoom extends DurableObject<Env> {
         .first<{ rider_id: string; captain_id: string }>();
 
       if (!trip || (user.role !== "admin" && trip.rider_id !== user.id && trip.captain_id !== user.id)) {
-        fail();
+        this.closeUnauthorised(ws);
         return;
       }
 
       this.clearAuthTimeout(ws);
-      session.pendingAuth = false;
-      session.role = user.role;
-      session.userId = user.id;
+      // Promotion is a write to the attachment, so it survives hibernation the
+      // same way the pending state does.
+      this.setAttachment(ws, {
+        role: user.role as ClientRole,
+        userId: user.id,
+        pendingAuth: false,
+        tripId,
+      });
       ws.send(JSON.stringify({ type: "connected", tripId, role: user.role }));
     } catch {
-      fail();
+      this.closeUnauthorised(ws);
     }
   }
 
   private armAuthTimeout(ws: WebSocket) {
     const timer = setTimeout(() => {
-      const session = this.sessions.get(ws);
-      if (session?.pendingAuth) {
-        this.sessions.delete(ws);
+      const session = this.attachmentOf(ws);
+      if (session.pendingAuth) {
         try {
           ws.close(4401, "Auth timeout");
         } catch {
@@ -265,25 +320,25 @@ export class TripRoom extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Fan out to every authenticated socket in the room.
+   *
+   * One loop, not two. The previous version walked an in-memory map and then
+   * walked `ctx.getWebSockets()` for "hibernation API sockets" it had missed —
+   * but every socket here is a hibernation socket, and the second loop applied
+   * no auth filter at all. `ctx.getWebSockets()` is the complete and correct
+   * list on both a warm and a freshly woken instance; the attachment says
+   * whether each one is allowed to hear this.
+   */
   private broadcast(payload: unknown, except?: WebSocket) {
     const raw = JSON.stringify(payload);
-    for (const [socket, session] of this.sessions) {
-      if (session.pendingAuth) continue;
-      if (except && socket === except) continue;
-      try {
-        socket.send(raw);
-      } catch {
-        this.sessions.delete(socket);
-      }
-    }
-    // Also use hibernation API sockets
     for (const ws of this.ctx.getWebSockets()) {
       if (except && ws === except) continue;
-      if (this.sessions.has(ws)) continue;
+      if (this.attachmentOf(ws).pendingAuth) continue;
       try {
         ws.send(raw);
       } catch {
-        /* ignore */
+        /* the socket is gone; close events do the cleanup */
       }
     }
   }

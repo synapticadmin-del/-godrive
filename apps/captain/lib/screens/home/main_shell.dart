@@ -8,6 +8,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_shared/flutter_shared.dart';
+// Imported by path rather than through the package barrel: adding these two
+// exports to packages/flutter_shared/lib/flutter_shared.dart would mean
+// editing a file E11 does not own. Both resolve normally — every file under a
+// package's lib/ is importable as package:<name>/<path>.dart.
+import 'package:flutter_shared/motion/go_motion.dart';
+import 'package:flutter_shared/widgets/animated_vehicle_marker.dart';
 import 'package:synaptic_go_captain/services/captain_state.dart';
 import 'package:synaptic_go_captain/screens/onboarding/onboarding_screen.dart';
 import 'package:synaptic_go_captain/screens/earnings/earnings_screen.dart';
@@ -556,6 +562,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
         MarkerLayer(markers: _buildMarkers(state)),
 
+        // The captain's own car rides its own layer so it can be tweened
+        // between fixes instead of jumping. Drawn after the endpoint markers
+        // so it is never hidden under a trip pin.
+        if (_currentLocation != null) _buildVehicleLayer(state),
+
         RichAttributionWidget(
           alignment: AttributionAlignment.bottomLeft,
           showFlutterMapAttribution: false,
@@ -599,25 +610,51 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       }
     }
 
-    // Drawn last so the captain is never hidden under a trip pin.
-    //
-    // The marker is the shared top-down car (Uber-style) rather than the old
-    // compass puck: rider, captain and admin now show the same vehicle
-    // silhouette, and the GPS bearing still rotates it.
-    if (_currentLocation != null) {
-      markers.add(Marker(
-        point: _currentLocation!,
-        width: 54,
-        height: 54,
-        child: VehicleMapMarker(
-          heading: _heading,
-          color: state.online ? AppTokens.primary : AppTokens.lightMuted,
-          size: 54,
-        ),
-      ));
-    }
-
+    // The captain's own vehicle is NOT added here — see _buildVehicleLayer.
+    // A flutter_map Marker takes a fixed point, so animating the car between
+    // fixes means rebuilding its layer on every frame of the tween; keeping it
+    // out of this list leaves the endpoint pins static and cheap.
     return markers;
+  }
+
+  /// The captain's own car, walked between GPS fixes rather than teleported.
+  ///
+  /// The marker is the shared top-down car (Uber-style) rather than the old
+  /// compass puck: rider, captain and admin show the same vehicle silhouette,
+  /// and the GPS bearing still rotates it. What is new is the motion.
+  ///
+  /// E11 paces location publishing to stay inside the server's rate limit,
+  /// which necessarily means fewer, further-apart fixes. Interpolation is the
+  /// other half of that change and has to ship with it, not after it — a
+  /// longer interval without a tween makes the marker look worse than the
+  /// broken version did, which is the trap T13 and T28 both recorded.
+  ///
+  /// [AnimatedVehicleMarker] does not extrapolate: if fixes stop arriving the
+  /// car stops where it was last actually seen.
+  Widget _buildVehicleLayer(CaptainState state) {
+    final point = _currentLocation!;
+    final color = state.online ? AppTokens.primary : AppTokens.lightMuted;
+
+    return AnimatedVehicleMarker(
+      position: GoLatLng(point.latitude, point.longitude),
+      heading: _heading,
+      color: color,
+      size: 54,
+      builder: (context, animated, heading) => MarkerLayer(
+        markers: [
+          Marker(
+            point: LatLng(animated.lat, animated.lng),
+            width: 54,
+            height: 54,
+            child: VehicleMapMarker(
+              heading: heading,
+              color: color,
+              size: 54,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildLocatingVeil(GoTheme go) {

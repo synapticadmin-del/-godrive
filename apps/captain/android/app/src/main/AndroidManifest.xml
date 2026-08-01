@@ -1,9 +1,37 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <!-- Background location removed: no foreground service is implemented yet. Re-add with a real foreground service when background tracking ships. -->
+
+    <!--
+      Foreground service for location (E11).
+
+      The previous comment here read: "Background location removed: no
+      foreground service is implemented yet. Re-add with a real foreground
+      service when background tracking ships." That service now ships — it is
+      geolocator's own GeolocatorLocationService, configured from
+      CaptainState._locationSettings() via ForegroundNotificationConfig — so
+      these two permissions are what it needs to run.
+
+      FOREGROUND_SERVICE_LOCATION is required from Android 14 (API 34). The
+      captain app's targetSdk moves to 35 under E17, so by the time that lands
+      this declaration is mandatory rather than merely correct.
+
+      ACCESS_BACKGROUND_LOCATION is deliberately still absent. A foreground
+      service started while the app is visible keeps receiving location updates
+      without it, which is exactly our case: the captain taps "go online" on
+      screen and then switches to a navigation app. Requesting background
+      location instead would trigger the Play Console's background-location
+      declaration and review — real calendar time, for a permission the
+      feature does not need. If a future feature must track with no service
+      running at all, that is the point to add it and to budget for the review.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+
+    <!-- Required to show the ongoing service notification on Android 13+. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
 
@@ -12,6 +40,21 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
+
+        <!--
+          Pin the foreground service type on geolocator's service. The plugin
+          contributes this component through manifest merging; naming it here
+          with tools:node="merge" guarantees the "location" type is present in
+          the merged manifest regardless of what the plugin version in the
+          lockfile happens to declare. Same value, so the merge is a no-op when
+          the plugin already sets it.
+        -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            android:foregroundServiceType="location"
+            android:exported="false"
+            tools:node="merge"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
