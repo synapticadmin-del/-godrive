@@ -1,4 +1,5 @@
 import { cellKey } from "./pricing";
+import { resolveSearchRadiusKm } from "./utils";
 import { geohashCellSpan } from "@synaptic-go/shared";
 
 /**
@@ -102,4 +103,47 @@ export async function findNearbyCaptains(
   const merged = [...byId.values()];
   merged.sort((a, b) => a.distanceKm - b.distanceKm);
   return merged.slice(0, limit);
+}
+
+/**
+ * Drop captains whose own search radius excludes this pickup.
+ *
+ * [findNearbyCaptains] answers "who is geographically close" from the geohash
+ * neighbourhood; this answers "who actually asked for work this far out". A
+ * captain hunting inside 5km must not be woken by a request 7km away — not by
+ * an inbox card, not by FCM, and not by a badge on a tab.
+ *
+ * Best-effort by design: if the lookup fails we return the discovered list
+ * untouched, because a dispatch that reaches slightly too far is recoverable
+ * (the captain declines) while a dispatch that reaches nobody strands a rider.
+ *
+ * Lives here rather than in `routes/trips.ts` (where it started) because the
+ * OfferScheduler DO re-scans for captains on later waves and has to apply the
+ * identical rule — honouring a captain's radius on the first wave and ignoring
+ * it on the third is worse than never filtering at all.
+ */
+export async function filterByCaptainRadius<
+  T extends { userId: string; distanceKm: number },
+>(db: D1Database, captains: T[]): Promise<T[]> {
+  if (captains.length === 0) return captains;
+  try {
+    const placeholders = captains.map(() => "?").join(", ");
+    const rows = await db
+      .prepare(
+        `SELECT user_id, search_radius_km FROM captains WHERE user_id IN (${placeholders})`,
+      )
+      .bind(...captains.map((cap) => cap.userId))
+      .all<{ user_id: string; search_radius_km: number | null }>();
+
+    const radiusByUser = new Map(
+      (rows.results ?? []).map((row) => [row.user_id, resolveSearchRadiusKm(row.search_radius_km)]),
+    );
+
+    return captains.filter(
+      (cap) => cap.distanceKm <= resolveSearchRadiusKm(radiusByUser.get(cap.userId)),
+    );
+  } catch (e) {
+    console.error("captain radius filter failed", e);
+    return captains;
+  }
 }

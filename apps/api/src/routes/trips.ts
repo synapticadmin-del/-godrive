@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { canTransition, type TripStatus } from "@synaptic-go/shared";
 import type { Context } from "hono";
 import { pricingFromRow } from "../lib/pricing";
-import { findNearbyCaptains } from "../lib/nearby";
+import { filterByCaptainRadius, findNearbyCaptains } from "../lib/nearby";
 import { fareFromRoute, getDurationsToPoint, getRoute } from "../lib/routing";
 import {
   createTripSchema,
@@ -13,7 +13,7 @@ import {
   acceptBidSchema,
 } from "../lib/schemas";
 import type { DbCaptain, DbPricing, DbTrip } from "../lib/types";
-import { id, nowIso, resolveSearchRadiusKm } from "../lib/utils";
+import { id, nowIso } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 import { pushToUser } from "../lib/notifications";
@@ -31,44 +31,11 @@ async function getPricing(db: D1Database, city: string): Promise<DbPricing | nul
   );
 }
 
-/**
- * Drop captains whose own search radius excludes this pickup.
- *
- * [findNearbyCaptains] answers "who is geographically close" from the geohash
- * neighbourhood; this answers "who actually asked for work this far out". A
- * captain hunting inside 5km must not be woken by a request 7km away — not by
- * an inbox card, not by FCM, and not by a badge on a tab.
- *
- * Best-effort by design: if the lookup fails we return the discovered list
- * untouched, because a dispatch that reaches slightly too far is recoverable
- * (the captain declines) while a dispatch that reaches nobody strands a rider.
- */
-async function filterByCaptainRadius<T extends { userId: string; distanceKm: number }>(
-  db: D1Database,
-  captains: T[],
-): Promise<T[]> {
-  if (captains.length === 0) return captains;
-  try {
-    const placeholders = captains.map(() => "?").join(", ");
-    const rows = await db
-      .prepare(
-        `SELECT user_id, search_radius_km FROM captains WHERE user_id IN (${placeholders})`,
-      )
-      .bind(...captains.map((cap) => cap.userId))
-      .all<{ user_id: string; search_radius_km: number | null }>();
-
-    const radiusByUser = new Map(
-      (rows.results ?? []).map((row) => [row.user_id, resolveSearchRadiusKm(row.search_radius_km)]),
-    );
-
-    return captains.filter(
-      (cap) => cap.distanceKm <= resolveSearchRadiusKm(radiusByUser.get(cap.userId)),
-    );
-  } catch (e) {
-    console.error("captain radius filter failed", e);
-    return captains;
-  }
-}
+// `filterByCaptainRadius` used to live here. It moved to ../lib/nearby so the
+// OfferScheduler DO can apply the same radius rule when it re-scans for
+// captains on a later wave — dispatch that respects the captain's chosen
+// radius on the first wave but ignores it on the third would be worse than
+// not filtering at all.
 
 async function logEvent(
   db: D1Database,
@@ -531,59 +498,78 @@ tripRoutes.post(
     const nearbyCaptains = await filterByCaptainRadius(c.env.DB, discovered);
     const nearby = { captains: nearbyCaptains };
 
-    let status: TripStatus = "searching";
-    if (nearby.captains?.length) {
-      status = "offered";
-      await c.env.DB.prepare(`UPDATE trips SET status = 'offered', updated_at = ? WHERE id = ?`)
-        .bind(nowIso(), tripId)
-        .run();
-      await logEvent(c.env.DB, tripId, "offered", user.id, {
-        candidates: nearby.captains.map((x) => x.userId),
-      });
+    // The trip stays `searching` until a captain actually names a price.
+    //
+    // This block used to flip it to `offered` whenever the neighbourhood
+    // search came back non-empty — that is, when there was somebody to *ask*,
+    // not when anybody had *answered*. `offered` therefore meant two different
+    // things depending on who read it, and the rider's trip screen (which
+    // titles itself off the status) announced "عروض متاحة" over an empty list.
+    // `POST /trips/:id/bid` is now the only writer of `offered`, so the status
+    // means exactly one thing: at least one captain has bid.
+    const status: TripStatus = "searching";
 
-      // Staged offer rollout — the closest captains see the offer first;
-      // the rest only if nobody accepts within the grace window.
-      // Previously every nearby captain got the card at once → a ~10-captain
-      // sprint on every trip. The rollout lives in this trip's OfferScheduler
-      // DO, whose alarm drives the next wave even after this request returns.
-      const offerPayload = {
-        type: "trip.offer" as const,
+    // Named `dispatched`, not `offered`: this records who the offer went out
+    // to, which is not the same event as a captain responding to it.
+    await logEvent(c.env.DB, tripId, "dispatched", user.id, {
+      candidates: nearby.captains.map((x) => x.userId),
+    });
+
+    // Staged offer rollout — the closest captains see the offer first; the
+    // rest only if nobody accepts within the grace window. Previously every
+    // nearby captain got the card at once → a ~10-captain sprint on every
+    // trip. The rollout lives in this trip's OfferScheduler DO, whose alarm
+    // drives the next wave even after this request returns.
+    //
+    // Scheduled unconditionally now, including when the search found nobody.
+    // The empty case used to skip this entire block: no DO, no push, and a
+    // trip that reached a captain only if one happened to poll
+    // GET /captain/offers. Booking from a quiet street therefore told nobody
+    // at all. The scheduler re-scans on its own alarm, so a captain who comes
+    // online a minute after booking still gets the offer.
+    const offerPayload = {
+      type: "trip.offer" as const,
+      tripId,
+      city,
+      pickupLat: body.pickupLat,
+      pickupLng: body.pickupLng,
+      dropoffLat: body.dropoffLat,
+      dropoffLng: body.dropoffLng,
+      estimatedFare: finalEstimate,
+      currency: est.fare.currency,
+      at: nowIso(),
+    };
+    const firstWaveRoster = nearby.captains.slice(0, 10);
+    const scheduler = c.env.OFFER_SCHEDULER.get(
+      c.env.OFFER_SCHEDULER.idFromName(tripId),
+    );
+    await scheduler.fetch("https://scheduler/schedule", {
+      method: "POST",
+      body: JSON.stringify({
         tripId,
-        city,
-        pickupLat: body.pickupLat,
-        pickupLng: body.pickupLng,
-        dropoffLat: body.dropoffLat,
-        dropoffLng: body.dropoffLng,
-        estimatedFare: finalEstimate,
-        currency: est.fare.currency,
-        at: nowIso(),
-      };
-      const scheduler = c.env.OFFER_SCHEDULER.get(
-        c.env.OFFER_SCHEDULER.idFromName(tripId),
-      );
-      await scheduler.fetch("https://scheduler/schedule", {
-        method: "POST",
-        body: JSON.stringify({
-          tripId,
-          captains: nearby.captains.slice(0, 10),
-          offer: offerPayload,
-        }),
-      });
-      // FCM fanout keeps the previous blast — push is what wakes a captain
-      // whose app is closed, so it still reaches everyone who could accept.
-      await Promise.all(
-        nearby.captains.slice(0, 10).map((cap) =>
-          pushToUser({
-            env: c.env,
-            userId: cap.userId,
-            topic: "trip.offer",
-            title: "رحلة جديدة متاحة",
-            body: `الأجرة المتوقعة ${finalEstimate} ${est.fare.currency}. تبعد عنك ${cap.distanceKm.toFixed(1)} كم.`,
-            data: { tripId, channel: "trip_offer", city },
-          }).catch((e) => console.error("offer fcm failed", cap.userId, e)),
-        ),
-      );
-    }
+        captains: firstWaveRoster,
+        offer: offerPayload,
+        // Who this request already reached by FCM. The scheduler pushes to
+        // captains it discovers later, and skipping this set is what keeps a
+        // captain from being buzzed twice for the same trip.
+        fcmSent: firstWaveRoster.map((cap) => cap.userId),
+      }),
+    });
+    // FCM fanout keeps the previous blast — push is what wakes a captain
+    // whose app is closed, so it still reaches everyone who could accept.
+    // A no-op on an empty roster; the scheduler covers whoever turns up next.
+    await Promise.all(
+      firstWaveRoster.map((cap) =>
+        pushToUser({
+          env: c.env,
+          userId: cap.userId,
+          topic: "trip.offer",
+          title: "رحلة جديدة متاحة",
+          body: `الأجرة المتوقعة ${finalEstimate} ${est.fare.currency}. تبعد عنك ${cap.distanceKm.toFixed(1)} كم.`,
+          data: { tripId, channel: "trip_offer", city },
+        }).catch((e) => console.error("offer fcm failed", cap.userId, e)),
+      ),
+    );
 
     const trip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
       .bind(tripId)

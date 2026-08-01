@@ -1,4 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
+import { filterByCaptainRadius, findNearbyCaptains } from "../lib/nearby";
+import { pushToUser } from "../lib/notifications";
 
 /**
  * OfferScheduler — one DO per trip, drives the staged offer rollout.
@@ -25,6 +27,22 @@ import { DurableObject } from "cloudflare:workers";
  * its own DO, and the next wave is driven by a Durable Object **alarm** —
  * the only worker-side timer guaranteed to survive a deployed isolate
  * (ctx.waitUntil would silently stop ~30s after the response).
+ *
+ * Re-scanning: dispatch is a standing order, not a one-shot
+ * --------------------------------------------------------
+ * `POST /trips` runs the neighbourhood search exactly once, at the instant
+ * the rider taps request. That used to be the only search a trip ever got,
+ * and the route skipped this DO entirely when the search came back empty. So
+ * a rider booking from a quiet street at 2am was dispatched to nobody, and a
+ * captain who came online ten seconds later never learned the trip existed —
+ * they could only stumble on it via the `GET /captain/offers` poll.
+ *
+ * The rollout is now scheduled for *every* trip, and when the roster runs dry
+ * this DO searches again on its own alarm (same radius rule, via
+ * `filterByCaptainRadius`) until the trip is taken, cancelled, or SEARCH_TTL_MS
+ * elapses. Captains discovered on a re-scan also get FCM, because the caller
+ * only pushed to the roster it found itself and an inbox card does not wake a
+ * closed app — `fcmSent` carries that set forward so nobody is buzzed twice.
  *
  * Cancellation reaches exactly the audience that saw the offer
  * -----------------------------------------------------------
@@ -62,6 +80,15 @@ type OfferPayload = {
 const WAVE_SIZE = 3;
 const WAVE_DELAY_MS = 15_000;
 
+/**
+ * How long to keep hunting for a captain before abandoning the rollout.
+ *
+ * The alarm's status check ends most rollouts (accepted / cancelled). This is
+ * the backstop for the trip nobody takes and the rider never cancels — without
+ * it the DO would re-scan on a 15s alarm forever.
+ */
+const SEARCH_TTL_MS = 5 * 60_000;
+
 export class OfferScheduler extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -71,11 +98,15 @@ export class OfferScheduler extends DurableObject<Env> {
         tripId: string;
         captains: Wave[];
         offer: OfferPayload;
+        /** Captains the caller has already reached by FCM. */
+        fcmSent?: string[];
       };
       await this.ctx.storage.put("tripId", body.tripId);
       await this.ctx.storage.put("captains", body.captains);
       await this.ctx.storage.put("offer", body.offer);
       await this.ctx.storage.put("waveIndex", 0);
+      await this.ctx.storage.put("fcmSent", body.fcmSent ?? []);
+      await this.ctx.storage.put("startedAt", Date.now());
       await this.pushWave();
       return Response.json({ ok: true, captains: body.captains.length });
     }
@@ -90,22 +121,42 @@ export class OfferScheduler extends DurableObject<Env> {
 
   /** Fire the current wave and arm the next alarm. */
   private async pushWave(): Promise<void> {
-    const [tripId, captains, offer, waveIndex] = await Promise.all([
+    const [tripId, storedCaptains, offer, waveIndex, startedAt, fcmSent] = await Promise.all([
       this.ctx.storage.get<string>("tripId"),
       this.ctx.storage.get<Wave[]>("captains"),
       this.ctx.storage.get<OfferPayload>("offer"),
       this.ctx.storage.get<number>("waveIndex"),
+      this.ctx.storage.get<number>("startedAt"),
+      this.ctx.storage.get<string[]>("fcmSent"),
     ]);
-    if (!tripId || !captains || !offer || waveIndex == null) return;
+    if (!tripId || !storedCaptains || !offer || waveIndex == null) return;
 
-    const wave = captains.slice(waveIndex, waveIndex + WAVE_SIZE);
+    let roster = storedCaptains;
+    let wave = roster.slice(waveIndex, waveIndex + WAVE_SIZE);
+
     if (wave.length === 0) {
-      await this.teardown();
-      return;
+      // The roster is spent — or was empty from the start, which is exactly
+      // what happens when the rider books with no captain in the
+      // neighbourhood. Either way, look again before giving up.
+      if (this.expired(startedAt)) {
+        await this.teardown();
+        return;
+      }
+
+      const found = await this.rescan(roster, offer);
+      if (found.length === 0) {
+        // Nobody has come online yet. Sleep a wave and search again.
+        await this.ctx.storage.setAlarm(Date.now() + WAVE_DELAY_MS);
+        return;
+      }
+
+      roster = [...roster, ...found];
+      await this.ctx.storage.put("captains", roster);
+      wave = roster.slice(waveIndex, waveIndex + WAVE_SIZE);
     }
 
     // Push this wave to captain inboxes (best-effort; one dead inbox does not
-    // hold the wave). FCM stays with the caller — see trips.ts.
+    // hold the wave).
     await Promise.all(
       wave.map(async (cap) => {
         try {
@@ -120,20 +171,90 @@ export class OfferScheduler extends DurableObject<Env> {
       }),
     );
 
-    const nextIndex = waveIndex + WAVE_SIZE;
-    await this.ctx.storage.put("waveIndex", nextIndex);
-    if (nextIndex < captains.length) {
-      await this.ctx.storage.setAlarm(Date.now() + WAVE_DELAY_MS);
-    } else {
-      // Everyone saw the offer; the rollout is done.
-      await this.teardown();
+    // FCM for anyone this trip has not already buzzed. `POST /trips` pushes to
+    // the roster it discovered itself and declares that set in `fcmSent`;
+    // captains found by a re-scan have had no push at all, and an inbox card
+    // alone will not wake a captain whose app is closed.
+    const pushedAlready = new Set(fcmSent ?? []);
+    const needPush = wave.filter((cap) => !pushedAlready.has(cap.userId));
+    if (needPush.length) {
+      await Promise.all(
+        needPush.map((cap) =>
+          pushToUser({
+            env: this.env,
+            userId: cap.userId,
+            topic: "trip.offer",
+            title: "رحلة جديدة متاحة",
+            body: `الأجرة المتوقعة ${offer.estimatedFare} ${offer.currency}. تبعد عنك ${cap.distanceKm.toFixed(1)} كم.`,
+            data: { tripId, channel: "trip_offer", city: offer.city },
+          }).catch((e) => console.error("offer wave fcm failed", cap.userId, e)),
+        ),
+      );
+      for (const cap of needPush) pushedAlready.add(cap.userId);
+      await this.ctx.storage.put("fcmSent", [...pushedAlready]);
     }
+
+    await this.ctx.storage.put("waveIndex", waveIndex + WAVE_SIZE);
+
+    // Always come back: either to drive the next wave, or to re-scan once the
+    // roster runs dry. This is deliberately unconditional now — the old code
+    // tore the rollout down the moment the initial roster was exhausted, which
+    // is what made dispatch a single snapshot of who happened to be online at
+    // booking time. `alarm()` ends the rollout instead, as soon as the trip
+    // leaves searching/offered or the TTL expires.
+    await this.ctx.storage.setAlarm(Date.now() + WAVE_DELAY_MS);
+  }
+
+  /**
+   * Search the neighbourhood again, dropping captains already on the roster.
+   *
+   * Applies the same `filterByCaptainRadius` rule as the initial dispatch, so
+   * a captain who limited themselves to 5km is not handed a 7km pickup just
+   * because they arrived late.
+   */
+  private async rescan(known: Wave[], offer: OfferPayload): Promise<Wave[]> {
+    try {
+      const discovered = await findNearbyCaptains(
+        this.env,
+        offer.city,
+        offer.pickupLat,
+        offer.pickupLng,
+        10,
+      );
+      const eligible = await filterByCaptainRadius(this.env.DB, discovered);
+      const seen = new Set(known.map((cap) => cap.userId));
+      return eligible
+        .filter((cap) => !seen.has(cap.userId))
+        .map((cap) => ({
+          userId: cap.userId,
+          distanceKm: cap.distanceKm,
+          name: cap.name ?? null,
+        }));
+    } catch (e) {
+      // A failed re-scan is not fatal: the next alarm tries again.
+      console.error("offer rescan failed", e);
+      return [];
+    }
+  }
+
+  /** True once the rollout has been hunting longer than [SEARCH_TTL_MS]. */
+  private expired(startedAt?: number): boolean {
+    if (startedAt == null) return false;
+    return Date.now() - startedAt > SEARCH_TTL_MS;
   }
 
   /** Alarm handler — drive the next wave if the trip is still open. */
   async alarm(): Promise<void> {
-    const tripId = await this.ctx.storage.get<string>("tripId");
+    const [tripId, startedAt] = await Promise.all([
+      this.ctx.storage.get<string>("tripId"),
+      this.ctx.storage.get<number>("startedAt"),
+    ]);
     if (!tripId) return;
+
+    if (this.expired(startedAt)) {
+      await this.teardown();
+      return;
+    }
 
     const trip = await this.env.DB.prepare(
       `SELECT status FROM trips WHERE id = ?`,
