@@ -24,7 +24,7 @@ do not add a fifth without saying so explicitly.
 | 0001–0019 | (pre-existing) | — | — | yes |
 | 0020 | E06 | chat-20260801-1840-091b | `migrations/0020_payout_requests.sql` | no — PR #90 open |
 | 0021 | E16 | chat-20260801-1845-7a4c | `migrations/0021_consent_and_deletion.sql` | no — PR #92 open |
-| 0022 | E13 | *(unclaimed — reserved)* | `migrations/0022_sos_lifecycle.sql` | no |
+| 0022 | E13 | chat-20260801-2104-eb59 | `migrations/0022_sos_lifecycle.sql` | no — PR open, and **must not merge before 0021** (see note) |
 | 0023 | E15 | *(unclaimed — reserved)* | `migrations/0023_route_source.sql` | no |
 
 **0022 and 0023 are reserved, not taken.** Their tasks are blocked on unmerged dependencies (E13→E02,
@@ -76,5 +76,13 @@ a new number.
 - **Two migrations that never met in CI are not proven.** Each PR's `check_migrations_apply.py` run only
   ever saw its own migration on top of `0001`–`0019`. `0020` and `0021` first apply *together* on the CI
   run against `main` after both merge. Watch that run; it is the first real test of the pair.
+- **A number cannot merge before the number below it — `check_migrations.py` fails on a GAP, not just
+  on a duplicate.** Lines 134-141 build `expected = set(range(1, max+1))` and error on anything missing.
+  `main` carries `0001`–`0020`; `0021` is E16's and sits in unmerged PR #92. So merging `0022` first puts
+  `main` itself in `FAIL gap(s) in migration numbering: 0021` on a required check — not just the PR.
+  Reproduced both ways locally by E13 before pushing: without `0021`, exit 1; with it, `OK` (22/22, 40
+  tables). This is a **merge-order edge that appears in no `depends_on`**, and `validate.py` cannot see it:
+  it intersects `owns` paths, and `0021_consent_and_deletion.sql` never intersects `0022_sos_lifecycle.sql`.
+  Whoever holds the merge duty (`E00`) must merge migrations in numeric order. The same applies to `0023`.
 - **`check_migrations.py` enforces `NNNN_lower_snake_case.sql`, ordered, no BOM.** A placeholder filename
   like `@NEXT_foo.sql` would fail it outright, which is a second reason the placeholders are gone.
