@@ -6,6 +6,13 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_shared/flutter_shared.dart';
+// Imported by path rather than through the package barrel, exactly as the
+// captain app's own vehicle layer does (main_shell.dart:15-16). Adding these
+// two exports to packages/flutter_shared/lib/flutter_shared.dart would mean
+// editing a file this task does not own. Both resolve normally — every file
+// under a package's lib/ is importable as package:<name>/<path>.dart.
+import 'package:flutter_shared/motion/go_motion.dart';
+import 'package:flutter_shared/widgets/animated_vehicle_marker.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../services/app_state.dart';
@@ -74,8 +81,22 @@ class _HomeScreenState extends State<HomeScreen>
   /// rider's position purely as a proximity probe — no trip is created and
   /// the fare fields are ignored. Refreshed on a slow timer so the cars drift
   /// as drivers move, without keeping a GPS or socket hot just for ambience.
-  List<dynamic> _nearbyCaptains = const [];
+  ///
+  /// Held as identified records rather than as the raw decoded list. The probe
+  /// used to replace the whole list on every poll, which throws away the one
+  /// fact needed to draw a car moving: *which* car this is. Keyed by captain
+  /// id, a poll becomes an update to a marker that already exists instead of a
+  /// new marker in the same place, and each car keeps its own heading and its
+  /// own animation state between polls.
+  List<_NearbyCaptain> _nearbyCaptains = const [];
   Timer? _nearbyTimer;
+
+  /// When the last nearby probe landed, used to tell the marker how old the
+  /// movement it is being asked to draw actually is. See [_buildCaptainLayers].
+  DateTime? _nearbyPolledAt;
+
+  /// The measured gap between the last two probes.
+  Duration? _nearbyGap;
 
   /// Vehicle category shown in the top strip (رحلة / سفر / الشحن / تروسيكل).
   String _category = 'ride';
@@ -220,12 +241,67 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       final list = res['nearbyCaptains'];
       if (list is List) {
-        setState(() => _nearbyCaptains = list);
+        _mergeNearbyCaptains(list);
       }
     } catch (_) {
       // Nearby cars are ambient context — a failed probe must never surface
       // an error to the rider.
     }
+  }
+
+  /// Folds a probe result into the captains already on the map.
+  ///
+  /// The identity is `userId` — `GeoCell` stores presence under
+  /// `captain:<userId>` and `findNearbyCaptains` merges cells by that same key,
+  /// so it is stable for as long as the captain is online. Matching on it turns
+  /// "here are the cars now" into "this car moved there", which is the only
+  /// form of the data a marker can animate.
+  ///
+  /// A record with no usable id still draws — it simply cannot be tracked
+  /// between polls, so it gets a positional key and lives one poll at a time.
+  /// The alternative, dropping it, would hide a real captain over a missing
+  /// field the client does not control.
+  void _mergeNearbyCaptains(List<dynamic> raw) {
+    final previous = {for (final captain in _nearbyCaptains) captain.id: captain};
+    final now = DateTime.now();
+    final next = <_NearbyCaptain>[];
+    final seen = <String>{};
+
+    for (var index = 0; index < raw.length; index++) {
+      final entry = raw[index];
+      if (entry is! Map) continue;
+
+      final lat = (entry['lat'] as num?)?.toDouble();
+      final lng = (entry['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+
+      final rawId = (entry['userId'] ?? entry['id'])?.toString().trim();
+      var key = (rawId == null || rawId.isEmpty) ? 'position:$index' : rawId;
+      // Two records claiming one id would fight over a single marker's state.
+      if (!seen.add(key)) {
+        key = '$key#$index';
+        seen.add(key);
+      }
+
+      final point = LatLng(lat, lng);
+      final before = previous[key];
+      // `nearbyCaptains` carries no heading today — `CaptainPresence` in
+      // GeoCell.ts is {userId, lat, lng, lastSeen, name}. Read it anyway: if
+      // the presence record ever grows one, this picks it up with no release.
+      final reported = _usableHeading((entry['heading'] as num?)?.toDouble());
+      next.add(_NearbyCaptain(
+        id: key,
+        point: point,
+        heading: reported ?? _bearingIfMoved(before?.point, point) ?? before?.heading,
+      ));
+    }
+
+    setState(() {
+      _nearbyGap = _nearbyPolledAt == null ? null : now.difference(_nearbyPolledAt!);
+      _nearbyPolledAt = now;
+      _nearbyCaptains = next;
+    });
   }
 
   Future<void> _resolvePickupLabel(LatLng latLng) async {
@@ -571,6 +647,10 @@ class _HomeScreenState extends State<HomeScreen>
             tileProvider: NetworkTileProvider(),
           ),
           _buildRouteLayer(go),
+          // Nearby cars first, so the rider's own dot and the trip pins keep
+          // sitting above them — the order they had inside the single marker
+          // list this replaces.
+          ..._buildCaptainLayers(go),
           _buildMarkerLayer(go),
         ],
       ),
@@ -607,6 +687,86 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// True when the platform asks for reduced motion.
+  ///
+  /// `MediaQuery.maybeOf(context)?.disableAnimations` is the house idiom —
+  /// `login_screen.dart:72`, `splash_screen.dart:80` and `wallet_screen.dart:342`
+  /// all read it exactly this way. There is no helper in `flutter_shared` to
+  /// call instead; see the PR body.
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+  /// One layer per nearby captain, each keyed by captain id.
+  ///
+  /// The key is the load-bearing part. A `flutter_map` Marker takes a fixed
+  /// point, so a car can only be walked across the map by rebuilding its layer
+  /// as the tween runs — and a widget can only tween from where it was if
+  /// Flutter recognises it as the same widget after the rebuild. Keyed by id,
+  /// each car keeps its own [AnimatedVehicleMarker] state across polls even as
+  /// captains enter and leave the list and the order changes; unkeyed, poll two
+  /// hands car A's state to whoever is now first in the list.
+  ///
+  /// **This will not usually animate, and that is correct.** The probe runs
+  /// every 45 seconds (`_nearbyTimer`), and [AnimatedVehicleMarker] refuses to
+  /// interpolate a gap longer than [GoMotion.maxFixTween] — sliding a car
+  /// smoothly across 45 seconds of unobserved driving would draw a route it may
+  /// never have taken. So the measured gap is passed in explicitly rather than
+  /// left to the widget's own clock: without it the widget cannot tell the
+  /// first update of a slow poller from the first frame of a live stream, and
+  /// it would animate one 45-second jump before settling into honest snapping.
+  /// The wiring is what this task owes; whether it visibly animates is a
+  /// property of the cadence, and it comes for free the day the cadence tightens.
+  List<Widget> _buildCaptainLayers(GoTheme go) {
+    if (_nearbyCaptains.isEmpty) return const [];
+
+    final color = go.isDark ? go.action : AppTokens.primary;
+    final reduceMotion = _reduceMotion;
+    const size = 34.0;
+
+    return [
+      for (final captain in _nearbyCaptains)
+        if (reduceMotion)
+          MarkerLayer(
+            key: ValueKey('nearby-static-${captain.id}'),
+            markers: [
+              Marker(
+                point: captain.point,
+                width: size,
+                height: size,
+                child: VehicleMapMarker(
+                  heading: captain.heading,
+                  color: color,
+                  size: size,
+                ),
+              ),
+            ],
+          )
+        else
+          AnimatedVehicleMarker(
+            key: ValueKey('nearby-${captain.id}'),
+            position: GoLatLng(captain.point.latitude, captain.point.longitude),
+            heading: captain.heading,
+            fixInterval: _nearbyGap,
+            color: color,
+            size: size,
+            builder: (context, animated, heading) => MarkerLayer(
+              markers: [
+                Marker(
+                  point: LatLng(animated.lat, animated.lng),
+                  width: size,
+                  height: size,
+                  child: VehicleMapMarker(
+                    heading: heading,
+                    color: color,
+                    size: size,
+                  ),
+                ),
+              ],
+            ),
+          ),
+    ];
+  }
+
   Widget _buildMarkerLayer(GoTheme go) {
     // While picking, the centre pin represents the point being chosen, so we
     // hide that endpoint's marker to avoid showing two pins for one location.
@@ -615,23 +775,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     return MarkerLayer(
       markers: [
-        // Nearby online captains as top-down cars (Uber-style). Drawn first
-        // so the rider's own pulsing dot and pins always sit above them.
-        for (final cap in _nearbyCaptains)
-          if ((cap['lat'] as num?)?.toDouble() != null &&
-              (cap['lng'] as num?)?.toDouble() != null)
-            Marker(
-              point: LatLng(
-                (cap['lat'] as num).toDouble(),
-                (cap['lng'] as num).toDouble(),
-              ),
-              width: 34,
-              height: 34,
-              child: VehicleMapMarker(
-                color: go.isDark ? go.action : AppTokens.primary,
-                size: 34,
-              ),
-            ),
+        // Nearby online captains are NOT in this list any more — they are one
+        // animated layer each, built by [_buildCaptainLayers] and inserted
+        // below this one so they still draw underneath the rider's dot.
         if (_currentLocation != null)
           Marker(
             point: _currentLocation!,
@@ -833,6 +979,60 @@ List<BoxShadow> _softShadow(GoTheme go) => [
         offset: const Offset(0, 6),
       ),
     ];
+
+/// One nearby captain, as the map needs them: an identity, a position, and a
+/// bearing that survives the next poll.
+///
+/// The probe returns the decoded JSON; this is what the marker layer consumes.
+/// The difference between the two is [id] — without it a poll is a new set of
+/// cars in slightly different places, and no marker can be said to have moved.
+@immutable
+class _NearbyCaptain {
+  const _NearbyCaptain({
+    required this.id,
+    required this.point,
+    required this.heading,
+  });
+
+  final String id;
+  final LatLng point;
+
+  /// Degrees clockwise from north, or null while the car's direction is
+  /// genuinely unknown — before its second fix, or after only jitter.
+  final double? heading;
+}
+
+/// A reported heading, or null when the producer did not actually have one.
+///
+/// `geolocator` reports `-1` (and `NaN` on some Android builds) when there is
+/// no course fix. Nothing in the nearby payload carries a heading today, so
+/// this exists for the day `CaptainPresence` grows one — at which point a
+/// placeholder must not be mistaken for "pointing due north".
+double? _usableHeading(double? reported) {
+  if (reported == null) return null;
+  if (reported.isNaN || reported.isInfinite || reported < 0) return null;
+  return reported % 360;
+}
+
+/// The bearing of the leg [from] → [to], or null when the car has not moved.
+///
+/// Returning null on a short delta is the point: consumer GPS wanders a few
+/// metres around a parked car, and turning that wander into a bearing spins a
+/// stationary vehicle on the spot. The threshold is
+/// [GoMotion.jitterThresholdMetres] — the same constant
+/// [AnimatedVehicleMarker] uses to decide a fix is not worth animating — so the
+/// marker cannot rotate through a fix the widget has already chosen to hold
+/// still. Neither half is a second implementation: [GoMotion.metresBetween] is
+/// E11's and `Distance.bearing` is `latlong2`'s.
+double? _bearingIfMoved(LatLng? from, LatLng to) {
+  if (from == null) return null;
+  final metres = GoMotion.metresBetween(
+    GoLatLng(from.latitude, from.longitude),
+    GoLatLng(to.latitude, to.longitude),
+  );
+  if (metres < GoMotion.jitterThresholdMetres) return null;
+  return const Distance().bearing(from, to) % 360;
+}
 
 /// The rider's own position: a solid dot with a slow breathing halo.
 class _PulsingLocationDot extends StatelessWidget {

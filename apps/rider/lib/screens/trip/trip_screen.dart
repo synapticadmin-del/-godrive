@@ -5,6 +5,13 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
+// Imported by path rather than through the package barrel, exactly as the
+// captain app's own vehicle layer does (main_shell.dart:15-16). Adding these
+// two exports to packages/flutter_shared/lib/flutter_shared.dart would mean
+// editing a file this task does not own. Both resolve normally — every file
+// under a package's lib/ is importable as package:<name>/<path>.dart.
+import 'package:flutter_shared/motion/go_motion.dart';
+import 'package:flutter_shared/widgets/animated_vehicle_marker.dart';
 import '../../services/app_state.dart';
 import '../../services/trip_ws.dart';
 import 'trip_chat_screen.dart';
@@ -28,6 +35,22 @@ class _TripScreenState extends State<TripScreen> {
   Timer? _poll;
   Map<String, dynamic>? _trip;
   LatLng? _captainLoc;
+
+  /// Which way the car is pointing, in degrees clockwise from north.
+  ///
+  /// `location.captain` carries `heading` (TripRoom.ts:222 and captain.ts:305
+  /// both send `data.heading ?? null`), but the captain's device only supplies
+  /// it once it has a compass or course fix — indoors, stationary, or on a
+  /// phone with no magnetometer it arrives null for the life of the trip. So
+  /// the reported value wins when it is usable and the bearing of the last leg
+  /// stands in when it is not.
+  ///
+  /// Held separately from [_captainLoc] because it must **survive** a fix that
+  /// does not move the car: a captain waiting at a light publishes the same
+  /// point with no heading, and recomputing from a zero-length delta would
+  /// spin a parked car on the spot.
+  double? _captainHeading;
+
   bool _loading = true;
   final MapController _mapController = MapController();
 
@@ -146,12 +169,44 @@ class _TripScreenState extends State<TripScreen> {
           final lat = (ev['lat'] as num?)?.toDouble();
           final lng = (ev['lng'] as num?)?.toDouble();
           if (lat != null && lng != null) {
-            setState(() => _captainLoc = LatLng(lat, lng));
+            _onCaptainFix(
+              LatLng(lat, lng),
+              (ev['heading'] as num?)?.toDouble(),
+            );
           }
         }
       },
     )..connect();
   }
+
+  /// Records a captain fix and resolves the bearing to draw it at.
+  ///
+  /// This is the whole of the state change that used to be a one-line
+  /// `setState(() => _captainLoc = LatLng(lat, lng))`. The assignment itself is
+  /// unchanged — the marker still renders the newest known position and nothing
+  /// here predicts where the car will be next. What is new is that the heading
+  /// is resolved alongside it, so the layer below can walk the car to the fix
+  /// pointing the way it is travelling.
+  ///
+  /// Precedence: the reported heading, then the bearing of the leg just
+  /// travelled, then whatever we were already showing. The last clause is the
+  /// one that matters — it is what stops a stationary car spinning.
+  void _onCaptainFix(LatLng fix, double? reported) {
+    final derived = _bearingIfMoved(_captainLoc, fix);
+    setState(() {
+      _captainLoc = fix;
+      _captainHeading = _usableHeading(reported) ?? derived ?? _captainHeading;
+    });
+  }
+
+  /// True when the platform asks for reduced motion.
+  ///
+  /// `MediaQuery.maybeOf(context)?.disableAnimations` is the house idiom for
+  /// this — `login_screen.dart:72`, `splash_screen.dart:80` and
+  /// `wallet_screen.dart:342` all read it exactly this way. There is no helper
+  /// in `flutter_shared` to call instead; see the PR body.
+  bool get _reduceMotion =>
+      MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
   @override
   void dispose() {
@@ -271,6 +326,14 @@ class _TripScreenState extends State<TripScreen> {
                         ],
                       ),
                     MarkerLayer(markers: _buildMarkers(go)),
+                    // The car sits in its own layer, drawn after the endpoint
+                    // pins and therefore above them — the same stacking it had
+                    // when it was the last entry in `_buildMarkers`. A
+                    // flutter_map Marker takes a fixed point, so walking the
+                    // car between fixes means rebuilding its layer on every
+                    // frame of the tween; keeping it out of that list leaves
+                    // the pickup and dropoff pins static and cheap.
+                    if (_captainLoc != null) _buildCaptainLayer(go),
                   ],
                 ),
                 Positioned(
@@ -376,21 +439,78 @@ class _TripScreenState extends State<TripScreen> {
       }
     }
 
-    if (_captainLoc != null) {
-      // The captain is now the shared top-down car (Uber-style) — the same
-      // silhouette the rider sees on the home map and the admin sees on the
-      // live dashboard, so all three surfaces agree on what a car looks like.
-      markers.add(Marker(
-        point: _captainLoc!,
-        width: 46,
-        height: 46,
-        child: VehicleMapMarker(
-          color: go.action,
-          size: 46,
-        ),
-      ));
-    }
+    // The captain's car is NOT added here — see [_buildCaptainLayer]. It is
+    // still the shared top-down silhouette (the same one the home map and the
+    // admin dashboard draw), it just needs a layer of its own to be animated.
     return markers;
+  }
+
+  /// The captain's car, walked between fixes rather than teleported.
+  ///
+  /// E11 paced the captain's publishing to stay inside the server's rate limit
+  /// (GeoCell.ts enforces it now), which necessarily means fewer, further-apart
+  /// fixes: strictly better data that, drawn by an unchanged marker, looks
+  /// **worse** — the gap between fixes is longer, so the jump is bigger. E11
+  /// shipped [AnimatedVehicleMarker] so that could not happen and had no way to
+  /// call it from here; this is that call. T13 and T28 both recorded that the
+  /// two halves have to ship together, and only one of them had until now.
+  ///
+  /// [AnimatedVehicleMarker] interpolates and never extrapolates: it walks from
+  /// where the car currently is to the newest **known** fix and stops. If fixes
+  /// stop arriving the car holds its last real position instead of driving on
+  /// down an invented road. It also refuses to animate a fix that moved less
+  /// than [GoMotion.jitterThresholdMetres] (parked-GPS wander) or one that
+  /// arrived after a gap longer than [GoMotion.maxFixTween] (lost signal).
+  ///
+  /// `fixInterval` is deliberately not passed: this is a live socket, so the
+  /// widget measuring the gap on its own clock is exactly right — the last fix
+  /// really did arrive when it arrived.
+  Widget _buildCaptainLayer(GoTheme go) {
+    final point = _captainLoc!;
+    final heading = _captainHeading;
+    const size = 46.0;
+
+    // Reduce motion: place the car, do not walk it. The tween is skipped
+    // entirely rather than run at zero duration — no controller, no per-frame
+    // rebuild — and the marker still tracks every fix and still points the
+    // right way. Position updates are information, not decoration.
+    if (_reduceMotion) {
+      return MarkerLayer(
+        markers: [
+          Marker(
+            point: point,
+            width: size,
+            height: size,
+            child: VehicleMapMarker(
+              heading: heading,
+              color: go.action,
+              size: size,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return AnimatedVehicleMarker(
+      position: GoLatLng(point.latitude, point.longitude),
+      heading: heading,
+      color: go.action,
+      size: size,
+      builder: (context, animated, animatedHeading) => MarkerLayer(
+        markers: [
+          Marker(
+            point: LatLng(animated.lat, animated.lng),
+            width: size,
+            height: size,
+            child: VehicleMapMarker(
+              heading: animatedHeading,
+              color: go.action,
+              size: size,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _circleButton(IconData icon, VoidCallback onTap, {Color? color}) {
@@ -752,6 +872,42 @@ class _TripScreenState extends State<TripScreen> {
   }
 }
 
+
+/// A reported heading, or null when the device did not actually have one.
+///
+/// `geolocator` reports `-1` (and on some Android builds `NaN`) when there is
+/// no course or compass fix, and the captain app only forwards a value it has
+/// already checked (`main_shell.dart:235`). The server passes whatever it is
+/// given straight through — `heading: data.heading ?? null` — so the last
+/// place that can tell a real bearing from a placeholder is here.
+double? _usableHeading(double? reported) {
+  if (reported == null) return null;
+  if (reported.isNaN || reported.isInfinite || reported < 0) return null;
+  return reported % 360;
+}
+
+/// The bearing of the leg [from] → [to], or null when the car has not moved.
+///
+/// Returning null on a short delta is the whole point: a car waiting at a
+/// light still publishes fixes, and consumer GPS wanders a few metres while it
+/// does. Recomputing a bearing from that wander makes a parked car rotate on
+/// the spot, which reads as a driver doing something they are not.
+///
+/// The threshold is [GoMotion.jitterThresholdMetres] — the same constant
+/// [AnimatedVehicleMarker] uses to decide a fix is not worth animating — so the
+/// marker cannot spin during a fix the widget has already chosen to hold still.
+/// Neither the distance nor the trigonometry is a second implementation:
+/// [GoMotion.metresBetween] is E11's, and `Distance.bearing` is `latlong2`'s,
+/// a package this screen already depends on.
+double? _bearingIfMoved(LatLng? from, LatLng to) {
+  if (from == null) return null;
+  final metres = GoMotion.metresBetween(
+    GoLatLng(from.latitude, from.longitude),
+    GoLatLng(to.latitude, to.longitude),
+  );
+  if (metres < GoMotion.jitterThresholdMetres) return null;
+  return const Distance().bearing(from, to) % 360;
+}
 
 /// The captain's photo, matching the treatment in `CaptainBidsSheet` so the
 /// person the rider chose looks the same before and after acceptance.
