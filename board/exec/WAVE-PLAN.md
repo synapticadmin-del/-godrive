@@ -220,20 +220,20 @@ Net effect on the schedule: **none.** Four dependency edges were added and the r
 | 0 | **E00** | `.github/workflows/deploy.yml` |
 | 1 | **E01** | `apps/api/package.json` · `apps/api/deploy.sh` · `docs/DEPLOYMENT.md` · `package-lock.json` |
 | 1 | **E05** | `apps/rider/lib/screens/home/vehicle_selector.dart` · `apps/rider/lib/screens/safety/sos_screen.dart` |
-| 1 | **E06** | `apps/api/src/routes/wallet.ts` · `migrations/@NEXT_payout_requests.sql` |
+| 1 | **E06** | `apps/api/src/routes/wallet.ts` · `migrations/0020_payout_requests.sql` |
 | 1 | **E11** | `apps/captain/lib/services/` · `apps/captain/lib/screens/home/` · `apps/captain/android/app/src/main/AndroidManifest.xml` · `apps/captain/pubspec.yaml` · `apps/captain/pubspec.lock` · `apps/api/src/routes/captain.ts` · `apps/api/src/durable-objects/TripRoom.ts` · `apps/api/src/durable-objects/GeoCell.ts` · `apps/api/src/durable-objects/CaptainInbox.ts` · `packages/flutter_shared/lib/widgets/animated_vehicle_marker.dart` · `packages/flutter_shared/lib/motion/go_motion.dart` |
-| 1 | **E16** | `apps/api/src/routes/user.ts` · `migrations/@NEXT_consent_and_deletion.sql` · `docs/legal/` · `apps/rider/lib/screens/profile/settings_screen.dart` · `apps/captain/lib/screens/profile/settings_screen.dart` · `packages/flutter_shared/lib/l10n/app_strings.dart` |
+| 1 | **E16** | `apps/api/src/routes/user.ts` · `migrations/0021_consent_and_deletion.sql` · `docs/legal/` · `apps/rider/lib/screens/profile/settings_screen.dart` · `apps/captain/lib/screens/profile/settings_screen.dart` · `packages/flutter_shared/lib/l10n/app_strings.dart` |
 | 2 | **E02** | `apps/api/src/index.ts` · `apps/api/src/cron/` · `apps/api/src/lib/health.ts` |
 | 2 | **E17** | `apps/rider/android/app/build.gradle` · `apps/captain/android/app/build.gradle` · `apps/rider/ios/Runner/Info.plist` · `apps/captain/ios/Runner/Info.plist` |
 | 2 | **E18** | `scripts/backup-d1.sh` · `docs/RUNBOOK-restore.md` |
 | 2 | **E20** | `apps/rider/lib/screens/trip/trip_screen.dart` · `apps/rider/lib/screens/home/home_screen.dart` |
 | 3 | **E03** | `apps/api/src/routes/trips.ts` · `apps/api/src/lib/settlement.ts` · `apps/api/src/lib/dispatch.ts` |
 | 3 | **E12** | `apps/api/src/middleware/requestId.ts` · `apps/api/src/lib/log.ts` · `apps/api/src/lib/audit.ts` · `apps/api/src/lib/health.ts` |
-| 3 | **E13** | `apps/api/src/routes/safety.ts` · `migrations/@NEXT_sos_lifecycle.sql` |
+| 3 | **E13** | `apps/api/src/routes/safety.ts` · `migrations/0022_sos_lifecycle.sql` |
 | 4 | **E04** | `apps/api/src/lib/schemas.ts` · `apps/api/src/routes/payments.ts` · `apps/api/src/routes/intercity.ts` · `apps/api/src/routes/companies.ts` |
 | 4 | **E08** | `apps/api/src/lib/settlement.ts` · `apps/api/src/lib/money.ts` |
 | 4 | **E14** | `apps/api/src/routes/admin.ts` · `apps/admin/` |
-| 4 | **E15** | `apps/api/src/lib/routing.ts` · `apps/api/src/lib/geocode.ts` · `apps/api/src/routes/geocode.ts` · `apps/api/wrangler.toml` · `migrations/@NEXT_route_source.sql` |
+| 4 | **E15** | `apps/api/src/lib/routing.ts` · `apps/api/src/lib/geocode.ts` · `apps/api/src/routes/geocode.ts` · `apps/api/wrangler.toml` · `migrations/0023_route_source.sql` |
 | 5 | **E07** | `apps/api/src/cron/invoices.ts` |
 | 5 | **E09** | `apps/api/src/routes/trips.ts` · `apps/api/src/lib/dispatch.ts` · `apps/api/src/cron/dispatch.ts` · `apps/api/src/lib/cleanup.ts` · `apps/api/src/durable-objects/OfferScheduler.ts` |
 | 5 | **E19** | `apps/api/test/` · `apps/api/vitest.config.ts` |
