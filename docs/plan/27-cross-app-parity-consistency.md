@@ -343,6 +343,8 @@ Against that, hardcoded Arabic literals still sitting in screen files: **302 lin
 | F-27-33 | S4 | Both apps register every device as `platform: 'android'`, and neither sends `appRole` | `app_state.dart:527`, `captain_state.dart:1113`; server accepts both `devices.ts:27` | iOS devices mislabelled; the `app_role` column the server supports is never populated. | confirmed |
 | F-27-34 | S4 | `counter_offer_sheet.dart` — a shared widget — carries 9 hardcoded Arabic literals | `packages/flutter_shared/lib/widgets/counter_offer_sheet.dart:68,78,125,134,157,162,174,198,221,257` | Untranslatable strings inside the shared layer. | confirmed |
 | F-27-35 | S4 | `read_at` is selected by the API and used by neither app | `apps/api/src/routes/safety.ts:230` | Read receipts are half-built at the data layer. | confirmed |
+| F-27-36 | S3 | The **same-named brand asset differs between the two apps** | `apps/rider/assets/images/splash_brand.png` is 999,730 B; the captain's is 806,390 B. `login_hero_safety.png` is 361,283 B vs 409,872 B. Distinct git blob SHAs at the base commit. | The brand image itself has drifted. Two apps, one brand, two different splash artworks under one filename. | confirmed |
+| F-27-37 | S4 | 24 asset files are byte-identical duplicates across both apps | identical blob SHAs for 24 paths under `apps/*/assets/`, totalling **2.62 MB carried twice** (`godrive_logo.png`, `splash.mp4`, all `cat_*`/`class_*` icons, the whole iOS icon set) | Every brand refresh is two commits that can disagree — which is exactly how F-27-36 happened. Raised by **T26**; quantified here. | confirmed |
 
 **Not a finding.** Dependency hygiene is genuinely clean: all 23 shared packages carry
 byte-identical version constraints across both apps, both are `version: 1.0.0+1`, both
@@ -902,6 +904,7 @@ be enforced.
 | P1.3 glossary ratification + fixes | **P1** | M | Flutter + content |
 | P1.4 unify admin tokens, green, dark mode, radii | **P1** | M | admin |
 | P1.5 remove or adopt dead shared code | **P1** | S | Flutter |
+| P1.6 consolidate 2.62 MB of duplicated assets | **P1** | S | Flutter |
 | F-27-06 no-captain-found resolution | **P1** | M | backend (with T06) |
 | F-27-27 rider SOS dark mode | **P1** | S | Flutter |
 | F-27-30 captain lint exclude | **P1** | S | Flutter |
@@ -946,6 +949,39 @@ The last row is the brief's own test and the only one that matters to a passenge
 ---
 
 ## 9. Cross-cutting notes
+
+### Inbound — answering T26
+
+T26's `PROJECT.md` entry hands three items to this track. Taking them in turn:
+
+- **Duplicated assets.** Confirmed and quantified: **24 files are byte-identical across
+  both apps, 2.62 MB carried twice** (identical git blob SHAs at the base commit) —
+  `godrive_logo.png`, `splash.mp4`, every `cat_*` and `class_*` icon, and the entire iOS
+  icon set. Worse than duplication: **two files share a path and differ in bytes** —
+  `splash_brand.png` (999,730 B rider vs 806,390 B captain) and `login_hero_safety.png`
+  (361,283 B vs 409,872 B). The brand artwork has already drifted, which is the predicted
+  failure mode of copy-pasted assets rather than a hypothetical one. Fix is P1.6 below.
+  Genuinely per-app assets are only four: `empty_notifications.png`, `empty_trips.png`,
+  `login_hero_price.png` (rider) and `login_hero_earn.png` (captain).
+- **iOS Always-location declared by the rider but stripped on the captain's Android.**
+  This is a real parity defect and I am recording it as such, but the manifest and store
+  consequences are T26's and the permission *policy* is T15/T25's. The parity requirement:
+  the two apps must declare the same capability for the same feature, or explicitly
+  document why the rider needs a background-location grant the captain does not — which
+  is backwards, since the captain is the one being tracked while driving.
+- **`generate: true` on the captain only.** Covered at §3.8 and F-27-30. It is moot either
+  way because the ARB pipeline it enables is inert in both apps (Q2).
+
+### P1.6 — consolidate assets into the shared package
+
+Move the 24 identical files to `packages/flutter_shared/assets/`, declare them once in the
+package pubspec, and reference them as `packages/flutter_shared/…` from both apps. Resolve
+the two drifted files by choosing one canonical version each — that is a design call, and
+whichever wins, only one file should survive. Keeps the four genuinely per-app heroes
+where they are. **Effort S. Owner: Flutter.** Removes 2.62 MB from one of the two bundles
+and makes a brand refresh a single commit.
+
+### Outbound
 
 Findings outside my axis, addressed to their owners. I have not fixed any of these.
 
