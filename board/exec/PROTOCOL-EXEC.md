@@ -16,7 +16,7 @@
 | `REPO` | `-godrive` (the leading dash is part of the name) |
 | `BOARD_BRANCH` | `review-board` |
 | `BASE_BRANCH` | `main` |
-| Plan | `docs/plan/00-EXECUTION-PLAN.md` (PR #87) — the reasoning behind every task here |
+| Plan | `docs/plan/00-EXECUTION-PLAN.md` — **not on `main`.** PR #87 is still open, as are the 28 review PRs. Read it from branch `plan/29-execution-plan`. |
 | Task briefs | `board/exec/tasks/E01.md` … `E19.md` |
 | Claims | `board/exec/claims/ENN.md` |
 | Wave plan & file ownership | `board/exec/WAVE-PLAN.md` |
@@ -143,6 +143,39 @@ on both PRs and let a human decide.
 - **Never ask the user anything.** Decide, write the assumption into the PR, keep going.
 - **Subagents are for analysis, not for plumbing.** Do not spawn an agent whose whole job is to
   download files.
+
+### 4.1 Consequence files — the ones that change *because* you changed something
+
+Your `owns` list names the files you set out to edit. It does not name the files that move as a
+**side effect**. Every collision found on this board after the first audit was one of these, because
+a brief describes intent and a lockfile is a consequence. Check this table before you write anything:
+
+| If your change… | …it also rewrites | Owned by |
+|---|---|---|
+| adds or bumps an npm dependency | `package-lock.json` — one root lockfile, npm workspaces | `E01` |
+| adds an npm script another task will call | `apps/api/package.json` | `E01` |
+| adds a Flutter package | that app's `pubspec.yaml` **and** `pubspec.lock` | captain → `E11` · rider → **nobody** |
+| adds a user-facing string through the shared catalogue | `packages/flutter_shared/lib/l10n/app_strings.dart` — the abstract class **and** `AppStringsAr` **and** `AppStringsEn`, all three | `E16` |
+| adds a D1 migration | the number comes from `MIGRATION-LOCK.md`, never from a directory listing | see §6 |
+
+**Reading an existing `AppStrings` getter is free. Adding one is not** — it is a three-place edit in a
+5,664-line file that two chats cannot make at once.
+
+`ci.yml` is what will catch you, and it fails the whole job:
+
+- **`npm ci`** — fails outright when `package-lock.json` has drifted from any manifest. It is `npm ci`
+  deliberately, not `npm install`, precisely so drift cannot be papered over.
+- **`check_l10n_parity.py`** — a getter present in `AppStringsAr` but not `AppStringsEn` (or absent from
+  the abstract class) fails. So does a duplicate getter, which is a hard Dart compile error.
+- **`check_migrations.py`** — filenames must be `NNNN_lower_snake_case.sql`, ordered, no UTF-8 BOM.
+- **`check_migrations_apply.py`** — every migration must apply in order to a fresh SQLite database.
+- **`check_repo_hygiene.py`** — no conflict markers, no `.orig`/`.rej` artefacts, no BOM.
+
+**The rule.** If your work requires a consequence file you do not own: **stop, and say so on the PR.**
+Do not edit it, and do not work around it by duplicating the thing elsewhere. A task that quietly
+reaches outside its `owns` is the exact failure this board exists to prevent — and a task that fakes
+its way around a missing seam is root R3, work declared done at the point of definition rather than
+effect. Naming the gap is a correct outcome. Silently widening your blast radius is not.
 
 ## 5. Ship it
 
