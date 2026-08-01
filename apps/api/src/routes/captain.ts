@@ -17,7 +17,7 @@ import {
 } from "../lib/schemas";
 import { haversineKm, id, nowIso, resolveSearchRadiusKm } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
-import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
+import { isResponse, parseBody } from "../middleware/rateLimit";
 
 export const captainRoutes = new Hono<AppEnv>();
 
@@ -172,9 +172,17 @@ captainRoutes.post("/online", async (c) => {
     const key = cellKey(city, lat, lng);
     const stub = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
     if (online) {
+      // rateLimit:false — going online is a deliberate tap, not a stream of
+      // fixes, and must not be refused because the location stream was busy.
       await stub.fetch("https://cell/heartbeat", {
         method: "POST",
-        body: JSON.stringify({ userId: user.id, lat, lng, name: user.name }),
+        body: JSON.stringify({
+          userId: user.id,
+          lat,
+          lng,
+          name: user.name,
+          rateLimit: false,
+        }),
       });
     } else {
       await stub.fetch("https://cell/offline", {
@@ -187,88 +195,122 @@ captainRoutes.post("/online", async (c) => {
   return c.json({ ok: true, online, city });
 });
 
-captainRoutes.post(
-  "/location",
-  rateLimit({
-    prefix: "captain-loc",
-    limit: 30,
-    windowSec: 60,
-    keyFn: (c) => c.get("user")?.id ?? "anon",
-  }),
-  async (c) => {
-    const user = c.get("user");
-    const body = await parseBody(c, captainLocationSchema);
-    if (isResponse(body)) return body;
+// POST /captain/location — the highest-frequency authorised request in the
+// product, and the one that decides whether a captain is visible at all.
+//
+// Two things changed here (E11):
+//
+//  1. The rate-limit counter moved out of KV and into the GeoCell Durable
+//     Object this request already contacts (T24 P0.3). The old
+//     `rateLimit({ prefix: "captain-loc", limit: 30, windowSec: 60 })`
+//     middleware cost a KV read plus a KV write on every fix; the DO does the
+//     accounting in memory as a side effect of recording presence, for no
+//     extra round trip.
+//
+//  2. Admission is decided *before* the expensive work. Previously a fix that
+//     survived the rate limit went on to a D1 update, a second D1 read, an
+//     optional D1 insert and a socket fanout; a fix that failed it was
+//     rejected by middleware, which is correct but meant the limit was
+//     protecting nothing that cost money. Now the cheap DO hop happens first
+//     and a throttled fix returns 429 having touched no database at all.
+//
+// The client paces itself well inside this budget (see `minPublishIntervalMs`
+// in the heartbeat response), so a 429 here means something is wrong rather
+// than something is busy — a normal drive should never see one.
+captainRoutes.post("/location", async (c) => {
+  const user = c.get("user");
+  const body = await parseBody(c, captainLocationSchema);
+  if (isResponse(body)) return body;
 
-    const city = body.city || c.env.DEFAULT_CITY || "cairo";
+  const city = body.city || c.env.DEFAULT_CITY || "cairo";
 
-    await c.env.DB.prepare(
-      `UPDATE captains SET last_lat = ?, last_lng = ?, last_seen_at = ?, is_online = 1, city = ?, updated_at = ? WHERE user_id = ?`,
+  const key = cellKey(city, body.lat, body.lng);
+  const cellStub = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
+  const presence = await cellStub.fetch("https://cell/heartbeat", {
+    method: "POST",
+    body: JSON.stringify({
+      userId: user.id,
+      lat: body.lat,
+      lng: body.lng,
+      name: user.name,
+    }),
+  });
+
+  // The DO owns the budget, so it also owns the advice about how fast to
+  // publish. Forwarding it means the app paces itself from one number that
+  // lives in one place, instead of a client-side constant that silently drifts
+  // out of step the day the limit changes.
+  const presenceBody = await presence
+    .json<{ minPublishIntervalMs?: number }>()
+    .catch(() => ({}) as { minPublishIntervalMs?: number });
+
+  if (presence.status === 429) {
+    const retryAfter = presence.headers.get("Retry-After") ?? "2";
+    return c.json(
+      {
+        error: "Too many location updates",
+        code: "RATE_LIMITED",
+        retryAfterSec: Number(retryAfter),
+      },
+      429,
+      { "Retry-After": retryAfter },
+    );
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE captains SET last_lat = ?, last_lng = ?, last_seen_at = ?, is_online = 1, city = ?, updated_at = ? WHERE user_id = ?`,
+  )
+    .bind(body.lat, body.lng, nowIso(), city, nowIso(), user.id)
+    .run();
+
+  if (body.tripId) {
+    const trip = await c.env.DB.prepare(
+      `SELECT * FROM trips WHERE id = ? AND captain_id = ?`,
     )
-      .bind(body.lat, body.lng, nowIso(), city, nowIso(), user.id)
-      .run();
+      .bind(body.tripId, user.id)
+      .first<DbTrip>();
 
-    const key = cellKey(city, body.lat, body.lng);
-    const cellStub = c.env.GEO_CELL.get(c.env.GEO_CELL.idFromName(key));
-    await cellStub.fetch("https://cell/heartbeat", {
-      method: "POST",
-      body: JSON.stringify({
-        userId: user.id,
-        lat: body.lat,
-        lng: body.lng,
-        name: user.name,
-      }),
-    });
-
-    if (body.tripId) {
-      const trip = await c.env.DB.prepare(
-        `SELECT * FROM trips WHERE id = ? AND captain_id = ?`,
+    if (trip && ["assigned", "arrived", "in_progress"].includes(trip.status)) {
+      await c.env.DB.prepare(
+        `UPDATE trips SET captain_lat = ?, captain_lng = ?, updated_at = ? WHERE id = ?`,
       )
-        .bind(body.tripId, user.id)
-        .first<DbTrip>();
+        .bind(body.lat, body.lng, nowIso(), trip.id)
+        .run();
 
-      if (trip && ["assigned", "arrived", "in_progress"].includes(trip.status)) {
+      // Path sampling: keep at most ~1 point / 30s
+      const last = await c.env.DB.prepare(
+        `SELECT recorded_at FROM trip_path_points WHERE trip_id = ? ORDER BY recorded_at DESC LIMIT 1`,
+      )
+        .bind(trip.id)
+        .first<{ recorded_at: string }>();
+
+      const lastMs = last ? new Date(last.recorded_at).getTime() : 0;
+      if (!last || Date.now() - lastMs >= 30_000) {
         await c.env.DB.prepare(
-          `UPDATE trips SET captain_lat = ?, captain_lng = ?, updated_at = ? WHERE id = ?`,
-        )
-          .bind(body.lat, body.lng, nowIso(), trip.id)
-          .run();
-
-        // Path sampling: keep at most ~1 point / 30s
-        const last = await c.env.DB.prepare(
-          `SELECT recorded_at FROM trip_path_points WHERE trip_id = ? ORDER BY recorded_at DESC LIMIT 1`,
-        )
-          .bind(trip.id)
-          .first<{ recorded_at: string }>();
-
-        const lastMs = last ? new Date(last.recorded_at).getTime() : 0;
-        if (!last || Date.now() - lastMs >= 30_000) {
-          await c.env.DB.prepare(
-            `INSERT INTO trip_path_points (id, trip_id, lat, lng, heading, recorded_at)
+          `INSERT INTO trip_path_points (id, trip_id, lat, lng, heading, recorded_at)
              VALUES (?, ?, ?, ?, ?, ?)`,
-          )
-            .bind(id("pp"), trip.id, body.lat, body.lng, body.heading ?? null, nowIso())
-            .run();
-        }
-
-        const room = c.env.TRIP_ROOM.get(c.env.TRIP_ROOM.idFromName(trip.id));
-        await room.fetch("https://room/broadcast", {
-          method: "POST",
-          body: JSON.stringify({
-            type: "location.captain",
-            tripId: trip.id,
-            lat: body.lat,
-            lng: body.lng,
-            heading: body.heading ?? null,
-            at: nowIso(),
-          }),
-        });
+        )
+          .bind(id("pp"), trip.id, body.lat, body.lng, body.heading ?? null, nowIso())
+          .run();
       }
-    }
 
-    return c.json({ ok: true });
-  },
-);
+      const room = c.env.TRIP_ROOM.get(c.env.TRIP_ROOM.idFromName(trip.id));
+      await room.fetch("https://room/broadcast", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "location.captain",
+          tripId: trip.id,
+          lat: body.lat,
+          lng: body.lng,
+          heading: body.heading ?? null,
+          at: nowIso(),
+        }),
+      });
+    }
+  }
+
+  return c.json({ ok: true, minPublishIntervalMs: presenceBody.minPublishIntervalMs });
+});
 
 captainRoutes.get("/earnings", async (c) => {
   const user = c.get("user");
