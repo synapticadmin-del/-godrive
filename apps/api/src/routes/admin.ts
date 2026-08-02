@@ -1,5 +1,14 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
+import { z } from "zod";
 import type { DbPricing, DbTrip, DbUser } from "../lib/types";
+import {
+  getPayoutRequest,
+  rejectPayoutRequest,
+  settlePayoutRequest,
+  type PayoutDecisionResult,
+  type PayoutRequestRow,
+} from "./wallet";
 import { pricingUpdateSchema, systemConfigUpdateSchema } from "../lib/schemas";
 import { logAudit } from "../lib/audit";
 import { intParam, jsonError, nowIso, pctDelta, previousPeriod } from "../lib/utils";
@@ -935,3 +944,183 @@ adminRoutes.get("/online-captains", async (c) => {
   ).all();
   return c.json({ captains: res.results ?? [] });
 });
+
+
+// ---------------------------------------------------------------------------
+// Payout queue — the operations half of gate item 4.
+//
+// E06 moved the payout request out of `wallet_transactions` into its own
+// `payout_requests` table, so asking for money no longer debits anybody. That
+// deliberately left the queue unactionable: nothing in the product could settle
+// a row, which is F-11-04. This is the surface that settles it.
+//
+// **Every balance move goes through the primitives E06 exports.** There is no
+// wallet SQL in this file and that is the point — re-implementing the debit is
+// root R1, fifteen findings of exactly that mistake, and `wallet.ts` is E06's
+// file and is not edited here. `settlePayoutRequest` owns the guarded batch
+// (write the ledger row only if the balance covers it, move the balance only if
+// that row landed, close the request only then). This route authorises, maps
+// the result onto HTTP, and writes the audit row. Nothing else.
+// ---------------------------------------------------------------------------
+
+/**
+ * A decision needs a reason, on both verbs, including approval.
+ *
+ * `min(3)` deliberately matches E13's `sosResolveSchema` instead of inventing a
+ * second bar, so an operator meets the same standard on both queues. F-11-08 is
+ * what a destructive action with no recorded "why" looks like six months later.
+ *
+ * Declared here rather than in `lib/schemas.ts` because that file is **E04's**
+ * and was `in_progress` while this shipped; adding to it would have collided.
+ */
+const payoutDecisionSchema = z.object({
+  reason: z.string().min(3).max(500),
+});
+
+/**
+ * E06's failure codes already encode what went wrong, so the status mapping
+ * lives in one table rather than being re-decided at each call site.
+ */
+const PAYOUT_DECISION_STATUS: Record<
+  "NOT_FOUND" | "NOT_OPEN" | "INSUFFICIENT_BALANCE" | "REASON_REQUIRED",
+  400 | 404 | 409
+> = {
+  NOT_FOUND: 404,
+  NOT_OPEN: 409,
+  INSUFFICIENT_BALANCE: 409,
+  REASON_REQUIRED: 400,
+};
+
+/**
+ * The queue row: E06's columns plus who the captain is and what they currently
+ * hold. The balance is joined in because an operator deciding a payout needs to
+ * see whether it can actually be covered — `settlePayoutRequest` enforces that,
+ * but discovering it only after clicking Approve is a worse experience than
+ * seeing it in the row.
+ */
+type PayoutQueueRow = PayoutRequestRow & {
+  user_name: string | null;
+  user_phone: string | null;
+  user_balance: number;
+};
+
+const PAYOUT_QUEUE_SELECT = `SELECT pr.id, pr.user_id, pr.amount, pr.amount_piastres, pr.currency,
+          pr.method, pr.account_info, pr.status, pr.idempotency_key,
+          pr.wallet_transaction_id, pr.decided_by, pr.decided_at, pr.decision_reason,
+          pr.created_at, pr.updated_at,
+          u.name AS user_name, u.phone AS user_phone,
+          COALESCE(u.wallet_balance, 0) AS user_balance
+     FROM payout_requests pr
+     JOIN users u ON u.id = pr.user_id`;
+
+// GET /admin/payouts — the queue. Open requests oldest-first, which is the
+// order they should be worked; history newest-first. `idx_payout_requests_queue`
+// covers the filtered ordering.
+adminRoutes.get("/payouts", async (c) => {
+  const status = c.req.query("status") ?? "requested";
+  if (!["requested", "paid", "rejected", "all"].includes(status)) {
+    return c.json({ error: "Unknown status filter", code: "VALIDATION_ERROR" }, 400);
+  }
+  const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 50) || 50, 1), 200);
+
+  const rows =
+    status === "all"
+      ? await c.env.DB.prepare(`${PAYOUT_QUEUE_SELECT} ORDER BY pr.created_at DESC LIMIT ?`)
+          .bind(limit)
+          .all<PayoutQueueRow>()
+      : await c.env.DB.prepare(
+          `${PAYOUT_QUEUE_SELECT} WHERE pr.status = ?
+            ORDER BY pr.created_at ${status === "requested" ? "ASC" : "DESC"} LIMIT ?`,
+        )
+          .bind(status, limit)
+          .all<PayoutQueueRow>();
+
+  const requests = rows.results ?? [];
+  return c.json({
+    requests,
+    counts: {
+      returned: requests.length,
+      open: requests.filter((r) => r.status === "requested").length,
+    },
+  });
+});
+
+// GET /admin/payouts/:id — one request, through E06's reader.
+adminRoutes.get("/payouts/:id", async (c) => {
+  const request = await getPayoutRequest(c.env.DB, c.req.param("id") ?? "");
+  if (!request) return c.json({ error: "طلب السحب غير موجود", code: "NOT_FOUND" }, 404);
+  return c.json({ request });
+});
+
+/**
+ * Shared body for both decisions.
+ *
+ * Approve and reject differ only in which E06 primitive they call and what the
+ * audit row is named; everything else — the mandatory reason, the actor, the
+ * failure mapping, the `critical` audit flag — is identical, and writing it
+ * twice is how the two drift apart.
+ */
+async function applyPayoutDecision(
+  c: Context<AppEnv>,
+  action: "approve" | "reject",
+  decide: (
+    db: D1Database,
+    opts: { requestId: string; actorId: string; reason: string },
+  ) => Promise<PayoutDecisionResult>,
+) {
+  const user = c.get("user");
+  const requestId = c.req.param("id") ?? "";
+  const body = await parseBody(c, payoutDecisionSchema);
+  if (isResponse(body)) return body;
+
+  const result = await decide(c.env.DB, {
+    requestId,
+    actorId: user.id,
+    reason: body.reason,
+  });
+
+  if (!result.ok) {
+    return c.json(
+      { error: result.message, code: result.code, request: result.request },
+      PAYOUT_DECISION_STATUS[result.code],
+    );
+  }
+
+  // `critical: true` is E12's flag for a record whose loss has consequences.
+  // A payout is money leaving the platform, so a lost audit row here is an
+  // incident rather than a warning, and it is counted separately.
+  await logAudit(c.env.DB, {
+    actorId: user.id,
+    action: `payout.${action}`,
+    entityType: "payout_request",
+    entityId: requestId,
+    payload: {
+      amount: result.request.amount,
+      currency: result.request.currency,
+      method: result.request.method,
+      reason: result.request.decision_reason,
+      walletTransactionId: result.walletTransactionId,
+    },
+    critical: true,
+    ip: c.req.header("cf-connecting-ip"),
+    userAgent: c.req.header("user-agent"),
+  });
+
+  return c.json({
+    ok: true,
+    request: result.request,
+    walletTransactionId: result.walletTransactionId,
+  });
+}
+
+// POST /admin/payouts/:id/approve — marks paid AND debits, atomically, in E06's
+// batch. The captain's balance moves here and nowhere else.
+adminRoutes.post("/payouts/:id/approve", (c) =>
+  applyPayoutDecision(c, "approve", settlePayoutRequest),
+);
+
+// POST /admin/payouts/:id/reject — returns the request with a reason. Moves no
+// money, because none was ever taken.
+adminRoutes.post("/payouts/:id/reject", (c) =>
+  applyPayoutDecision(c, "reject", rejectPayoutRequest),
+);

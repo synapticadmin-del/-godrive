@@ -20,6 +20,9 @@ const AuditLogPage = lazy(() => import('./pages/AuditLogPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const CaptainVerificationPage = lazy(() => import('./pages/CaptainVerificationPage'));
+// E14 — the operator console's two queues. Both are lazy like every other page.
+const SafetyPage = lazy(() => import('./pages/SafetyPage'));
+const PayoutsPage = lazy(() => import('./pages/PayoutsPage'));
 
 function PageFallback() {
   return (
@@ -51,9 +54,11 @@ export default function App() {
             <Route path="/live" element={<LiveMapPage />} />
             <Route path="/captains" element={<CaptainsPage />} />
             <Route path="/verification" element={<CaptainVerificationPage />} />
+            <Route path="/safety" element={<SafetyPage />} />
             <Route path="/trips" element={<TripsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/payouts" element={<PayoutsPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/audit" element={<AuditLogPage />} />
             <Route path="/settings" element={<SettingsPage />} />
