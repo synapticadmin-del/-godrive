@@ -24,12 +24,34 @@
  * from the cron as the brief requires. If a future task wants a shared trip-
  * event writer it belongs in its own `lib/tripEvents.ts` — a path in nobody's
  * `owns:` today, so E03 did not create it.
+ *
+ * ---
+ *
+ * ## E09 addendum
+ *
+ * Two changes, both because `cron/dispatch.ts` now calls [dispatchTrip] for
+ * real — scheduled rides dispatch at their scheduled time instead of at
+ * booking time.
+ *
+ * **1. [writeTripEvent], and why it is here rather than in `lib/tripEvents.ts`.**
+ * A cron has no `logEvent` of its own to inject. E03's note above names
+ * `lib/tripEvents.ts` as the right home and correctly declined to create it,
+ * because that path is in **nobody's `owns:`** (WAVE-PLAN §8) and creating an
+ * unowned file is the same boundary crossing PROTOCOL-EXEC §4.1 forbids. So the
+ * default writer lands in this file, which **is** in E09's `owns:`.
+ * `routes/trips.ts` keeps its own `logEvent` for its eight unrelated call
+ * sites; deduplicating that would mean rewriting eight lines of the file six
+ * gate items already collide on, for no behavioural gain. When someone owns
+ * `lib/tripEvents.ts`, both belong there.
+ *
+ * **2. `logEvent` is now optional** and defaults to [writeTripEvent]. The route
+ * module still passes its own, so its behaviour is unchanged.
  */
 
 import type { TripStatus } from "@synaptic-go/shared";
 import { findNearbyCaptains, type NearbyCaptain } from "./nearby";
 import { pushToUser } from "./notifications";
-import { nowIso, resolveSearchRadiusKm } from "./utils";
+import { id, nowIso, resolveSearchRadiusKm } from "./utils";
 
 /** The `trip_events` writer, supplied by the caller. Signature matches `logEvent` in `routes/trips.ts`. */
 export type TripEventWriter = (
@@ -39,6 +61,29 @@ export type TripEventWriter = (
   actorId?: string,
   payload?: unknown,
 ) => Promise<void>;
+
+/**
+ * The default `trip_events` writer — identical in effect to `logEvent` in
+ * `routes/trips.ts`, so a trip dispatched by the cron leaves the same trail as
+ * one dispatched by a booking request.
+ *
+ * Callers that already have a writer (the route module does) keep passing it;
+ * callers that do not (the cron) get this one.
+ */
+export const writeTripEvent: TripEventWriter = async (
+  db,
+  tripId,
+  type,
+  actorId,
+  payload,
+): Promise<void> => {
+  await db
+    .prepare(
+      `INSERT INTO trip_events (id, trip_id, actor_id, type, payload) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(id("evt"), tripId, actorId ?? null, type, payload ? JSON.stringify(payload) : null)
+    .run();
+};
 
 export type DispatchTripInput = {
   env: Env;
@@ -59,7 +104,8 @@ export type DispatchTripInput = {
    * awaiting it before the call would add a D1 round-trip to every booking.
    */
   pendingEvent?: Promise<void>;
-  logEvent: TripEventWriter;
+  /** Defaults to [writeTripEvent]. `routes/trips.ts` passes its own local one. */
+  logEvent?: TripEventWriter;
 };
 
 export type DispatchTripResult = {
@@ -126,7 +172,7 @@ export async function dispatchTrip({
   currency,
   actorId,
   pendingEvent,
-  logEvent,
+  logEvent = writeTripEvent,
 }: DispatchTripInput): Promise<DispatchTripResult> {
   // Neighbourhood matching: the pickup's cell PLUS its 8 surrounding cells,
   // so a captain idling just over a geohash boundary is no longer invisible
