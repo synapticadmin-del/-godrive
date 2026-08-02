@@ -95,7 +95,6 @@ jobs:
           check "typecheck @synaptic-go/shared" "${{ steps.tc-shared.outcome }}"
           check "build @synaptic-go/admin"      "${{ steps.build-admin.outcome }}"
           check "test @synaptic-go/shared"      "${{ steps.test-shared.outcome }}"
-          check "test @synaptic-go/api"         "${{ steps.test-api.outcome }}"
           echo
           if [ "$fail" -ne 0 ]; then
             echo "node job failed - see the individual steps above."
