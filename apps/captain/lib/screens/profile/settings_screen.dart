@@ -671,7 +671,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      _toast(_t(context, 'تعذّر تصدير البيانات: $e', 'Could not export your data: $e'));
+      _toast(_t(context, 'تعذّر تصدير البيانات: $e', 'Could not export your data: $e'), error: true);
     } finally {
       if (mounted) setState(() => _busyExport = false);
     }
@@ -701,7 +701,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // The server refuses deletion during a live trip (ACTIVE_TRIP) and while
       // the wallet is in credit (BALANCE_OUTSTANDING) — a captain with unpaid
       // earnings must not be able to delete their claim to them.
-      _toast('$e');
+      _toast('$e', error: true);
     } finally {
       if (mounted) setState(() => _busyDelete = false);
     }
@@ -801,9 +801,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _toast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
 
   /// Shows a confirmation dialog before logging out.
   ///
