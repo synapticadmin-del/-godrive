@@ -11,6 +11,41 @@ type SearchResult = {
   label: string;
 };
 
+/** A point to bias search results towards — normally the rider's map centre. */
+export type NearPoint = { lat: number; lng: number };
+
+/**
+ * Nominatim `viewbox`, as `left,top,right,bottom` in **lon,lat** order.
+ *
+ * T21 measured this endpoint returning matches up to ~700 km from the user.
+ * `countrycodes=eg` was already set, so those hits were inside Egypt — the
+ * country filter cannot separate "مدينة نصر, Cairo" from a same-named village
+ * in Aswan, because both are Egyptian. A viewbox can.
+ *
+ * This national box is the floor, used when the caller sends no location.
+ */
+const EGYPT_VIEWBOX = "24.7000,31.7000,36.9000,21.7000";
+
+/** Roughly 100 km at Egypt's latitudes. Wide enough for a metro area. */
+const NEAR_DEGREES = 0.9;
+
+/**
+ * `viewbox` biases ranking; it does **not** filter unless `bounded=1` is also
+ * sent, and that is deliberately omitted. A rider in Cairo searching for
+ * "الإسكندرية" must still find Alexandria 220 km away — a hard bound would
+ * turn a ranking bug into a missing-results bug, which is worse.
+ */
+function viewboxFor(near?: NearPoint): string {
+  if (!near || !Number.isFinite(near.lat) || !Number.isFinite(near.lng)) {
+    return EGYPT_VIEWBOX;
+  }
+  const left = near.lng - NEAR_DEGREES;
+  const right = near.lng + NEAR_DEGREES;
+  const top = near.lat + NEAR_DEGREES;
+  const bottom = near.lat - NEAR_DEGREES;
+  return [left, top, right, bottom].map((n) => n.toFixed(4)).join(",");
+}
+
 function roundCoord(n: number, digits = 4): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
@@ -87,19 +122,27 @@ export async function searchPlaces(
   query: string,
   kv: KVNamespace,
   limit = 5,
+  near?: NearPoint,
 ): Promise<SearchResult[]> {
   const q = query.trim().slice(0, 120);
   if (!q) return [];
 
-  const key = `geosearch:${q.toLowerCase()}`;
+  const viewbox = viewboxFor(near);
+
+  // The viewbox is part of the cache identity. Without it, the first caller to
+  // search a term from anywhere in the country would poison every other
+  // location's results for a week — the bias would be applied once and then
+  // served to people it was not computed for.
+  const key = `geosearch:${q.toLowerCase()}:${viewbox}`;
   const cached = await kv.get(key, "json");
   if (Array.isArray(cached)) return cached as SearchResult[];
 
-  // Bias towards Egypt
+  // Bias towards Egypt, and towards the caller's own map view within it.
   const url =
     `https://nominatim.openstreetmap.org/search?format=jsonv2` +
     `&q=${encodeURIComponent(q)}` +
-    `&countrycodes=eg&limit=${limit}&accept-language=ar,en`;
+    `&countrycodes=eg&limit=${limit}&accept-language=ar,en` +
+    `&viewbox=${viewbox}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
