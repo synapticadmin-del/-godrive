@@ -17,6 +17,7 @@ import { searchRoutes } from "./routes/search";
 import { walletRoutes } from "./routes/wallet";
 import { deviceRoutes } from "./routes/devices";
 import { safetyRoutes } from "./routes/safety";
+import { requestId } from "./middleware/requestId";
 // `intercityRoutes` and `companyRoutes` are deliberately NOT imported: both
 // verticals are unmounted for launch (§2.1 of the execution plan, gate item 3).
 // The route modules still exist and are E04's to reject at the schema level;
@@ -58,9 +59,7 @@ const ALLOWED_ORIGINS = [
 // one thing this file is about to forbid — an edit to `index.ts` after the
 // freeze. Flagged on the PR; E12 needs an explicit one-line exemption rather
 // than a quiet reach across the boundary.
-app.use("*", async (_c, next) => {
-  await next();
-});
+app.use("*", requestId());
 
 app.use(
   "*",
