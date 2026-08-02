@@ -73,6 +73,11 @@ jobs:
         continue-on-error: true
         run: npm test -w @synaptic-go/shared
 
+      - name: test @synaptic-go/api
+        id: test-api
+        continue-on-error: true
+        run: npm test -w @synaptic-go/api
+
       - name: Result
         if: always()
         run: |
