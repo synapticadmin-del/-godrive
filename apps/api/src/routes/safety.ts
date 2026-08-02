@@ -463,7 +463,7 @@ safetyRoutes.get("/sos", requireRole("admin"), async (c) => {
 
 // GET /safety/sos/:id — one alert and its whole trail, oldest first.
 safetyRoutes.get("/sos/:id", requireRole("admin"), async (c) => {
-  const alertId = c.req.param("id");
+  const alertId = c.req.param("id") ?? "";
   const alert = await c.env.DB.prepare(`SELECT ${SOS_COLUMNS} FROM sos_alerts WHERE id = ?`)
     .bind(alertId)
     .first<SosRow>();
@@ -509,7 +509,7 @@ safetyRoutes.get("/sos/:id", requireRole("admin"), async (c) => {
 // who got there first and does not append a second 'acknowledged' row.
 safetyRoutes.post("/sos/:id/ack", requireRole("admin"), async (c) => {
   const user = c.get("user");
-  const alertId = c.req.param("id");
+  const alertId = c.req.param("id") ?? "";
   const body = await parseOptionalBody(c, sosAckSchema);
   if (isResponse(body)) return body;
 
@@ -565,7 +565,7 @@ safetyRoutes.post("/sos/:id/ack", requireRole("admin"), async (c) => {
 // Changes no state; this is how the trail gets the detail a review needs.
 safetyRoutes.post("/sos/:id/events", requireRole("admin"), async (c) => {
   const user = c.get("user");
-  const alertId = c.req.param("id");
+  const alertId = c.req.param("id") ?? "";
   const body = await parseBody(c, sosNoteSchema);
   if (isResponse(body)) return body;
 
@@ -597,7 +597,7 @@ safetyRoutes.post("/sos/:id/events", requireRole("admin"), async (c) => {
 // POST /safety/sos/:id/resolve — close it out. A reason is mandatory.
 safetyRoutes.post("/sos/:id/resolve", requireRole("admin"), async (c) => {
   const user = c.get("user");
-  const alertId = c.req.param("id");
+  const alertId = c.req.param("id") ?? "";
   const body = await parseBody(c, sosResolveSchema);
   if (isResponse(body)) return body;
 
