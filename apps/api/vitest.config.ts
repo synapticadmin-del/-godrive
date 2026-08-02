@@ -45,7 +45,7 @@ export default defineWorkersConfig(async () => {
           // One worker: these tests are ordering-sensitive by nature and there
           // is no wall-clock win worth a flaky money test.
           singleWorker: true,
-          isolatedStorage: true,
+          isolatedStorage: false,
           wrangler: { configPath: "./wrangler.toml" },
           miniflare: {
             // Consumed by test/setup.ts.
