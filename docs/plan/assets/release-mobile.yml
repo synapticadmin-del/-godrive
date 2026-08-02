@@ -1,0 +1,222 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  PROPOSED WORKFLOW — NOT INSTALLED. This file does nothing where it sits.
+#
+#  Install:  copy to .github/workflows/release-mobile.yml and commit it as a human.
+#  Why here: the GitHub App the execution chats push as has no `workflows`
+#            permission, so any push touching .github/workflows/** is rejected.
+#            PROTOCOL-EXEC §8 sends proposed YAML to docs/plan/assets/ instead.
+#            Install it in the same sitting as E00's deploy.yml.
+#
+#  Task:      E17 — gate item 13 (make an Android release buildable and safe)
+#  Companion: docs/plan/assets/E17-android-release-runbook.md — keystore creation,
+#             Play App Signing enrolment, and the exact list of repository secrets.
+#
+#  Two jobs, and the first one is the point:
+#    signing-fails-closed  proves a release build with NO keystore fails, and
+#                          leaves no artefact behind. This is the regression test
+#                          for the defect E17 fixed (a release that silently fell
+#                          back to the debug key). It needs no secrets, so it can
+#                          run on every pull request that touches android/.
+#    build                 produces the signed .aab and proves the signer is not
+#                          the debug certificate. Needs secrets; tags/dispatch only.
+# ─────────────────────────────────────────────────────────────────────────────
+name: release (mobile)
+
+on:
+  pull_request:
+    paths:
+      - 'apps/rider/android/**'
+      - 'apps/captain/android/**'
+      - '.github/workflows/release-mobile.yml'
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned to the same release ci.yml:112 pins, for the same reason: a
+  # reproducible verdict instead of whatever `stable` points at today.
+  FLUTTER_VERSION: '3.24.5'
+  # AGP 8.3.2 (android/settings.gradle:22) requires Java 17.
+  JAVA_VERSION: '17'
+
+jobs:
+  # ── 1. The negative test ────────────────────────────────────────────────────
+  # Before E17 this job could not have failed: a keystore-less release build
+  # produced a debug-signed artefact and exited 0.
+  signing-fails-closed:
+    name: signing fails closed (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [rider, captain]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # google-services.json is gitignored (/.gitignore:75) and absent from the
+      # repository, while the google-services plugin is applied unconditionally
+      # (app/build.gradle:7) — that is finding F-26-06, and it is not E17's to
+      # fix. A structurally valid stub with the right package name is written
+      # here so that the ONLY difference between this job and `build` below is
+      # the keystore. The stub is never shipped: this job produces no artefact.
+      - name: provision a stub google-services.json
+        run: |
+          cat > apps/${{ matrix.app }}/android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "stub-not-a-real-firebase-project",
+              "storage_bucket": "stub.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": {
+                    "package_name": "tech.synapticstudio.synaptic_go_${{ matrix.app }}"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [{ "current_key": "STUB_KEY_NOT_USED" }],
+                "services": {
+                  "appinvite_service": { "other_platform_oauth_client": [] }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      - name: a release build with no keystore must fail
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          set +e
+          flutter build appbundle --release 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::release build SUCCEEDED with no keystore — the fail-closed guard is gone"
+            exit 1
+          fi
+
+          if ! grep -q "release signing is not configured" build.log; then
+            echo "::error::the build failed, but not at the signing guard — read the log above"
+            exit 1
+          fi
+
+          echo "PASS: stopped at the signing guard (exit $status)"
+
+      - name: and it must not have left an artefact behind
+        working-directory: apps/${{ matrix.app }}
+        run: |
+          found=$(find build -type f \( -name '*.aab' -o -name '*.apk' \) 2>/dev/null || true)
+          if [ -n "$found" ]; then
+            echo "::error::a keystore-less release build produced artefacts:"
+            echo "$found"
+            exit 1
+          fi
+          echo "PASS: no .apk and no .aab on disk"
+
+  # ── 2. The artefact nobody's laptop produced ────────────────────────────────
+  build:
+    name: signed bundle (${{ matrix.app }})
+    needs: signing-fails-closed
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [rider, captain]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: provision google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ matrix.app == 'rider' && secrets.GOOGLE_SERVICES_JSON_RIDER || secrets.GOOGLE_SERVICES_JSON_CAPTAIN }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::secret GOOGLE_SERVICES_JSON_$(echo ${{ matrix.app }} | tr a-z A-Z) is not set (finding F-26-06)"
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > apps/${{ matrix.app }}/android/app/google-services.json
+          python3 -c "import json,sys; json.load(open('apps/${{ matrix.app }}/android/app/google-services.json'))"
+
+      # Written to RUNNER_TEMP, never into the workspace, so it cannot be picked
+      # up by an artefact upload or committed by a careless step.
+      - name: decode the upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::secret ANDROID_KEYSTORE_BASE64 is not set — see docs/plan/assets/E17-android-release-runbook.md"
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
+          # Fail here, with a readable message, rather than inside Gradle.
+          keytool -list \
+            -keystore "$RUNNER_TEMP/upload-keystore.jks" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" > /dev/null
+          echo "keystore decoded and readable"
+
+      - name: build the app bundle
+        working-directory: apps/${{ matrix.app }}
+        env:
+          # Consumed by apps/*/android/app/build.gradle. An absolute path, because
+          # a relative storeFile resolves against android/app, not the repo root.
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ matrix.app == 'rider' && secrets.ANDROID_KEY_ALIAS_RIDER || secrets.ANDROID_KEY_ALIAS_CAPTAIN }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build appbundle --release
+
+      # "A signed artefact exists" is not the acceptance criterion. "It is not
+      # signed with the debug key" is.
+      - name: prove the signer is not the debug certificate
+        run: |
+          aab=$(find apps/${{ matrix.app }}/build -type f -name '*.aab' | head -1)
+          if [ -z "$aab" ]; then
+            echo "::error::no .aab was produced"
+            exit 1
+          fi
+          echo "artefact: $aab"
+          keytool -printcert -jarfile "$aab" | tee signer.txt
+          if grep -q "CN=Android Debug" signer.txt; then
+            echo "::error::the bundle is DEBUG-SIGNED — the guard did not hold"
+            exit 1
+          fi
+          echo "PASS: signed by a non-debug certificate"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-release-aab
+          path: apps/${{ matrix.app }}/build/app/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30

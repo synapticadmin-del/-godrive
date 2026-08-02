@@ -14,11 +14,53 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+// ─── Release signing inputs ──────────────────────────────────────────────────
+// Two sources, in this order:
+//   1. android/key.properties — developer machines. Gitignored, and it must stay
+//      that way (android/.gitignore:12, /.gitignore:79).
+//   2. environment variables — CI, where the only secret written into the
+//      workspace is the keystore file itself.
+// Anything missing is collected by name in `missingSigningInputs` and reported
+// once, instead of surfacing later as a null keyAlias inside AGP.
 def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file('key.properties')
+def keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    keystorePropertiesFile.withInputStream { stream ->
+        keystoreProperties.load(stream)
+    }
 }
+
+def signingInput = { String fileKey, String envKey ->
+    def value = keystoreProperties.getProperty(fileKey)
+    if (value == null || value.trim().isEmpty()) {
+        value = System.getenv(envKey)
+    }
+    return (value == null || value.trim().isEmpty()) ? null : value.trim()
+}
+
+def releaseStorePath = signingInput("storeFile", "ANDROID_KEYSTORE_PATH")
+def releaseStorePassword = signingInput("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = signingInput("keyAlias", "ANDROID_KEY_ALIAS")
+def releaseKeyPassword = signingInput("keyPassword", "ANDROID_KEY_PASSWORD")
+def releaseStoreFile = releaseStorePath == null ? null : file(releaseStorePath)
+
+def missingSigningInputs = []
+if (releaseStorePath == null) {
+    missingSigningInputs.add("storeFile / ANDROID_KEYSTORE_PATH")
+}
+if (releaseStorePassword == null) {
+    missingSigningInputs.add("storePassword / ANDROID_KEYSTORE_PASSWORD")
+}
+if (releaseKeyAlias == null) {
+    missingSigningInputs.add("keyAlias / ANDROID_KEY_ALIAS")
+}
+if (releaseKeyPassword == null) {
+    missingSigningInputs.add("keyPassword / ANDROID_KEY_PASSWORD")
+}
+if (releaseStoreFile != null && !releaseStoreFile.exists()) {
+    missingSigningInputs.add("the keystore itself - " + releaseStoreFile.absolutePath + " does not exist")
+}
+def canSignRelease = missingSigningInputs.isEmpty()
 
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 if (flutterVersionCode == null) {
@@ -48,17 +90,25 @@ android {
     defaultConfig {
         applicationId = "tech.synapticstudio.synaptic_go_rider"
         minSdk = 23
-        targetSdk = 34
+        // Play's floor is API 35; at 34 the upload is rejected before review.
+        // The floor moves to API 36 on 31 Aug 2026, which needs compileSdk 36
+        // and an AGP newer than the 8.3.2 pinned in android/settings.gradle.
+        targetSdk = 35
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
     }
 
     signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
+        // Declared only when every input is present. When it is not, there is no
+        // release signing config in existence to fall back to, and the debug key
+        // is never in reach of a release variant.
+        if (canSignRelease) {
+            release {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
 
@@ -67,9 +117,46 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Falls back to debug signing for local dev; CI/release builds must provide key.properties (gitignored)
-            signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            // Fail closed. This line used to read
+            //   signingConfig = keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
+            // which produced a debug-signed "release" on any machine without
+            // key.properties: an artefact that looks shippable, is rejected by Play,
+            // and could never be upgraded to a real-key build without users
+            // uninstalling first. With no keystore the variant now carries no
+            // signing config at all, and the guard below stops the build before it
+            // packages anything.
+            signingConfig = canSignRelease ? signingConfigs.getByName("release") : null
         }
+    }
+}
+
+// ─── Fail closed, but only for builds that would emit a release artefact ─────
+// Evaluated when the task graph is ready rather than at configuration time, so a
+// machine with no keystore can still run `flutter run`, `flutter build apk --debug`
+// and `flutter analyze`. A release build stops here, before any task executes, so
+// nothing unsigned or debug-signed is ever written to build/.
+def appTaskPrefix = project.path + ":"
+def isReleaseArtefactTask = { String name ->
+    name.endsWith("Release") && (
+        name.startsWith("assemble") || name.startsWith("bundle") ||
+        name.startsWith("install") || name.startsWith("package")
+    )
+}
+gradle.taskGraph.whenReady { graph ->
+    if (canSignRelease) {
+        return
+    }
+    def offending = graph.allTasks.find { task ->
+        task.path.startsWith(appTaskPrefix) && isReleaseArtefactTask(task.name)
+    }
+    if (offending != null) {
+        throw new GradleException(
+            "Refusing to build " + offending.path + ": release signing is not configured.\n" +
+            "  Missing: " + missingSigningInputs.join(", ") + "\n" +
+            "  Local:  create android/key.properties - see docs/plan/assets/E17-android-release-runbook.md\n" +
+            "  CI:     set ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD\n" +
+            "This build used to fall back to the debug keystore instead of stopping."
+        )
     }
 }
 
