@@ -9,18 +9,59 @@ import { pushToUser } from "../lib/notifications";
 
 export const paymentRoutes = new Hono<AppEnv>();
 
+// Launch shape (execution plan §2.1, gate item 3): online payment is off, so
+// this endpoint accepts nothing. Two independent locks, because one of them is
+// a line someone could delete without noticing what it was holding shut:
+//
+//   1. ONLINE_PAYMENTS_ENABLED below — the handler refuses before it parses a
+//      body, calls Paymob, or writes a row. Refusal is unconditional and does
+//      not depend on `purpose`.
+//   2. this schema — paymentMethod was z.enum(["card", "wallet", "cash"])
+//      defaulting to "card". Narrowed to cash, which for a Paymob card
+//      intention is a contradiction on purpose: if the flag above is ever
+//      flipped back on its own, the request still fails validation instead of
+//      quietly reaching the provider.
+//
+// What is being held shut: `amount` and `tripId` are caller-supplied and
+// checked against nothing — no ownership test, no comparison with the trip's
+// fare (F-04-03), and the webhook credits whatever the intention recorded
+// (F-18-01). G1‡ — disabled, not fixed. Neither defect below was repaired.
 const intentionSchema = z.object({
   amount: z.number().min(1),
   currency: z.string().default("EGP"),
-  paymentMethod: z.enum(["card", "wallet", "cash"]).default("card"),
+  paymentMethod: z.enum(["cash"]).default("cash"),
   purpose: z.enum(["wallet_topup", "trip_payment", "intercity_booking"]).default("wallet_topup"),
   tripId: z.string().optional(),
 });
+
+// Annotated `boolean` rather than left to infer `false`, so the handler body
+// below stays reachable to the type checker and keeps being verified by
+// `tsc --noEmit` instead of rotting behind a dead `return`. Flipping this to
+// true restores the endpoint exactly as it was — and restores both findings
+// with it, which is why E04 asserts the refusal.
+const ONLINE_PAYMENTS_ENABLED: boolean = false;
 
 // POST /payments/paymob/intention — create a Paymob payment intention
 // that returns an iframe URL the client opens in a WebView. HMAC verified
 // in the webhook credits the wallet / marks trip paid.
 paymentRoutes.post("/paymob/intention", authMiddleware, async (c) => {
+  // Refused before the body is read, before Paymob is contacted and before any
+  // row is written — so the answer is a deliberate 403 rather than the 502 this
+  // path returns today when PAYMOB_* is unset, and rejecting costs no I/O.
+  // Independent of `purpose`: wallet_topup, trip_payment and intercity_booking
+  // are all off.
+  if (!ONLINE_PAYMENTS_ENABLED) {
+    return c.json(
+      {
+        error: "Online payment is not available",
+        code: "PAYMENTS_DISABLED",
+        detail:
+          "Cash is the only payment method at launch (execution plan §2.1, gate item 3).",
+      },
+      403,
+    );
+  }
+
   const user = c.get("user");
   const body = await parseBody(c, intentionSchema);
   if (isResponse(body)) return body;

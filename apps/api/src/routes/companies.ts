@@ -7,6 +7,39 @@ import { logAudit } from "../lib/audit";
 
 export const companyRoutes = new Hono<AppEnv>();
 
+// ─── Launch shape: this vertical is OFF (execution plan §2.1, gate item 3) ───
+//
+// index.ts already answers 404 for /companies and /companies/* — registered ahead of the
+// "/" mounts, because `searchRoutes` and `walletRoutes` both open with
+// use("*", authMiddleware) and would otherwise turn an unmounted path into a
+// 401 (E02). Nothing below this line is reachable in the shipped Worker.
+//
+// This guard is the second lock, for the case the brief names: a router that
+// gets remounted by accident — a revert, a bad merge, a well-meaning
+// app.route(). Then every path here answers 501 instead of quietly resuming a
+// vertical the launch withdrew. 501 rather than 404 on purpose: reaching this
+// line at all means the router was mounted, and "not implemented" tells that
+// developer the shutdown is deliberate, where a second 404 would read as a
+// typo. Public callers only ever see index.ts's 404.
+//
+// G1‡ — disabled, not fixed. Every handler below is left exactly as it was;
+// none of the defects in them has been repaired. Flipping the flag re-opens
+// all of them, which is why E04 asserts the refusal.
+const COMPANIES_ENABLED: boolean = false;
+
+companyRoutes.use("*", async (c, next) => {
+  if (COMPANIES_ENABLED) return next();
+  return c.json(
+    {
+      error: "Company accounts are not available",
+      code: "VERTICAL_DISABLED",
+      detail:
+        "This vertical is not part of the launch (execution plan §2.1, gate item 3).",
+    },
+    501,
+  );
+});
+
 // All company endpoints require auth
 companyRoutes.use("*", authMiddleware);
 
