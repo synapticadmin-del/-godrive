@@ -19,7 +19,7 @@ the schedule below is computed from the briefs' `depends_on` and `owns` fields, 
 | **3** | 3 chats | **E03** · **E12** · **E13** |
 | **4** | 4 chats | **E04** · **E08** · **E14** · **E15** |
 | **5** | 3 chats | **E07** · **E09** · **E19** |
-| **6** | 1 chat | **E10** |
+| **6** | 2 chats | **E10** · **E21** |
 
 **Critical path — 6 deep:** `E01` → `E02` → `E03` → `E08` → `E09` → `E10`.
 This is the floor. Opening more chats cannot beat it, because every arrow on that path is a
@@ -114,7 +114,7 @@ you find your task is half of one.
 | **3** — the launch shape is enforced, not just intended | `E04` + `E05` | `E02` | both merged |
 | **4** — the payout debit cannot mint money | `E06` + `E14` | — | both merged |
 | **6** — settlement pays the price that was agreed | `E08` + `E09` | `E03` | both merged |
-| **7** — a rider is never locked out of booking | `E09` + `E10` | `E03` | both merged |
+| **7** — a rider is never locked out of booking | `E09` + `E10` + `E21` | `E03` | all 3 merged |
 | **8** — the captain stays visible | `E11` + `E20` | — | both merged |
 | **10** — the safety features do not lie or leak | `E05` + `E09` + `E13` + `E14` | `E02` | all 4 merged |
 | **11** — no price is ever computed off a straight line | `E09` + `E15` | — | both merged |
@@ -131,6 +131,11 @@ Three of the multi-task items are worth calling out because the split is not obv
   `E13` redacts the share payload and exports revocation, `E09` calls that revocation at trip end, and
   `E14` gives an operator somewhere to see an SOS. Any one of them alone still leaves a safety feature
   that lies.
+- **Item 7 is three-way, and the third was invisible until E10 ran.** `E09` serves `GET /trips/active`,
+  `E10` calls it and stops discarding the 409's `tripId` — and `E21` makes the fare on screen the fare
+  that was agreed. The third half sat in `trip_screen.dart`, which is `E20`'s file, so `E10` could not
+  reach it; see seam #13 in §7. Closing item 7 on #105 + #107 leaves the rider recovered into a trip
+  that still displays the wrong price.
 - **Item 6** and **item 11** are definition/call-site pairs: `E08` and `E15` write the primitive, `E09`
   owns `trips.ts` and is the only task that can point the code at it.
 - **Item 8** is a pipeline/consumer pair, found by `E11` mid-run. `E11` fixes the captain end — heartbeat,
@@ -203,6 +208,7 @@ row below was invisible to the path-level check:
 | `E07`'s "exactly one generator" required deleting code in `companies.ts` (`E04`) | `E04`'s vertical shutdown kills that path; `E07`'s acceptance reworded to the joint outcome. |
 | `E05`'s "no copy in **either** app" reaches into `apps/captain/` (`E11`) | `E05` scoped to the rider app; the captain copy audit moved into `E11`. |
 | `E00` (human) would paste migration state into `docs/DEPLOYMENT.md` (`E01`) | `E00` records it in its `PROJECT.md` block instead. |
+| **#13 —** `E10` must render `accepted_price`, but all three in-ride fare reads are in `trip_screen.dart:623/651/671`, owned by `E20` (`done`, #95 merged) | Found by `E10` mid-run and correctly **reported, not taken**. The file was unlocked (§3.1 counts only `in_progress`) but unowned, so no live task could fix it. **`E21` created at the board owner's instruction** and given the file in §8 — the same remedy as `E20`. Gate item 7 widened to three. |
 
 **One reported seam was rejected on the evidence.** `E04` narrows the payment-method enum in
 `schemas.ts`, and the audit flagged that `trips.ts:468` reads `body.paymentMethod || "cash"` raw — which
@@ -212,6 +218,11 @@ reads the validated value. Narrowing `schemas.ts:60` genuinely rejects `wallet` 
 
 Net effect on the schedule: **none.** Four dependency edges were added and the round count stayed at
 6 — the new edges run parallel to the existing critical path rather than extending it.
+
+**Thirteen, not twelve.** The first twelve were closed before round 1 by reading the briefs against each
+other. #13 could not be found that way: `E10`'s brief said *"render `accepted_price`"* without naming a
+path, and the path it lands in belongs to a task that had already merged. A seam is only visible once
+someone tries to do the work — which is why the rule is *report it*, not *route around it*.
 
 ## 8. Full file-ownership map
 
@@ -238,6 +249,7 @@ Net effect on the schedule: **none.** Four dependency edges were added and the r
 | 5 | **E09** | `apps/api/src/routes/trips.ts` · `apps/api/src/lib/dispatch.ts` · `apps/api/src/cron/dispatch.ts` · `apps/api/src/lib/cleanup.ts` · `apps/api/src/durable-objects/OfferScheduler.ts` |
 | 5 | **E19** | `apps/api/test/` · `apps/api/vitest.config.ts` |
 | 6 | **E10** | `apps/rider/lib/services/app_state.dart` · `apps/rider/lib/screens/home/fare_estimate_sheet.dart` · `apps/rider/lib/main.dart` |
+| 6 | **E21** | `apps/rider/lib/screens/trip/trip_screen.dart` — reassigned from `E20` (merged) when seam #13 left it unowned |
 
 Anything not listed here is owned by nobody and **must not be edited** during this wave. If your task
 needs it, you have found a seam the same way the ones in §7 were found: say so on the PR and stop.
@@ -271,6 +283,23 @@ later, deliberately. Do not pull them forward — §8 of the plan explains what 
 ## 10. Changelog
 
 The board is a shared file. When it changes underneath you, this is where to look.
+
+### 2026-08-02 — seam #13 and `E21` (`chat-20260802-0726-6f1e`, at the board owner's instruction)
+
+`E10` reported that its own brief's third scope bullet — render `accepted_price` — lands in
+`trip_screen.dart`, `E20`'s file. `E20` was `done` and merged, so the file was **unlocked but
+unowned**: §3.1 builds LOCKED from `in_progress` claims only, and no live task listed the path. `E10`
+shipped the two halves it owned and reported the third rather than reaching across (PR #107).
+
+1. **`E21` added**, owning `apps/rider/lib/screens/trip/trip_screen.dart`. Precedent: `E20` itself was
+   added this way post-round-1 for the orphaned half of gate item 8.
+2. **Gate item 7 widened to `E09` + `E10` + `E21`** in §4, with the split explained in prose — the
+   generator could not see it, exactly as the §4 header warns.
+3. **Seam #13 recorded** in §7, and the section's "twelve" corrected to thirteen.
+4. **§8 ownership map and the §1 round-6 row updated.**
+
+Known irregularity, recorded rather than hidden: `E21` is held by the **same chat** as `E10`. Under
+§7 that chat may verify **neither**.
 
 ### 2026-08-01 — post-round-1 reconciliation (`chat-20260801-1910-a4e5`, at the board owner's instruction)
 
