@@ -211,7 +211,7 @@ export async function runMonthlyInvoiceJob({ env, now }: CronJobInput): Promise<
   const issued: CompanyInvoiceResult[] = [];
   for (const cmp of companies.results ?? []) {
     const result = await generateCompanyInvoice(env.DB, cmp.id, period);
-    if (result) issued.push(result);
+    if (result != null) issued.push(result!);
   }
 
   await pingDeadMan("company-invoices", env, {
