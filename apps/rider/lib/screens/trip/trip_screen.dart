@@ -620,7 +620,7 @@ class _TripScreenState extends State<TripScreen> {
   }
 
   List<Widget> _assignedContent(Color text, Color muted) {
-    final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
+    final fare = _displayFare();
     final isArrived = _status == 'arrived';
     return [
       if (_hasCaptain) _driverCard(text, muted),
@@ -648,7 +648,7 @@ class _TripScreenState extends State<TripScreen> {
   }
 
   List<Widget> _inProgressContent(Color text, Color muted) {
-    final fare = (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
+    final fare = _displayFare();
     return [
       if (_hasCaptain) _driverCard(text, muted),
       const SizedBox(height: 16),
@@ -668,7 +668,7 @@ class _TripScreenState extends State<TripScreen> {
   }
 
   List<Widget> _completedContent(Color text, Color muted) {
-    final fare = (_trip?['final_fare'] as num?)?.toDouble() ?? (_trip?['estimated_fare'] as num?)?.toDouble() ?? 0;
+    final fare = _displayFare(preferFinal: true);
     return [
       const Icon(Icons.check_circle, color: AppTokens.success, size: 48),
       const SizedBox(height: 12),
@@ -850,6 +850,37 @@ class _TripScreenState extends State<TripScreen> {
       ),
     );
   }
+
+  /// Reads a numeric column off the trip row, treating absent and non-numeric
+  /// alike. D1 hands these back as `num`; a NULL column arrives as `null`.
+  double? _tripNum(String column) => (_trip?[column] as num?)?.toDouble();
+
+  /// The fare to show the rider, in precedence order.
+  ///
+  /// **`accepted_price` is the number the rider and the captain agreed on**, and
+  /// in a price-negotiation product it is the only honest thing to display. It
+  /// is written the moment a captain takes the trip — by the bid path
+  /// (`trips.ts` `UPDATE … accepted_price = ?` on bid-accept) and by E08's
+  /// settlement primitive on the direct-accept path.
+  ///
+  /// Before this, `_assignedContent` and `_inProgressContent` rendered
+  /// `estimated_fare` alone. Both of those states are reached **after** a captain
+  /// has accepted, so the agreed price always existed and was always ignored:
+  /// the rider negotiated one number and then watched a different one for the
+  /// whole ride (T09 F-09-02). `accepted_price` was read nowhere in
+  /// `apps/rider/` at all.
+  ///
+  /// `final_fare` wins where it exists because settlement may adjust the agreed
+  /// price at completion (waiting time, tolls); it is only written at that
+  /// point, so it is null for the whole live trip and the agreed price stands.
+  /// `estimated_fare` is the last resort — the system's guess, correct only
+  /// before anyone has agreed to anything.
+  double _displayFare({bool preferFinal = false}) =>
+      (preferFinal ? _tripNum('final_fare') : null) ??
+      _tripNum('accepted_price') ??
+      _tripNum('final_fare') ??
+      _tripNum('estimated_fare') ??
+      0;
 
   Widget _fareRow(double fare, Color muted) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
