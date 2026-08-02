@@ -216,11 +216,63 @@ class _FareEstimateSheetState extends State<FareEstimateSheet> {
       );
     } catch (e) {
       if (!mounted) return;
+
+      // The 409 that says "you already have an active trip" carries the id of
+      // that trip. Booking is genuinely refused, but the rider is not stuck —
+      // so offer the trip rather than printing the sentence and leaving them
+      // on a sheet whose only working button has just failed (T09 F-09-01).
+      final stuckTripId =
+          e is ApiException && e.code == 'ACTIVE_TRIP' ? e.tripId : null;
+      if (stuckTripId != null) {
+        setState(() => _booking = false);
+        await _offerActiveTrip(stuckTripId);
+        return;
+      }
+
       messenger.showSnackBar(
         SnackBar(content: Text(e.toString().replaceAll('Exception:', '').trim())),
       );
       setState(() => _booking = false);
     }
+  }
+
+  /// Offers the rider the trip they are already in, instead of a dead end.
+  ///
+  /// Copy is inline rather than routed through the shared `AppStrings`
+  /// catalogue on purpose: that file is a three-place edit in a 5,664-line file
+  /// this task does not own (WAVE-PLAN §4.1 and §8), and every other string on
+  /// this screen is already localised the same way.
+  Future<void> _offerActiveTrip(String tripId) async {
+    final isAr = Localizations.localeOf(context).languageCode == 'ar';
+    final navigator = Navigator.of(context);
+
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(isAr ? 'لديك رحلة جارية بالفعل' : 'You already have a trip'),
+        content: Text(
+          isAr
+              ? 'مش هينفع تطلب رحلة جديدة قبل ما الحالية تخلص. تحب تفتحها؟'
+              : "You can't book a new trip until the current one ends. Open it?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(isAr ? 'مش دلوقتي' : 'Not now'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(isAr ? 'افتح الرحلة' : 'Open trip'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || open != true) return;
+    navigator.pop(); // close the fare sheet
+    navigator.push(
+      MaterialPageRoute(builder: (_) => TripScreen(tripId: tripId)),
+    );
   }
 
   @override
