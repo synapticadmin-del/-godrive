@@ -3,9 +3,20 @@ import { canTransition, type TripStatus } from "@synaptic-go/shared";
 import type { Context } from "hono";
 import { pricingFromRow } from "../lib/pricing";
 import { findNearbyCaptains } from "../lib/nearby";
-import { fareFromRoute, getDurationsToPoint, getRoute } from "../lib/routing";
+import {
+  fareFromRoute,
+  getDurationsToPoint,
+  getRoute,
+  resolveOsrmBaseUrl,
+  RouteUnavailableError,
+  type RouteResult,
+} from "../lib/routing";
 import { dispatchTrip } from "../lib/dispatch";
-import { settleTripCompletion } from "../lib/settlement";
+import {
+  resolveTripSettlement,
+  settleTripCompletion,
+  type SettlementTrip,
+} from "../lib/settlement";
 import {
   createTripSchema,
   estimateTripSchema,
@@ -19,7 +30,9 @@ import { id, nowIso } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 import { pushToUser } from "../lib/notifications";
-import { logAudit } from "../lib/audit";
+import { counter, logWarn } from "../lib/log";
+import { getRequestId } from "../middleware/requestId";
+import { revokeShareToken } from "./safety";
 
 export const tripRoutes = new Hono<AppEnv>();
 
@@ -136,8 +149,127 @@ async function broadcastTrip(env: Env, trip: DbTrip) {
   });
 }
 
-function osrmUrl(env: Env): string {
-  return (env as Env & { OSRM_URL?: string }).OSRM_URL || "https://router.project-osrm.org";
+/**
+ * The routing engine for this Worker, resolved the fail-closed way.
+ *
+ * **This line used to be the reason gate item 11 could not close.** It read:
+ *
+ *     return (env as Env & { OSRM_URL?: string }).OSRM_URL || "https://router.project-osrm.org";
+ *
+ * — so however carefully `wrangler.toml` or `lib/routing.ts` were configured,
+ * an unset `OSRM_URL` still sent every pickup and dropoff coordinate in the
+ * product to the public OSRM demo server, whose policy forbids this use and
+ * permits withdrawal without notice. E15 built [resolveOsrmBaseUrl] to replace
+ * it and could not touch this file; its own header names the swap as the seam
+ * E09 should adopt. This is that adoption.
+ *
+ * `null` means "no engine we are entitled to use" — either unset, or set to the
+ * public host, which `resolveOsrmBaseUrl` deliberately reports as unset. What
+ * each caller does about that is a policy decision, and it differs:
+ *
+ *  - **booking** refuses (503) — the number becomes a price;
+ *  - **estimate** and the **arrival ETA** degrade to haversine — they are
+ *    indicative, and refusing to draw a car makes no fare more accurate.
+ */
+function osrmUrl(env: Env): string | null {
+  return resolveOsrmBaseUrl(env);
+}
+
+/**
+ * How many times booking retries a failed route before giving up.
+ *
+ * One retry, not three. `getRoute` already carries an 8 s timeout, so a
+ * three-deep retry ladder would hold a rider's booking request for 24 s before
+ * admitting failure — by which point they have closed the app. One retry
+ * catches the single dropped connection, which is the failure this is for; a
+ * routing engine that is genuinely down is not going to answer on attempt two.
+ */
+const BOOKING_ROUTE_ATTEMPTS = 2;
+
+/**
+ * Route a booking, or fail the booking.
+ *
+ * Gate item 11's other half. `getRoute` defaults `allowFallback` to `true`
+ * because E15 had to be safe to merge against this file untouched; on the
+ * booking path that default is the bug. When OSRM fails, the fallback is
+ * `haversine × 1.35` — and because a negotiated fare is never recomputed, that
+ * straight line *becomes the settled price*. The plan's wording is exact: "a
+ * permanent mispricing engine with no metric distinguishing the two states".
+ *
+ * So booking passes `allowFallback: false` and converts the resulting
+ * [RouteUnavailableError] into a 503. A booking that fails loudly is recoverable
+ * — the rider retries in a minute. A booking that silently prices a straight
+ * line is not: nobody ever finds out, including the captain who gets paid off
+ * it.
+ *
+ * Returns `null` when no route could be obtained; the caller answers 503.
+ */
+async function routeForBooking(
+  env: Env,
+  pickup: { lat: number; lng: number },
+  dropoff: { lat: number; lng: number },
+): Promise<RouteResult | null> {
+  const baseUrl = osrmUrl(env);
+
+  // Not configured, or configured to the one host that does not count. There is
+  // nothing transient about that, so it is not retried.
+  if (!baseUrl) {
+    counter("booking_route_unavailable", 1, { reason: "unconfigured" });
+    logWarn("trips.booking_route_unavailable", {
+      reason: "OSRM_URL is unset or points at the public demo server",
+      retried: false,
+    });
+    return null;
+  }
+
+  let lastReason = "unknown";
+  for (let attempt = 1; attempt <= BOOKING_ROUTE_ATTEMPTS; attempt++) {
+    try {
+      return await getRoute(pickup, dropoff, baseUrl, { allowFallback: false });
+    } catch (e) {
+      if (!(e instanceof RouteUnavailableError)) throw e;
+      lastReason = e.reason;
+      if (attempt < BOOKING_ROUTE_ATTEMPTS) {
+        counter("booking_route_retry", 1, {});
+      }
+    }
+  }
+
+  counter("booking_route_unavailable", 1, { reason: "route_failed" });
+  logWarn("trips.booking_route_unavailable", {
+    reason: lastReason,
+    attempts: BOOKING_ROUTE_ATTEMPTS,
+    note: "refused to price this trip off a straight line; returned 503",
+  });
+  return null;
+}
+
+/**
+ * Revoke every live share token for a trip that has ended — E13's seam.
+ *
+ * "Trip end" is any terminal transition, not just completion: a cancelled or
+ * expired trip must not leave a live tracking link behind either.
+ * `revokeShareToken` is idempotent, so calling it twice costs one no-op UPDATE.
+ *
+ * Non-fatal by design. At the completion call site the money has already moved;
+ * throwing here would fail a request whose financial half already succeeded, and
+ * the client would retry a completion that cannot complete. A token outliving
+ * its trip is a real safety problem, so it is counted and logged at warn rather
+ * than swallowed — visible to the alert on `share_token_revoke_failed` without
+ * being able to break the trip lifecycle it is attached to.
+ */
+async function revokeShareTokensForTrip(db: D1Database, tripId: string, at: string): Promise<void> {
+  try {
+    const revoked = await revokeShareToken(db, tripId);
+    if (revoked > 0) counter("share_token_revoked", revoked, { at });
+  } catch (e) {
+    counter("share_token_revoke_failed", 1, { at });
+    logWarn("safety.share_token_revoke_failed", {
+      tripId,
+      at,
+      reason: e instanceof Error ? e.message : String(e),
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +388,11 @@ async function attachCaptainEtas(
     const estimates = await getDurationsToPoint(
       misses.map((entry) => ({ lat: entry.lat, lng: entry.lng })),
       { lat: pLat, lng: pLng },
-      osrmUrl(env),
+      // `?? ""` is the honest translation of "no engine we may use":
+      // `getDurationsToPoint` treats an empty base URL as unconfigured and
+      // degrades to haversine per origin, counting `eta_fallback` as it goes.
+      // This is an arrival ETA on a map, never a price — see [osrmUrl].
+      osrmUrl(env) ?? "",
     );
 
     await Promise.all(
@@ -291,10 +427,15 @@ tripRoutes.post(
     // estimate. The rider app also calls this endpoint with a zero-length
     // route purely as a proximity probe, to draw the Uber-style nearby cars.
     const [route, nearbyCaptains] = await Promise.all([
+      // `allowFallback` stays at its default of `true` here, deliberately.
+      // This is an indicative quote on a map, not a booking: refusing it when
+      // OSRM blinks would turn every estimate into an error, which is strictly
+      // worse than the straight line it replaces. Booking is where the number
+      // becomes a price, and booking refuses — see [routeForBooking].
       getRoute(
         { lat: body.pickupLat, lng: body.pickupLng },
         { lat: body.dropoffLat, lng: body.dropoffLng },
-        osrmUrl(c.env),
+        osrmUrl(c.env) ?? "",
       ),
       findNearbyCaptains(c.env, city, body.pickupLat, body.pickupLng, 15).catch(
         () => [] as Awaited<ReturnType<typeof findNearbyCaptains>>,
@@ -302,6 +443,10 @@ tripRoutes.post(
     ]);
     const result = fareFromRoute(route, pricingFromRow(pricing));
 
+    // `result.source` is E15's `RouteSource` carried through `fareFromRoute`,
+    // and spreading `result` is what puts it on the wire — the brief's "the
+    // estimate may keep falling back but must surface `source`". A client
+    // reading `source === "haversine"` knows this quote is a straight line.
     return c.json({ city, ...result, nearbyCaptains });
   },
 );
@@ -342,11 +487,24 @@ tripRoutes.post(
     const pricing = await getPricing(c.env.DB, city);
     if (!pricing) return c.json({ error: "Pricing not configured", code: "NO_PRICING" }, 500);
 
-    const route = await getRoute(
+    // Gate item 11, the call-site half. This number becomes the fare, and a
+    // negotiated fare is never recomputed — so a straight line accepted here is
+    // a straight line the captain gets paid on. Fail the booking instead.
+    const route = await routeForBooking(
+      c.env,
       { lat: body.pickupLat, lng: body.pickupLng },
       { lat: body.dropoffLat, lng: body.dropoffLng },
-      osrmUrl(c.env),
     );
+    if (!route) {
+      return c.json(
+        {
+          error: "تعذّر حساب مسار الرحلة الآن. برجاء المحاولة بعد قليل.",
+          code: "ROUTE_UNAVAILABLE",
+        },
+        503,
+      );
+    }
+
     let surgeMultiplier = 1.0;
     // Simple surge: multiply coefficient stored on pricing_rules via comment field
     // "surge:1.5" parsed out; default 1.0 to keep deterministic pricing.
@@ -407,10 +565,10 @@ tripRoutes.post(
         pickup_lat, pickup_lng, pickup_address,
         dropoff_lat, dropoff_lng, dropoff_address,
         distance_km, duration_min, currency, estimated_fare, offered_price, commission, payment_method,
-        promo_code, discount, vehicle_type_id, route_geometry,
+        promo_code, discount, vehicle_type_id, route_geometry, route_source,
         scheduled_for, schedule_status, waypoints, surge_multiplier,
         company_id, cost_center, billed_to_company
-      ) VALUES (?, ?, 'searching', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, 'searching', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         tripId,
@@ -433,6 +591,15 @@ tripRoutes.post(
         discount,
         body.vehicleTypeId ?? null,
         JSON.stringify(est.geometry),
+        // `trips.route_source`, migration 0023 — the other half of gate item
+        // 11. E15 shipped the column and the `source` field and could not touch
+        // this file; the INSERT is E09's. Without this write the column is a
+        // value defined and never populated, which is root R3 exactly, and the
+        // question "was this fare routed or guessed?" stays unanswerable after
+        // the fact. `routeForBooking` refuses `haversine` outright, so in
+        // practice this records `'osrm'` — and the day that stops being true,
+        // the column is how anyone finds out.
+        est.source,
         body.scheduledFor ?? null,
         body.scheduledFor ? "pending" : null,
         body.waypoints ? JSON.stringify(body.waypoints) : null,
@@ -473,20 +640,52 @@ tripRoutes.post(
       routeSource: est.source,
     });
 
-    const { status, captains } = await dispatchTrip({
-      env: c.env,
-      tripId,
-      city,
-      pickupLat: body.pickupLat,
-      pickupLng: body.pickupLng,
-      dropoffLat: body.dropoffLat,
-      dropoffLng: body.dropoffLng,
-      estimatedFare: finalEstimate,
-      currency: est.fare.currency,
-      actorId: user.id,
-      pendingEvent: createdEvent,
-      logEvent,
-    });
+    // Gate item 9. A scheduled ride is **not** dispatched now.
+    //
+    // This one `if` is the fix. Before it, a ride booked for 07:00 tomorrow was
+    // offered to captains the moment it was booked: `OfferScheduler` rolled
+    // through all ten candidates in ~45 s, each declined a job they could not
+    // take, and the trip then sat in `searching` with its entire candidate pool
+    // already spent — landing in exactly the permanent-`searching` state of
+    // item 7 (F-06-01 / F-16-02). Booking a ride for tomorrow morning was the
+    // most reliable way to brick an account.
+    //
+    // It is also what makes the cron reachable. `runScheduledDispatchJob`
+    // filters on `t.status = 'searching'`, a predicate that could never match
+    // while this call ran unconditionally and moved the row to `offered`. The
+    // dead `WHERE` and the early dispatch were one bug seen from two ends.
+    let status: TripStatus = "searching";
+    let captains: Awaited<ReturnType<typeof dispatchTrip>>["captains"] = [];
+
+    if (body.scheduledFor) {
+      // `dispatchTrip` was the only thing awaiting this write; nothing else
+      // does, so it has to be awaited here or the request can return before
+      // the `created` event lands.
+      await createdEvent;
+      await logEvent(c.env.DB, tripId, "scheduled", user.id, {
+        scheduledFor: body.scheduledFor,
+        note: "dispatch deferred to cron/dispatch.ts at the scheduled time",
+      });
+      counter("trip_scheduled", 1, {});
+    } else {
+      const dispatched = await dispatchTrip({
+        env: c.env,
+        tripId,
+        city,
+        pickupLat: body.pickupLat,
+        pickupLng: body.pickupLng,
+        dropoffLat: body.dropoffLat,
+        dropoffLng: body.dropoffLng,
+        estimatedFare: finalEstimate,
+        currency: est.fare.currency,
+        actorId: user.id,
+        pendingEvent: createdEvent,
+        logEvent,
+      });
+      status = dispatched.status;
+      captains = dispatched.captains;
+    }
+
     const nearby = { captains };
 
     const trip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
@@ -514,6 +713,72 @@ tripRoutes.get("/history", async (c) => {
   ).bind(user.id);
   const res = await q.all<DbTrip>();
   return c.json({ trips: res.results ?? [] });
+});
+
+/**
+ * `GET /trips/active` — the trip this user is currently in, if any.
+ *
+ * Gate item 7, the recovery half. Killing the app mid-trip and reopening it
+ * used to land the rider on the home screen with no way back: `bootstrap()`
+ * never asked whether a trip was in flight, and nothing served the answer if it
+ * had. This is the endpoint that answers. E10 owns the client that calls it.
+ *
+ * ## The predicates are copied from the guards, deliberately
+ *
+ * Each role's filter here is **byte-identical to the guard that would otherwise
+ * lock that role out**:
+ *
+ *  - rider → `status NOT IN ('completed','cancelled')`, the `ACTIVE_TRIP` guard
+ *    in `POST /trips`;
+ *  - captain → `status IN ('assigned','arrived','in_progress')`, the `BUSY`
+ *    guard in `POST /trips/:id/accept`.
+ *
+ * That is the property that matters, and it is worth more than the endpoint
+ * itself. If this query were merely *similar* to the guard, the two could
+ * disagree — and the state where the guard says "you already have a trip" while
+ * recovery says "you have none" is precisely the bricked account, now with an
+ * endpoint that confirms nothing is wrong. Whoever changes one of these must
+ * change the other; they are the same question asked by two callers.
+ *
+ * Registered ahead of `GET /:id` because Hono matches in registration order and
+ * `/:id` would otherwise swallow `/active` and 404 on a trip called "active".
+ *
+ * Returns `{ trip: null }` rather than a 404 when there is nothing active:
+ * "you have no trip in progress" is a successful answer to this question, and
+ * making the client distinguish it from a transport failure is how clients end
+ * up treating both as "stay on the home screen".
+ */
+tripRoutes.get("/active", async (c) => {
+  const user = c.get("user");
+
+  const trip =
+    user.role === "captain"
+      ? await c.env.DB.prepare(
+          `SELECT * FROM trips WHERE captain_id = ? AND status IN ('assigned','arrived','in_progress')
+           ORDER BY created_at DESC LIMIT 1`,
+        )
+          .bind(user.id)
+          .first<DbTrip>()
+      : await c.env.DB.prepare(
+          `SELECT * FROM trips WHERE rider_id = ? AND status NOT IN ('completed', 'cancelled')
+           ORDER BY created_at DESC LIMIT 1`,
+        )
+          .bind(user.id)
+          .first<DbTrip>();
+
+  if (!trip) return c.json({ trip: null, geometry: null });
+
+  // Same shape `GET /trips/:id` returns, minus the event log: a client
+  // recovering into the live trip screen needs the captain card and the
+  // polyline, and should not have to make a second call for either.
+  let geometry: unknown = null;
+  try {
+    geometry = trip.route_geometry ? JSON.parse(trip.route_geometry) : null;
+  } catch {
+    geometry = null;
+  }
+
+  return c.json({ trip: await withCaptain(c.env, trip), geometry });
 });
 
 tripRoutes.get("/", async (c) => {
@@ -635,6 +900,12 @@ tripRoutes.post("/:id/cancel", async (c) => {
     .run();
 
   await logEvent(c.env.DB, trip.id, "cancelled", user.id, { reason });
+
+  // Trip end — kill any live tracking link. A cancelled trip that leaves a
+  // shareable position URL alive is the safety feature lying in the other
+  // direction: the recipient keeps watching a journey that is not happening.
+  await revokeShareTokensForTrip(c.env.DB, trip.id, "cancel");
+
   const updated = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
     .bind(trip.id)
     .first<DbTrip>();
@@ -762,18 +1033,69 @@ tripRoutes.post("/:id/accept", requireRole("captain", "admin"), async (c) => {
     .first();
   if (busy) return c.json({ error: "You already have an active trip", code: "BUSY" }, 409);
 
+  // ── Gate item 6, the call site ──────────────────────────────────────────
+  //
+  // "Make `/trips/:id/accept` settle `offered_price`." E08 built the primitive
+  // and could not reach this line; its header says so: "that line, and the
+  // `/trips/:id/accept` handler at `routes/trips.ts:733`, are in
+  // `routes/trips.ts`, which **E09** owns. Until E09 flips the call site the
+  // corrected number is available and unused."
+  //
+  // The defect: on the direct-accept path no bid row exists, so `accepted_price`
+  // is null. The captain is *shown* `offered_price` — `GET /trips` serves
+  // captains `SELECT *` — and accepts that number, but settlement at completion
+  // fell through to `estimated_fare`. T05 measured the gap at 89 EGP on a real
+  // trip and calls it the most important finding in that document, because it
+  // breaks the product's entire differentiator silently: a negotiated-price
+  // platform that pays a different number from the one that was negotiated.
+  //
+  // Recording the agreed price *here*, at the moment of agreement, is what
+  // makes it true later. The alternative — resolving it again at completion —
+  // leaves the row ambiguous for the whole trip and gives an operator nothing
+  // to answer a dispute with. [resolveTripSettlement] is E08's pure function,
+  // so both ends of the trip agree on the number by construction.
+  const agreed = resolveTripSettlement(trip as SettlementTrip);
+  const hasAgreedPrice = agreed.priceSource !== "none";
+
   const updateRes = await c.env.DB.prepare(
-    `UPDATE trips SET status = 'assigned', captain_id = ?, assigned_at = ?, captain_lat = ?, captain_lng = ?, updated_at = ?
+    `UPDATE trips SET status = 'assigned', captain_id = ?, assigned_at = ?, captain_lat = ?, captain_lng = ?,
+            accepted_price = COALESCE(?, accepted_price), commission = COALESCE(?, commission), updated_at = ?
      WHERE id = ? AND status IN ('searching','offered')`,
   )
-    .bind(user.id, nowIso(), captain.last_lat, captain.last_lng, nowIso(), tripId)
+    .bind(
+      user.id,
+      nowIso(),
+      captain.last_lat,
+      captain.last_lng,
+      // Null leaves the column alone. A trip with no price on it at all is a
+      // data fault, not a free ride — writing a resolved `0` over it would
+      // erase the evidence and settle the trip at zero.
+      hasAgreedPrice ? agreed.agreedPrice : null,
+      hasAgreedPrice ? agreed.commission : null,
+      nowIso(),
+      tripId,
+    )
     .run();
 
   if (updateRes.meta && updateRes.meta.changes === 0) {
     return c.json({ error: "Trip was already taken by another captain", code: "TRIP_TAKEN" }, 409);
   }
 
-  await logEvent(c.env.DB, tripId, "assigned", user.id);
+  if (!hasAgreedPrice) {
+    counter("accept_without_price", 1, {});
+    logWarn("trips.accept_without_price", {
+      tripId,
+      requestId: getRequestId(c),
+      reason: "no accepted_price, offered_price, final_fare or estimated_fare on the row",
+    });
+  }
+
+  await logEvent(c.env.DB, tripId, "assigned", user.id, {
+    acceptedPrice: hasAgreedPrice ? agreed.agreedPrice : null,
+    priceSource: agreed.priceSource,
+    commission: hasAgreedPrice ? agreed.commission : null,
+    commissionSource: agreed.commissionSource,
+  });
   const updated = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
     .bind(tripId)
     .first<DbTrip>();
@@ -870,9 +1192,27 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
     );
   }
 
-  const finalFare = trip.accepted_price ?? trip.final_fare ?? trip.estimated_fare ?? 0;
-  const commission = trip.commission ?? 0;
-  const captainPayout = Math.max(0, Math.round((finalFare - commission) * 100) / 100);
+  // Gate item 6, the second call site. This block used to be:
+  //
+  //     const finalFare = trip.accepted_price ?? trip.final_fare ?? trip.estimated_fare ?? 0;
+  //     const commission = trip.commission ?? 0;
+  //
+  // — a fourth, independent price-resolution chain, and the one place
+  // `offered_price` was missing from. E08 put the canonical chain in
+  // [resolveTripSettlement] and left a `settlement_price_mismatch` counter
+  // firing on every completion where the caller's number disagreed with the
+  // resolved one, precisely so this gap was visible on `main` rather than only
+  // in a document. Using the same function on both sides is what stops that
+  // counter — not by silencing it, but by removing the disagreement.
+  //
+  // The commission matters as much as the fare: settling price X while taking
+  // commission computed from Y pays the captain the wrong number. On the
+  // `offered_price` path the stored commission is still on the `estimated_fare`
+  // basis, and E08 rescales it at the booking's own effective rate.
+  const settlement = resolveTripSettlement(trip as SettlementTrip);
+  const finalFare = settlement.agreedPrice;
+  const commission = settlement.commission;
+  const captainPayout = settlement.captainPayout;
 
   const updateRes = await c.env.DB.prepare(
     `UPDATE trips SET status = 'completed', final_fare = ?, completed_at = ?, updated_at = ? WHERE id = ? AND status != 'completed'`,
@@ -884,16 +1224,31 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
     return c.json({ error: "Trip is already completed or state changed", code: "CONFLICT" }, 409);
   }
 
-  await logEvent(c.env.DB, tripId, "completed", user.id, { finalFare, commission });
+  await logEvent(c.env.DB, tripId, "completed", user.id, {
+    finalFare,
+    commission,
+    priceSource: settlement.priceSource,
+    commissionSource: settlement.commissionSource,
+  });
 
+  // `finalFare`, `commission` and `captainPayout` are deliberately **not**
+  // passed. They are optional on the primitive exactly so this call site can
+  // stop supplying them once it was flipped, and letting settlement resolve its
+  // own numbers means there is one chain in the codebase rather than two that
+  // have to be kept in agreement by hand. `requestId` ties the money moves to
+  // the request that caused them — E12's correlation id, tolerant of the
+  // middleware being absent.
   await settleTripCompletion({
     db: c.env.DB,
     trip,
     tripId,
-    finalFare,
-    commission,
-    captainPayout,
+    requestId: getRequestId(c),
   });
+
+  // Trip end — kill any live tracking link (E13's seam). Deliberately after
+  // settlement: the money is the part that must not be disturbed, and this
+  // never throws.
+  await revokeShareTokensForTrip(c.env.DB, tripId, "complete");
 
   const updated = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
     .bind(tripId)
