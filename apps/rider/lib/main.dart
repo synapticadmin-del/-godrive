@@ -9,6 +9,7 @@ import 'services/app_state.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/trip/trip_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -45,14 +46,54 @@ class _RiderAppState extends State<RiderApp> {
   /// SharedPreferences returned.
   bool _introFinished = false;
 
+  /// Guards the one-shot recovery push in [_maybeRecoverActiveTrip] so a
+  /// rebuild cannot stack a second copy of the trip screen.
+  bool _recoveryRouted = false;
+
+  /// The app's navigator. Recovery pushes a route from the `Consumer` builder,
+  /// which sits *above* the `Navigator` that `MaterialApp` creates and so has
+  /// no `Navigator.of(context)` to reach for.
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
+  /// Puts a rider who force-quit mid-trip back into that trip.
+  ///
+  /// Pushed *on top of* `HomeScreen` rather than replacing it as the root: the
+  /// rider must be able to back out to Home, and a root-level trip screen would
+  /// make the system back gesture quit the app instead.
+  ///
+  /// Deferred to after the frame because it mutates the navigator, and called
+  /// from `build` because that is where the bootstrap result first becomes
+  /// visible. Signing out re-arms it so the next session can recover too.
+  void _maybeRecoverActiveTrip(AppState state) {
+    if (state.token == null) {
+      _recoveryRouted = false;
+      return;
+    }
+    // Wait for the splash to finish, or the push lands under it and the
+    // cross-fade in _RootGate reveals Home on top of the trip.
+    if (_recoveryRouted || state.loading || !_introFinished) return;
+
+    final tripId = state.activeTripId;
+    if (tripId == null) return;
+
+    _recoveryRouted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigatorKey.currentState?.push(
+        MaterialPageRoute(builder: (_) => TripScreen(tripId: tripId)),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => AppState(role: 'rider')..bootstrap(),
       child: Consumer<AppState>(
         builder: (context, state, _) {
+          _maybeRecoverActiveTrip(state);
           return MaterialApp(
             title: 'GoDrive',
+            navigatorKey: _navigatorKey,
             debugShowCheckedModeBanner: false,
             locale: state.locale,
             supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],

@@ -30,6 +30,55 @@ MediaType imageMediaTypeForPath(String path) {
   }
 }
 
+/// An HTTP error that keeps the server's structured body instead of flattening
+/// it to a sentence.
+///
+/// `POST /trips` answers a rider who already has a trip in flight with
+/// `409 {error, code: "ACTIVE_TRIP", tripId}` — and that `tripId` is the id of
+/// the very trip they are stuck in. Every call site here used to throw
+/// `Exception(data['error'])`, which kept the sentence and dropped the id, so
+/// the one piece of information that could get the rider moving again was
+/// discarded at the transport layer and the UI had nothing to offer but a dead
+/// end (T09 F-09-01).
+///
+/// [toString] deliberately renders as `Exception: <message>`. Screens display
+/// errors with `e.toString().replaceAll('Exception:', '').trim()`, so keeping
+/// that prefix makes this a drop-in for every existing catch: callers that do
+/// not care about [code] behave exactly as they did before.
+class ApiException implements Exception {
+  ApiException({
+    required this.statusCode,
+    required this.message,
+    this.code,
+    this.body = const {},
+  });
+
+  /// HTTP status returned by the API.
+  final int statusCode;
+
+  /// Human-readable text from the body's `error` field, or `HTTP <status>`.
+  final String message;
+
+  /// The API's machine-readable discriminator — `ACTIVE_TRIP`, `NO_PRICING`,
+  /// `ROUTE_UNAVAILABLE`, and so on. Null when the body carried none.
+  final String? code;
+
+  /// The decoded response body, so a caller can read a field this class does
+  /// not model without a second round trip.
+  final Map<String, dynamic> body;
+
+  /// The trip the server pointed at, when it sent one.
+  String? get tripId {
+    final raw = body['tripId'];
+    if (raw == null) return null;
+    final id = raw.toString();
+    return id.isEmpty ? null : id;
+  }
+
+  @override
+  String toString() => 'Exception: $message';
+}
+
 class AppState extends ChangeNotifier {
   AppState({required this.role});
 
@@ -63,6 +112,21 @@ class AppState extends ChangeNotifier {
 
   /// FCM token currently registered with backend.
   String? fcmToken;
+
+  /// The trip this rider is currently in, as reported by `GET /trips/active`.
+  ///
+  /// Null means either "no trip in flight" or "the probe has not run / could
+  /// not run". Those are deliberately not distinguished here: every consumer
+  /// treats both as "stay on Home", which is the safe failure.
+  Map<String, dynamic>? activeTrip;
+
+  /// Id of [activeTrip], when there is one.
+  String? get activeTripId {
+    final raw = activeTrip?['id'];
+    if (raw == null) return null;
+    final id = raw.toString();
+    return id.isEmpty ? null : id;
+  }
 
   /// Production API (Cloudflare). For local API use:
   /// return kIsWeb ? 'http://127.0.0.1:8787' : 'http://10.0.2.2:8787';
@@ -168,10 +232,39 @@ class AppState extends ChangeNotifier {
     if (token != null) {
       // Best-effort revalidation; offline launches keep the cached profile.
       await fetchProfile();
+
+      // Gate item 7, the recovery half. Ask the server whether a trip is
+      // already in flight, so `main.dart` can put the rider back into it
+      // instead of opening on a home screen that behaves as though nothing is
+      // happening. Force-quitting mid-trip used to be unrecoverable purely
+      // because nobody ever asked this question at launch (T09 F-09-01).
+      await refreshActiveTrip();
     }
 
     loading = false;
     notifyListeners();
+  }
+
+  /// Asks the API whether this rider is already in a trip, and caches the
+  /// answer in [activeTrip].
+  ///
+  /// `GET /trips/active` answers `{trip: null}` with a 200 — not a 404 — when
+  /// there is nothing in flight, so "no active trip" stays distinguishable
+  /// from "the request failed". A failure leaves [activeTrip] untouched and is
+  /// swallowed: a launch-time probe must never be able to stop the app from
+  /// starting, and a rider who is offline is better served by Home than by a
+  /// crash.
+  Future<Map<String, dynamic>?> refreshActiveTrip() async {
+    if (token == null) return null;
+    try {
+      final res = await _get('/trips/active');
+      final trip = res['trip'];
+      activeTrip = trip is Map ? Map<String, dynamic>.from(trip) : null;
+      notifyListeners();
+    } catch (_) {
+      // Offline, or a transient 5xx. Staying on Home is the safe failure.
+    }
+    return activeTrip;
   }
 
   /// Exchanges the stored refresh token for a fresh access token.
@@ -236,6 +329,9 @@ class AppState extends ChangeNotifier {
   Future<void> _clearSession() async {
     token = null;
     user = null;
+    // A signed-out rider has no trip to recover into, and leaving a stale one
+    // here would send the next rider on this device into someone else's trip.
+    activeTrip = null;
     final prefs = await SharedPreferences.getInstance();
     await _secureStorage.delete(key: _kAccessToken);
     await _secureStorage.delete(key: _kRefreshToken);
@@ -290,6 +386,26 @@ class AppState extends ChangeNotifier {
         if (token != null) 'Authorization': 'Bearer $token',
       };
 
+  /// Turns a non-2xx response into an [ApiException] that still carries the
+  /// body.
+  ///
+  /// One implementation shared by `_get`, `_post`, `_patch`, `apiDelete` and
+  /// `uploadAvatar` so the five cannot drift apart on what they preserve and
+  /// what they throw away — the drift is how `tripId` came to be dropped on
+  /// exactly one of the paths that needed it.
+  static Never _throwApiError(int statusCode, dynamic data) {
+    final map =
+        data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+    final err = map['error'];
+    final code = map['code'];
+    throw ApiException(
+      statusCode: statusCode,
+      message: err is String && err.isNotEmpty ? err : 'HTTP $statusCode',
+      code: code is String && code.isNotEmpty ? code : null,
+      body: map,
+    );
+  }
+
   /// Auto Token Refresh Interceptor for handling 401 Unauthorized exceptions safely
   Future<http.Response> _executeWithAuthInterceptor(Future<http.Response> Function() reqFn) async {
     final res = await reqFn();
@@ -315,7 +431,7 @@ class AppState extends ChangeNotifier {
         .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
-      throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
+      _throwApiError(res.statusCode, data);
     }
     return Map<String, dynamic>.from(data as Map);
   }
@@ -330,7 +446,7 @@ class AppState extends ChangeNotifier {
         .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
-      throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
+      _throwApiError(res.statusCode, data);
     }
     return Map<String, dynamic>.from(data as Map);
   }
@@ -344,7 +460,7 @@ class AppState extends ChangeNotifier {
         .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
-      throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
+      _throwApiError(res.statusCode, data);
     }
     return Map<String, dynamic>.from(data as Map);
   }
@@ -361,7 +477,7 @@ class AppState extends ChangeNotifier {
         .timeout(const Duration(seconds: 15)));
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
-      throw Exception(data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}');
+      _throwApiError(res.statusCode, data);
     }
     return Map<String, dynamic>.from(data as Map);
   }
@@ -651,9 +767,7 @@ class AppState extends ChangeNotifier {
 
     final data = jsonDecode(res.body.isEmpty ? '{}' : res.body);
     if (res.statusCode >= 400) {
-      throw Exception(
-        data is Map && data['error'] != null ? data['error'] : 'HTTP ${res.statusCode}',
-      );
+      _throwApiError(res.statusCode, data);
     }
 
     final url = data is Map ? data['avatarUrl'] : null;
