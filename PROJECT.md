@@ -54,10 +54,11 @@ no container.
 - `OfferScheduler` — alarms that drive the staged rollout of an offer to
   successive batches of nearby captains.
 
-**External dependencies** — OSRM for routing, Nominatim for geocoding, Paymob
-for payments, Meta WhatsApp Cloud API and Resend for OTP delivery, FCM for
-push, Cloudflare Turnstile for bot defence. Several run in stub mode until
-their keys are supplied; see `docs/ROADMAP.md`.
+**External dependencies & Hybrid Geospatial Strategy:**
+- **External Services:** OSRM for routing, Nominatim for geocoding, Paymob for payments, Meta WhatsApp Cloud API and Resend for OTP delivery, FCM for push, Cloudflare Turnstile for bot defence. Several run in stub mode until their keys are supplied; see `docs/ROADMAP.md`.
+- **Hybrid Maps & Routing Strategy (النموذج الهجين للخرائط والملاحة):**
+  - **في الموبايل (Rider & Captain Apps):** استخدام Google Maps SDK لعرض الخريطة والبحث عن العناوين (Autocomplete).
+  - **في السيرفر (Backend Pricing & Routing):** استخدام OSRM مخصص (`osrm.synapticstudio.tech`) لاحتساب المسافات والأسعار للرحلات لتقليل التكلفة المالية لصفر تقريباً.
 
 ---
 
