@@ -1,0 +1,20 @@
+{
+  // E19's tests, for editors and for an explicit `tsc -p test`.
+  //
+  // This does NOT make `npm run typecheck -w @synaptic-go/api` cover the suite.
+  // That script runs `tsc --noEmit` against `apps/api/tsconfig.json`, whose
+  // `include` is `["src/**/*", "worker-configuration.d.ts"]` and therefore stops
+  // at the `src/` boundary. Adding `"test/**/*"` there is the actual fix, and
+  // `apps/api/tsconfig.json` is in no task's `owns:` for this wave
+  // (WAVE-PLAN §8 names this exact gap against E19). It is reported on the PR
+  // rather than edited here.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"],
+    "baseUrl": "..",
+    "paths": {
+      "@synaptic-go/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["./**/*.ts", "../src/**/*", "../worker-configuration.d.ts"]
+}

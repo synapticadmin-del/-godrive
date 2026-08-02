@@ -1,0 +1,76 @@
+# E19 — wire the API test suite into CI.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THIS FILE DOES NOTHING WHERE IT SITS. IT IS A PROPOSAL FOR A HUMAN TO APPLY.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The GitHub App the execution chats push as has no `workflows` permission, so a
+# push touching `.github/workflows/**` is rejected outright. The same constraint
+# produced `docs/plan/assets/release-mobile.yml` (E17) and
+# `docs/plan/assets/e18-backup-d1-schedule.yml` (E18).
+#
+# Committing a workflow to a path GitHub does not read is exactly how PR #46
+# shipped a deploy pipeline that has never run — the failure this whole
+# programme exists to stop. So this is deliberately NOT named `ci.yml`, and the
+# claim on the E19 PR is "the suite is written and configured", never "the suite
+# runs". It does not run until a human applies the two edits below and a run URL
+# exists to point at.
+#
+# ── WHAT TO DO ──────────────────────────────────────────────────────────────
+#
+# Two edits to the existing `node` job in `.github/workflows/ci.yml`. Do not add
+# a new job: the `node` job already installs the workspace with `npm ci`, and a
+# second job would pay that cost twice for one `vitest run`.
+#
+# EDIT 1 — add a step immediately after the existing "test @synaptic-go/shared"
+#          step (ci.yml:71-74), keeping the established
+#          `id:` + `continue-on-error: true` shape so one run shows every
+#          failure rather than stopping at the first:
+
+      - name: test @synaptic-go/api
+        id: test-api
+        continue-on-error: true
+        run: npm test -w @synaptic-go/api
+
+# EDIT 2 — add one line to the "Result" step's check list (ci.yml:88-92),
+#          after the `test @synaptic-go/shared` line. This is the line that
+#          actually fails the job; without it the step above is decorative:
+
+          check "test @synaptic-go/api"         "${{ steps.test-api.outcome }}"
+
+# ── AFTER APPLYING ──────────────────────────────────────────────────────────
+#
+# 1. Confirm the job is green, and paste the run URL onto the E19 PR. A green
+#    run is the verification; "the workflow was added" is not (PROTOCOL-EXEC §7).
+# 2. Confirm the step can go RED. Either revert one fix and watch it fail, or
+#    run the dependency-free harness, which does the same thing without npm:
+#
+#       cd apps/api/test/tools
+#       node --import ./ts-loader.mjs offline-verify.mjs --revert=floor
+#
+#    A suite nobody has seen fail is not evidence.
+# 3. `test @synaptic-go/api` should then be added to the required status checks
+#    for `main`, alongside the existing ones. That belongs with E00, which holds
+#    branch protection.
+#
+# ── TWO THINGS TO FIX WHILE YOU ARE IN THERE (neither is E19's file) ─────────
+#
+# a. `vitest` is NOT declared in `apps/api/package.json`. It resolves today only
+#    because npm workspaces hoists it from `packages/shared`
+#    (`vitest ^3.0.0`), and `@cloudflare/vitest-pool-workers@^0.12.x` declares
+#    vitest as a peer within a narrow range. If `packages/shared` ever drops or
+#    bumps it, `npm test -w @synaptic-go/api` breaks for a reason that has
+#    nothing to do with the API. It should be an explicit devDependency of
+#    `apps/api` — and the lockfile regenerated in the same commit, or `npm ci`
+#    fails the whole job. `apps/api/package.json` and `package-lock.json` are
+#    E01's files.
+#
+# b. `apps/api/tsconfig.json` has `include: ["src/**/*", "worker-configuration.d.ts"]`,
+#    so `npm run typecheck -w @synaptic-go/api` does not typecheck the suite at
+#    all. Adding `"test/**/*"` to that array closes it. WAVE-PLAN §8 flagged this
+#    against E19 before round 5 and it was never assigned to any task, so E19
+#    could not make the edit; `apps/api/test/tsconfig.json` covers editors only.
+#
+# Node version: the `node` job pins Node 20, which is fine for the vitest suite.
+# The `offline-verify.mjs` harness in (2) needs Node >= 22.6 for type stripping
+# and `node:sqlite`; it is a local tool and is not part of the CI job.
