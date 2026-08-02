@@ -57,7 +57,23 @@ export const createTripSchema = z.object({
   dropoffAddress: z.string().max(300).optional(),
   city: z.string().max(60).optional(),
   offeredPrice: z.number().min(1).max(10000).optional(),
-  paymentMethod: z.enum(["cash", "card", "wallet"]).default("cash"),
+  // Launch shape (execution plan §2.1, gate item 3): cash only.
+  //
+  // This read z.enum(["cash", "card", "wallet"]). The rider client only ever
+  // sends "cash", but the client is not the boundary: POST /trips takes
+  // `body.paymentMethod || "cash"` straight into the INSERT
+  // (routes/trips.ts:431), so any caller with curl could book a wallet- or
+  // card-paid trip and reach the paths the launch descopes — the settlement
+  // mint (F-18-01) and the fare bypass (F-04-03). Narrowing here is what makes
+  // the launch shape a property of the API instead of a property of the app.
+  //
+  // parseBody() runs before the handler (routes/trips.ts:322), so a rejected
+  // method never reaches the INSERT: the request 400s and creates nothing.
+  //
+  // G1‡ — disabled, not fixed. Nothing downstream of this line was repaired.
+  // Widening the enum re-opens both findings, which is why E04 asserts the
+  // rejection: putting "wallet" back has to turn a test red first.
+  paymentMethod: z.enum(["cash"]).default("cash"),
   promoCode: z.string().max(40).optional(),
   vehicleTypeId: z.string().max(40).optional(),
   scheduledFor: z.string().datetime().optional(),
@@ -114,6 +130,15 @@ export const intercityScheduleSchema = z.object({
   seatsTotal: z.number().int().min(1).max(50).default(4),
 });
 
+// Deliberately NOT narrowed to cash, unlike createTripSchema above. The
+// intercity vertical is off at two layers — index.ts answers 404 for
+// /intercity/* before the mounts (E02), and routes/intercity.ts refuses every
+// path with 501 (E04) — so this schema is unreachable. Narrowing it would force
+// edits to the handler bodies at routes/intercity.ts:138 and :182, which
+// compare this field against "wallet"; TypeScript rejects a comparison whose
+// types cannot overlap (TS2367), so the narrowing would have to be paid for by
+// rewriting code the launch shape is meant to freeze, not repair. Left as-is
+// and recorded here instead. G1‡.
 export const intercityBookingSchema = z.object({
   scheduleId: z.string().min(1),
   seats: z.number().int().min(1).max(10).default(1),
