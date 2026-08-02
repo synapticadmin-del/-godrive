@@ -4,7 +4,7 @@ import { useAuth } from '../../lib/auth';
 import {
   LayoutDashboard, MapPin, Users, ShieldCheck, Route as RouteIcon,
   BarChart3, DollarSign, User as UserIcon, ShieldAlert, Settings as CogIcon,
-  LogOut, X,
+  LogOut, X, AlertCircle, Send,
 } from 'lucide-react';
 import GoDriveLogo from '../common/GoDriveLogo';
 
@@ -32,6 +32,7 @@ const navGroups: NavGroup[] = [
   {
     category: 'العمليات',
     items: [
+      { path: '/safety', label: 'الاستغاثات', icon: AlertCircle },
       { path: '/captains', label: 'الكباتن', icon: Users },
       { path: '/verification', label: 'توثيق المستندات', icon: ShieldCheck, badge: 'جديد' },
       { path: '/trips', label: 'الرحلات', icon: RouteIcon },
@@ -43,6 +44,7 @@ const navGroups: NavGroup[] = [
     items: [
       { path: '/analytics', label: 'التحليلات', icon: BarChart3 },
       { path: '/pricing', label: 'التسعير', icon: DollarSign },
+      { path: '/payouts', label: 'طلبات السحب', icon: Send },
       { path: '/audit', label: 'سجل التدقيق', icon: ShieldAlert },
       { path: '/settings', label: 'الإعدادات', icon: CogIcon },
     ],
