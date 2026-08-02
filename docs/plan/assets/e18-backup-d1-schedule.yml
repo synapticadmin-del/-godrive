@@ -1,0 +1,159 @@
+# Nightly D1 backup: export synaptic-go to R2 and prove the object arrived.
+#
+# ---------------------------------------------------------------------------
+# THIS FILE IS NOT INSTALLED. It is a workflow waiting to be moved.
+# ---------------------------------------------------------------------------
+#
+#   git mv docs/plan/assets/e18-backup-d1-schedule.yml .github/workflows/backup-d1.yml
+#   git commit -m "ci: install the nightly D1 backup workflow"
+#
+# It could not be committed to .github/workflows/ directly: the GitHub App the
+# execution board's changes are authored through holds no `workflows`
+# permission, so the push is rejected. Moving it is a one-line change and needs
+# no edits to the file. Same route docs/ci/deploy-api.yml took (task E00).
+#
+# Why a workflow and not a Worker cron
+# ------------------------------------
+# A Cloudflare cron would need a scheduled handler in apps/api/src/index.ts —
+# frozen by task E02 — and a [triggers] entry in apps/api/wrangler.toml, owned
+# by task E15. Two collisions, for a job with no reason to run inside the
+# Worker. It also could not write to R2 through `wrangler r2 object put`, which
+# is what gives the backup its read-back verification step.
+#
+# Setup (one time)
+# ----------------
+# 1. Create the bucket. Deliberately NOT synaptic-go-files: a backup sharing a
+#    bucket with live application data dies with it.
+#
+#      npx wrangler r2 bucket create synaptic-go-backups
+#
+# 2. Set a lifecycle rule on that bucket so dumps expire — R2 -> the bucket ->
+#    Settings -> Object lifecycle rules. Nightly dumps of a growing database
+#    with no expiry is a bill, not a retention policy.
+#
+# 3. The CLOUDFLARE_API_TOKEN secret docs/DEPLOYMENT.md already describes needs
+#    two scopes for this job: D1:Read (to export) and Workers R2 Storage:Edit
+#    (to upload and read back). The deploy token has D1:Edit but probably not
+#    R2 — check before assuming this works.
+#
+# Until that secret exists the job runs its offline checks, writes what is
+# missing to the run summary and exits green, rather than mailing a failure
+# every morning.
+#
+# Restoring one of these is docs/RUNBOOK-restore.md. Read §6 before improvising:
+# the dump does NOT replay as-is.
+
+name: Backup D1
+
+on:
+  schedule:
+    # 03:00 UTC = 05:00 Africa/Cairo, the daily traffic minimum.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "wrangler environment to back up"
+        type: string
+        default: prod
+
+concurrency:
+  # Never let two backups race for the same object key. Do not cancel one in
+  # flight: a partial upload that gets cancelled looks exactly like a backup.
+  group: backup-d1-${{ inputs.environment || 'prod' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Export synaptic-go to R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: npm ci
+
+      # --- Offline gates ---------------------------------------------------
+      # These need no credentials, so they run on every scheduled invocation and
+      # catch a broken backup script on a morning when nothing else would.
+
+      - name: Self-test the backup script
+        run: bash scripts/backup-d1.sh --self-test
+
+      # The restore drill, run nightly. A restore procedure that silently rots
+      # is the failure this whole job exists to prevent — and the drill is what
+      # noticed that a .dump-shaped export cannot be replayed in table order.
+      - name: Rehearse the restore
+        run: bash scripts/backup-d1.sh --rehearse
+
+      # --- Guard -----------------------------------------------------------
+
+      - name: Check for Cloudflare credentials
+        id: guard
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "${CF_TOKEN}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Backup skipped"
+              echo ""
+              echo "The self-test and the restore rehearsal both passed, but"
+              echo "\`CLOUDFLARE_API_TOKEN\` is not set, so nothing was exported."
+              echo ""
+              echo "Add it under **Settings -> Secrets and variables -> Actions**"
+              echo "with D1:Read and Workers R2 Storage:Edit. See the header of"
+              echo "\`.github/workflows/backup-d1.yml\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- The backup ------------------------------------------------------
+      # backup-d1.sh reads the database name out of wrangler.toml, exports with
+      # --remote, uploads to R2, then downloads the object again and compares
+      # sha256. That last step is the difference between a backup and an
+      # artefact; the script fails the job if the hashes differ.
+
+      - name: Export and upload
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts/backup-d1.sh "${{ inputs.environment || 'prod' }}" --keep-local ./backup-out
+
+      - name: Verify the dump we just stored
+        if: steps.guard.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          dump=$(find ./backup-out -name '*.sql' -print -quit)
+          [ -n "$dump" ] || { echo "::error::no dump was produced"; exit 1; }
+          bash scripts/backup-d1.sh --check-dump "$dump"
+          {
+            echo "### Backup complete"
+            echo ""
+            echo '```'
+            cat ./backup-out/*.manifest.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The local copy is a working file, not a second backup. Uploading it as a
+      # build artefact would put a full copy of the production database —
+      # wallet balances, phone numbers, trip addresses — into GitHub Actions
+      # storage, readable by anyone with repository access. Do not add that step.
+      - name: Shred the local copy
+        if: always()
+        run: rm -rf ./backup-out
