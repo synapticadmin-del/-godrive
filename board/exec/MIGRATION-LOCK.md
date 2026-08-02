@@ -25,7 +25,7 @@ do not add a fifth without saying so explicitly.
 | 0020 | E06 | chat-20260801-1840-091b | `migrations/0020_payout_requests.sql` | no — PR #90 open |
 | 0021 | E16 | chat-20260801-1845-7a4c | `migrations/0021_consent_and_deletion.sql` | no — PR #92 open |
 | 0022 | E13 | chat-20260801-2104-eb59 | `migrations/0022_sos_lifecycle.sql` | no — PR open, and **must not merge before 0021** (see note) |
-| 0023 | E15 | chat-20260802-0524-21ed | `migrations/0023_route_source.sql` | no — PR open |
+| 0023 | E15 | chat-20260802-0524-21ed | `migrations/0023_route_source.sql` | no — PR #103 open |
 
 **0022 and 0023 are reserved, not taken.** Their tasks are blocked on unmerged dependencies (E13→E02,
 E15→E01+E03), so neither has an owning chat yet. The numbers are pinned in advance because the two
