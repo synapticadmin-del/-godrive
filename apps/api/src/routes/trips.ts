@@ -4,6 +4,8 @@ import type { Context } from "hono";
 import { pricingFromRow } from "../lib/pricing";
 import { findNearbyCaptains } from "../lib/nearby";
 import { fareFromRoute, getDurationsToPoint, getRoute } from "../lib/routing";
+import { dispatchTrip } from "../lib/dispatch";
+import { settleTripCompletion } from "../lib/settlement";
 import {
   createTripSchema,
   estimateTripSchema,
@@ -13,7 +15,7 @@ import {
   acceptBidSchema,
 } from "../lib/schemas";
 import type { DbCaptain, DbPricing, DbTrip } from "../lib/types";
-import { id, nowIso, resolveSearchRadiusKm } from "../lib/utils";
+import { id, nowIso } from "../lib/utils";
 import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 import { pushToUser } from "../lib/notifications";
@@ -29,45 +31,6 @@ async function getPricing(db: D1Database, city: string): Promise<DbPricing | nul
       .first<DbPricing>()) ??
     (await db.prepare(`SELECT * FROM pricing_rules WHERE city = 'cairo'`).first<DbPricing>())
   );
-}
-
-/**
- * Drop captains whose own search radius excludes this pickup.
- *
- * [findNearbyCaptains] answers "who is geographically close" from the geohash
- * neighbourhood; this answers "who actually asked for work this far out". A
- * captain hunting inside 5km must not be woken by a request 7km away — not by
- * an inbox card, not by FCM, and not by a badge on a tab.
- *
- * Best-effort by design: if the lookup fails we return the discovered list
- * untouched, because a dispatch that reaches slightly too far is recoverable
- * (the captain declines) while a dispatch that reaches nobody strands a rider.
- */
-async function filterByCaptainRadius<T extends { userId: string; distanceKm: number }>(
-  db: D1Database,
-  captains: T[],
-): Promise<T[]> {
-  if (captains.length === 0) return captains;
-  try {
-    const placeholders = captains.map(() => "?").join(", ");
-    const rows = await db
-      .prepare(
-        `SELECT user_id, search_radius_km FROM captains WHERE user_id IN (${placeholders})`,
-      )
-      .bind(...captains.map((cap) => cap.userId))
-      .all<{ user_id: string; search_radius_km: number | null }>();
-
-    const radiusByUser = new Map(
-      (rows.results ?? []).map((row) => [row.user_id, resolveSearchRadiusKm(row.search_radius_km)]),
-    );
-
-    return captains.filter(
-      (cap) => cap.distanceKm <= resolveSearchRadiusKm(radiusByUser.get(cap.userId)),
-    );
-  } catch (e) {
-    console.error("captain radius filter failed", e);
-    return captains;
-  }
 }
 
 async function logEvent(
@@ -510,80 +473,21 @@ tripRoutes.post(
       routeSource: est.source,
     });
 
-    // Neighbourhood matching: the pickup's cell PLUS its 8 surrounding cells,
-    // so a captain idling just over a geohash boundary is no longer invisible
-    // to dispatch. Runs in parallel with the audit write above — they are
-    // independent, and awaiting them serially used to add a full D1/DO
-    // round-trip to every booking.
-    const [discovered] = await Promise.all([
-      findNearbyCaptains(c.env, city, body.pickupLat, body.pickupLng, 10),
-      createdEvent,
-    ]);
-
-    // Honour each captain's own search radius before anything is sent.
-    //
-    // The 9-cell neighbourhood reaches ~7km, and every captain in it used to
-    // get both an inbox card and an FCM push regardless of the radius they
-    // had chosen in the app. That is the "trips outside my range still
-    // notify me" complaint: the chips filtered one list while dispatch
-    // ignored them entirely. Filtering here means an excluded trip never
-    // reaches the captain on ANY channel.
-    const nearbyCaptains = await filterByCaptainRadius(c.env.DB, discovered);
-    const nearby = { captains: nearbyCaptains };
-
-    let status: TripStatus = "searching";
-    if (nearby.captains?.length) {
-      status = "offered";
-      await c.env.DB.prepare(`UPDATE trips SET status = 'offered', updated_at = ? WHERE id = ?`)
-        .bind(nowIso(), tripId)
-        .run();
-      await logEvent(c.env.DB, tripId, "offered", user.id, {
-        candidates: nearby.captains.map((x) => x.userId),
-      });
-
-      // Staged offer rollout — the closest captains see the offer first;
-      // the rest only if nobody accepts within the grace window.
-      // Previously every nearby captain got the card at once → a ~10-captain
-      // sprint on every trip. The rollout lives in this trip's OfferScheduler
-      // DO, whose alarm drives the next wave even after this request returns.
-      const offerPayload = {
-        type: "trip.offer" as const,
-        tripId,
-        city,
-        pickupLat: body.pickupLat,
-        pickupLng: body.pickupLng,
-        dropoffLat: body.dropoffLat,
-        dropoffLng: body.dropoffLng,
-        estimatedFare: finalEstimate,
-        currency: est.fare.currency,
-        at: nowIso(),
-      };
-      const scheduler = c.env.OFFER_SCHEDULER.get(
-        c.env.OFFER_SCHEDULER.idFromName(tripId),
-      );
-      await scheduler.fetch("https://scheduler/schedule", {
-        method: "POST",
-        body: JSON.stringify({
-          tripId,
-          captains: nearby.captains.slice(0, 10),
-          offer: offerPayload,
-        }),
-      });
-      // FCM fanout keeps the previous blast — push is what wakes a captain
-      // whose app is closed, so it still reaches everyone who could accept.
-      await Promise.all(
-        nearby.captains.slice(0, 10).map((cap) =>
-          pushToUser({
-            env: c.env,
-            userId: cap.userId,
-            topic: "trip.offer",
-            title: "رحلة جديدة متاحة",
-            body: `الأجرة المتوقعة ${finalEstimate} ${est.fare.currency}. تبعد عنك ${cap.distanceKm.toFixed(1)} كم.`,
-            data: { tripId, channel: "trip_offer", city },
-          }).catch((e) => console.error("offer fcm failed", cap.userId, e)),
-        ),
-      );
-    }
+    const { status, captains } = await dispatchTrip({
+      env: c.env,
+      tripId,
+      city,
+      pickupLat: body.pickupLat,
+      pickupLng: body.pickupLng,
+      dropoffLat: body.dropoffLat,
+      dropoffLng: body.dropoffLng,
+      estimatedFare: finalEstimate,
+      currency: est.fare.currency,
+      actorId: user.id,
+      pendingEvent: createdEvent,
+      logEvent,
+    });
+    const nearby = { captains };
 
     const trip = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
       .bind(tripId)
@@ -982,77 +886,14 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
 
   await logEvent(c.env.DB, tripId, "completed", user.id, { finalFare, commission });
 
-  // Wallet handling:
-  //  - Wallet (rider): debit the rider, credit the captain's payout.
-  //  - Company-billed (B2B): no rider debit; finance is collected monthly.
-  //  - Cash: the captain collected the fare in hand, so DEBIT the platform
-  //    commission from the captain instead of crediting a payout. Crediting
-  //    here would pay the captain twice and forfeit the commission.
-  // All wallet moves are keyed by idempotency_key (unique index idx_wt_idem)
-  // so a retried completion cannot double-apply a balance change.
-  if (trip.payment_method === "wallet" && !trip.billed_to_company && trip.rider_id) {
-    const idemKey = `trip_debit:${tripId}`;
-    const finalFarePiastres = Math.round(finalFare * 100);
-
-    const debitRes = await c.env.DB.prepare(
-      `UPDATE users SET wallet_balance = wallet_balance - ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) - ?, wallet_updated_at = ? WHERE id = ? AND wallet_balance >= ?`,
-    )
-      .bind(finalFare, finalFarePiastres, nowIso(), trip.rider_id, finalFare)
-      .run();
-
-    const txnStatus = (debitRes.meta && debitRes.meta.changes === 1) ? 'settled' : 'failed';
-
-    await c.env.DB.prepare(
-      `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
-       VALUES (?, ?, 'trip_payment', 'debit', ?, ?, ?, ?, ?, ?, datetime('now'))`,
-    )
-      .bind(id("wt"), trip.rider_id, finalFare, finalFarePiastres, tripId, idemKey, txnStatus === 'settled' ? 'رحلة مكتملة' : 'فشل الخصم - رصيد غير كافٍ', txnStatus)
-      .run();
-  }
-  if (trip.captain_id) {
-    if (trip.payment_method === "cash") {
-      // Cash: the captain already collected the full fare in hand from the rider.
-      // The platform is owed its commission, so debit that amount from the
-      // captain's wallet instead of crediting a payout.
-      const commissionPiastres = Math.round(commission * 100);
-      if (commission > 0) {
-        const idemKey = `trip_commission_debit:${tripId}`;
-        const ins = await c.env.DB.prepare(
-          `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
-           VALUES (?, ?, 'commission', 'debit', ?, ?, ?, ?, 'عمولة المنصة على رحلة نقدية', 'settled', datetime('now'))`,
-        )
-          .bind(id("wt"), trip.captain_id, commission, commissionPiastres, tripId, idemKey)
-          .run();
-
-        // Only move the balance if this is the first time we recorded the debit.
-        if (ins.meta && ins.meta.changes === 1) {
-          await c.env.DB.prepare(
-            `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) - ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) - ?, wallet_updated_at = ? WHERE id = ?`,
-          )
-            .bind(commission, commissionPiastres, nowIso(), trip.captain_id)
-            .run();
-        }
-      }
-    } else {
-      // Non-cash: the platform collected the fare, so credit the captain's payout.
-      const payoutPiastres = Math.round(captainPayout * 100);
-      const idemKey = `trip_payout:${tripId}`;
-      const ins = await c.env.DB.prepare(
-        `INSERT OR IGNORE INTO wallet_transactions (id, user_id, type, direction, amount, amount_piastres, trip_id, idempotency_key, note, status, created_at)
-         VALUES (?, ?, 'commission', 'credit', ?, ?, ?, ?, 'أرباح رحلة مكتملة', 'settled', datetime('now'))`,
-      )
-        .bind(id("wt"), trip.captain_id, captainPayout, payoutPiastres, tripId, idemKey)
-        .run();
-
-      if (ins.meta && ins.meta.changes === 1) {
-        await c.env.DB.prepare(
-          `UPDATE users SET wallet_balance = COALESCE(wallet_balance, 0) + ?, wallet_balance_piastres = COALESCE(wallet_balance_piastres, 0) + ?, wallet_updated_at = ? WHERE id = ?`,
-        )
-          .bind(captainPayout, payoutPiastres, nowIso(), trip.captain_id)
-          .run();
-      }
-    }
-  }
+  await settleTripCompletion({
+    db: c.env.DB,
+    trip,
+    tripId,
+    finalFare,
+    commission,
+    captainPayout,
+  });
 
   const updated = await c.env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
     .bind(tripId)
