@@ -85,7 +85,25 @@ APP_VERSION = "0.4.0"
 DEV_OTP = "false"
 DEFAULT_CITY = "cairo"
 JWT_ISSUER = "synaptic-go"
-OSRM_URL = "https://router.project-osrm.org"
+# Routing engine. Self-hosted OSRM (Geofabrik Egypt extract, MLD pipeline) —
+# see the E15 PR for the provisioning recipe and the health check.
+#
+# There is deliberately NO public default, here or in lib/routing.ts. The old
+# value, router.project-osrm.org, is a demo server whose usage policy forbids
+# this use, permits withdrawal without notice, and receives precise trip
+# coordinates belonging to an uncontracted third party (F-21-02, F-25-08).
+# `getRoute` now takes this URL as a required argument, so nothing can silently
+# inherit a public endpoint again.
+#
+# THIS HOST MUST ANSWER BEFORE THE NEXT DEPLOY. If it does not, routing degrades
+# to haversine x 1.35 exactly as it does today — except it now emits a
+# `route_fallback` counter through lib/log.ts instead of failing silently. Once
+# E09 flips the booking call site to `allowFallback: false`, an unreachable
+# engine fails the booking rather than inventing a price.
+#
+# This top-level block publishes over production on a bare `wrangler deploy`
+# (see the DEV_OTP note above), so it carries the production host, not a dev one.
+OSRM_URL = "https://osrm.synapticstudio.tech"
 # Turnstile site key is pubic-safe; can be set here. The matching secret MUST
 # be set via `wrangler secret put TURNSTILE_SECRET_KEY`.
 TURNSTILE_SITE_KEY = ""
@@ -145,7 +163,22 @@ APP_VERSION = "0.4.0"
 DEV_OTP = "false"   # Force real OTP delivery in prod — must run with WhatsApp/email secret
 DEFAULT_CITY = "cairo"
 JWT_ISSUER = "synaptic-go"
-OSRM_URL = "https://router.project-osrm.org"
+# Routing engine. Self-hosted OSRM (Geofabrik Egypt extract, MLD pipeline) —
+# see the E15 PR for the provisioning recipe and the health check.
+#
+# There is deliberately NO public default, here or in lib/routing.ts. The old
+# value, router.project-osrm.org, is a demo server whose usage policy forbids
+# this use, permits withdrawal without notice, and receives precise trip
+# coordinates belonging to an uncontracted third party (F-21-02, F-25-08).
+# `getRoute` now takes this URL as a required argument, so nothing can silently
+# inherit a public endpoint again.
+#
+# THIS HOST MUST ANSWER BEFORE THE NEXT DEPLOY. If it does not, routing degrades
+# to haversine x 1.35 exactly as it does today — except it now emits a
+# `route_fallback` counter through lib/log.ts instead of failing silently. Once
+# E09 flips the booking call site to `allowFallback: false`, an unreachable
+# engine fails the booking rather than inventing a price.
+OSRM_URL = "https://osrm.synapticstudio.tech"
 TURNSTILE_SITE_KEY = "0x4AAAAAAA" # placeholder — set your site key
 
 [env.prod.observability]
@@ -173,7 +206,22 @@ APP_VERSION = "0.4.0"
 DEV_OTP = "false"
 DEFAULT_CITY = "cairo"
 JWT_ISSUER = "synaptic-go"
-OSRM_URL = "https://router.project-osrm.org"
+# Routing engine. Self-hosted OSRM (Geofabrik Egypt extract, MLD pipeline) —
+# see the E15 PR for the provisioning recipe and the health check.
+#
+# There is deliberately NO public default, here or in lib/routing.ts. The old
+# value, router.project-osrm.org, is a demo server whose usage policy forbids
+# this use, permits withdrawal without notice, and receives precise trip
+# coordinates belonging to an uncontracted third party (F-21-02, F-25-08).
+# `getRoute` now takes this URL as a required argument, so nothing can silently
+# inherit a public endpoint again.
+#
+# THIS HOST MUST ANSWER BEFORE THE NEXT DEPLOY. If it does not, routing degrades
+# to haversine x 1.35 exactly as it does today — except it now emits a
+# `route_fallback` counter through lib/log.ts instead of failing silently. Once
+# E09 flips the booking call site to `allowFallback: false`, an unreachable
+# engine fails the booking rather than inventing a price.
+OSRM_URL = "https://osrm-staging.synapticstudio.tech"
 TURNSTILE_SITE_KEY = ""
 
 [env.staging.observability]
