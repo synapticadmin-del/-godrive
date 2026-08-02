@@ -21,7 +21,7 @@ export async function seedUser(
   balanceEgp = 0,
 ): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO users (id, email, role, status, wallet_balance, wallet_balance_piastres, created_at, updated_at)
+    `INSERT OR REPLACE INTO users (id, email, role, status, wallet_balance, wallet_balance_piastres, created_at, updated_at)
      VALUES (?, ?, ?, 'active', ?, ?, datetime('now'), datetime('now'))`,
   )
     .bind(id, `${id}@test.local`, role, balanceEgp, Math.round(balanceEgp * 100))
@@ -31,7 +31,7 @@ export async function seedUser(
 /** Insert an approved, online captain row for an existing user. */
 export async function seedCaptain(userId: string, online = true): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO captains (user_id, approval_status, is_online, created_at, updated_at)
+    `INSERT OR REPLACE INTO captains (user_id, approval_status, is_online, created_at, updated_at)
      VALUES (?, 'approved', ?, datetime('now'), datetime('now'))`,
   )
     .bind(userId, online ? 1 : 0)
@@ -53,7 +53,7 @@ export type SeedTrip = {
 
 export async function seedTrip(t: SeedTrip): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO trips
+    `INSERT OR REPLACE INTO trips
        (id, rider_id, captain_id, status, city, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
         currency, payment_method, estimated_fare, offered_price, accepted_price, final_fare, commission,
         created_at, updated_at)
