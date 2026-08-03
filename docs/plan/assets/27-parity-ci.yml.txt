@@ -1,0 +1,64 @@
+# Proposed CI workflow for the cross-app parity check (T27, P0.6).
+#
+# NOT installed by this PR. The review phase ships documentation only, and the
+# GitHub App used by the review chats has no `workflows` permission, so this
+# file lives here as text. To adopt it, copy to .github/workflows/parity.yml
+# once scripts/check_app_parity.py exists (see docs/plan/27-cross-app-parity-consistency.md §6.7).
+#
+# Rollout note from the plan: ship `widgets`, `deps` and `status` as hard
+# failures (they are green or nearly green today) and keep `strings` and
+# `arabic` as warnings for the first two sprints, so the 302-literal backlog in
+# the rider app can be paid down without blocking unrelated work.
+
+name: Cross-app parity
+
+on:
+  pull_request:
+    paths:
+      - "apps/rider/**"
+      - "apps/captain/**"
+      - "packages/flutter_shared/**"
+      - "packages/shared/**"
+      - "scripts/check_app_parity.py"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Hard gates: these must stay green.
+      - name: Structural parity (widgets, dependencies, trip-status vocabulary)
+        run: python3 scripts/check_app_parity.py --only widgets deps status
+
+      # Ratchets: warn now, promote to hard failure once the backlog is paid down.
+      - name: Copy parity (duplicate strings, hardcoded Arabic budget)
+        id: copy
+        continue-on-error: true
+        run: python3 scripts/check_app_parity.py --only strings arabic
+
+      - name: Machine-readable report
+        if: always()
+        run: python3 scripts/check_app_parity.py --json > parity-report.json || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-report
+          path: parity-report.json
+
+      - name: Flag the copy ratchet on the PR
+        if: steps.copy.outcome == 'failure' && github.event_name == 'pull_request'
+        run: |
+          echo "::warning title=Cross-app copy parity::This PR adds a hardcoded Arabic literal or a string duplicated across both apps. See docs/plan/27-cross-app-parity-consistency.md section 6.8."
