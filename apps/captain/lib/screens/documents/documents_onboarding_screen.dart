@@ -7,7 +7,7 @@ import 'package:flutter_shared/flutter_shared.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'package:tempo_captain/services/captain_state.dart';
 
 /// Documents step of the captain onboarding, redesigned after the product
 /// mock-ups: a grid of dark, rounded upload tiles (like the screenshots)
