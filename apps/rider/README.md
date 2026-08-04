@@ -1,4 +1,4 @@
-# synaptic_go_rider
+# tempo_rider
 
 A new Flutter project.
 
