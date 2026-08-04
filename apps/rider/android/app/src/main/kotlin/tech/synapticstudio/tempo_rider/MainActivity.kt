@@ -1,4 +1,4 @@
-package tech.synapticstudio.synaptic_go_captain
+package tech.synapticstudio.tempo_rider
 
 import io.flutter.embedding.android.FlutterActivity
 
