@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ArrowLeft, Mail, Shield, Loader2 } from "lucide-react";
-import GoDriveLogo from "../components/common/GoDriveLogo";
+import TempoLogo from "../components/common/TempoLogo";
 
 export default function LoginPage() {
   const { token, loginWithPassword } = useAuth();
@@ -28,7 +28,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-bg-primary" dir="rtl">
-      {/* Background decoration with GoDrive brand green */}
+      {/* Background decoration with Tempo brand blue */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-primary-500/10 blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-primary-500/5 blur-3xl" />
@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <GoDriveLogo size="xl" className="mb-2" />
+          <TempoLogo size="xl" className="mb-2" />
           <p className="text-sm font-medium text-text-tertiary mt-1">لوحة تحكم الإدارة</p>
         </div>
 
@@ -96,7 +96,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center mt-6 text-xs text-text-tertiary">
-          © 2026 GoDrive · جميع الحقوق محفوظة
+          © 2026 Tempo · جميع الحقوق محفوظة
         </p>
       </div>
     </div>
