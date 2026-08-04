@@ -230,7 +230,7 @@ class CaptainState extends ChangeNotifier {
   /// Begin in-app turn-by-turn navigation to [lat],[lng]. [headingToPickup]
   /// distinguishes "navigate to the rider" from "navigate to the destination"
   /// for the banner copy. This replaces the old behaviour of deep-linking out
-  /// to Google Maps — the captain now stays inside GoDrive with the route on
+  /// to Google Maps — the captain now stays inside Tempo with the route on
   /// the live map.
   void startInAppNavigation(double lat, double lng, bool headingToPickup) {
     navigationTarget = {
@@ -706,7 +706,7 @@ class CaptainState extends ChangeNotifier {
         accuracy: accuracy,
         distanceFilter: distanceFilter,
         foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'GoDrive — أنت متصل',
+          notificationTitle: 'Tempo — أنت متصل',
           notificationText: 'يتم تحديث موقعك لاستقبال الرحلات',
           enableWakeLock: true,
         ),
