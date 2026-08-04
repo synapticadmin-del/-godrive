@@ -1,6 +1,6 @@
 {
-    "name": "synaptic_go_rider",
-    "short_name": "synaptic_go_rider",
+    "name": "tempo_rider",
+    "short_name": "tempo_rider",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
