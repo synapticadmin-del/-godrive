@@ -102,7 +102,7 @@ export default function LiveMapPage() {
         const safeRating = escapeHtml(cap.rating_avg ?? '—');
         const safeLastSeen = escapeHtml(cap.last_seen_at ? new Date(cap.last_seen_at).toLocaleTimeString('ar-EG') : '—');
         const marker = L.circleMarker([cap.last_lat, cap.last_lng], {
-          radius: 9, color: '#80b445', fillColor: '#80b445', fillOpacity: 0.9, weight: 2,
+          radius: 9, color: '#1472ed', fillColor: '#1472ed', fillOpacity: 0.9, weight: 2,
         }).bindPopup(
           `<b>🚗 ${safeName}</b><br/>${safeMake} ${safeModel}<br/>` +
           `لوحة: ${safePlate}<br/>تقييم: ⭐${safeRating}<br/>` +
@@ -120,7 +120,7 @@ export default function LiveMapPage() {
         const safeStatus = escapeHtml(t.status);
         const safeTripId = escapeHtml(t.id.slice(0, 12));
         const pickup = L.circleMarker([t.pickup_lat, t.pickup_lng], {
-          radius: 7, color: '#80b445', fillColor: '#80b445', fillOpacity: 0.8,
+          radius: 7, color: '#1472ed', fillColor: '#1472ed', fillOpacity: 0.8,
         }).bindPopup(`<b>انطلاق</b><br/>${safeStatus}<br/>${safeTripId}`);
         layerRef.current.addLayer(pickup); bounds.push([t.pickup_lat, t.pickup_lng]);
         const drop = L.circleMarker([t.dropoff_lat, t.dropoff_lng], {
@@ -129,7 +129,7 @@ export default function LiveMapPage() {
         layerRef.current.addLayer(drop); bounds.push([t.dropoff_lat, t.dropoff_lng]);
         if (t.captain_lat != null && t.captain_lng != null) {
           const cap = L.circleMarker([t.captain_lat, t.captain_lng], {
-            radius: 8, color: '#334155', fillColor: '#80b445', fillOpacity: 1, weight: 3,
+            radius: 8, color: '#334155', fillColor: '#1472ed', fillOpacity: 1, weight: 3,
           }).bindPopup(`<b>كابتن الرحلة</b><br/>${safeTripId}`);
           layerRef.current.addLayer(cap); bounds.push([t.captain_lat, t.captain_lng]);
         }
