@@ -39,7 +39,7 @@ class RideRequestModel {
     return RideRequestModel(
       id: json['id'] as String,
       riderId: json['rider_id'] as String? ?? '',
-      riderName: json['rider_name'] as String? ?? 'عميل GoDrive',
+      riderName: json['rider_name'] as String? ?? 'عميل Tempo',
       riderPhone: json['rider_phone'] as String? ?? '',
       riderAvatar: json['rider_avatar'] as String? ?? '',
       pickupLat: (json['pickup_lat'] as num).toDouble(),
