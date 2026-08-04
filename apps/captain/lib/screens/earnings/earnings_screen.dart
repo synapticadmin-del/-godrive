@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
-import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'package:tempo_captain/services/captain_state.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'wallet_screen.dart';
 
