@@ -1,5 +1,5 @@
-name: synaptic_go_rider
-description: GoDrive — Rider app (Egypt ride-hailing)
+name: tempo_rider
+description: Tempo — Rider app (Egypt ride-hailing)
 publish_to: "none"
 version: 1.0.0+1
 
