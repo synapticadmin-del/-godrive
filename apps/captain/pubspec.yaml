@@ -1,5 +1,5 @@
-name: synaptic_go_captain
-description: GoDrive — Captain app (Egypt ride-hailing)
+name: tempo_captain
+description: Tempo — Captain app (Egypt ride-hailing)
 publish_to: "none"
 version: 1.0.0+1
 
