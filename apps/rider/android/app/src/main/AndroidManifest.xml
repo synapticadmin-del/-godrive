@@ -8,7 +8,7 @@
     <!-- Background location removed: no foreground service is implemented yet. Re-add with a real foreground service when background tracking ships. -->
 
     <application
-        android:label="GoDrive"
+        android:label="Tempo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
