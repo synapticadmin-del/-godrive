@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,7 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// GoDrive Captain launch screen.
+/// Tempo Captain launch screen.
 ///
 /// Replaced the video-based splash with a static brand image. The old splash
 /// looped an MP4 that was never framed for this screen — the decode took a
@@ -24,7 +23,7 @@ import 'package:url_launcher/url_launcher.dart';
 ///  * three radar rings expand behind the logo — the dispatch metaphor,
 ///    "we are already looking for work around you";
 ///  * the logo's glow breathes;
-///  * a sheen sweeps the GoDrive wordmark every few seconds;
+///  * a sheen sweeps the Tempo wordmark every few seconds;
 ///  * the progress bar slides a light from end to end;
 ///  * road dashes scroll across the lower edge of the screen — the car is
 ///    already moving before the first screen loads.
@@ -37,8 +36,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  bool _imageReady = false;
-
   /// The one shared clock for every looping animation on this screen.
   late final AnimationController _motion = AnimationController(
     vsync: this,
@@ -53,19 +50,6 @@ class _SplashScreenState extends State<SplashScreen>
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
     ));
-    _precacheBrandImage();
-  }
-
-  Future<void> _precacheBrandImage() async {
-    try {
-      await precacheImage(
-        const AssetImage('assets/images/splash_brand.png'),
-        context,
-      );
-      if (mounted) setState(() => _imageReady = true);
-    } catch (_) {
-      if (mounted) setState(() => _imageReady = false);
-    }
   }
 
   Future<void> _openSynaptic() async {
@@ -171,23 +155,15 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         );
       },
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 500),
-        child: _imageReady
-            ? ClipRRect(
-                key: const ValueKey('brand'),
-                borderRadius: BorderRadius.circular(56),
-                child: Image.asset(
-                  'assets/images/splash_brand.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _logoFallback(),
-                ),
-              )
-            : Padding(
-                key: const ValueKey('logo'),
-                padding: const EdgeInsets.all(38),
-                child: _logoFallback(),
-              ),
+      // Painted, not shipped: no decode before the first frame, no second
+      // asset per density, and it recolours itself from the token ramp. The
+      // captain's radar rings keep their own rhythm around it.
+      child: const Padding(
+        padding: EdgeInsets.all(34),
+        child: TempoSplashMark(
+          size: 152,
+          color: AppTokens.nightAction,
+        ),
       ),
     )
         .animate()
@@ -200,18 +176,6 @@ class _SplashScreenState extends State<SplashScreen>
         );
   }
 
-  Widget _logoFallback() {
-    return Image.asset(
-      'assets/images/godrive_logo.png',
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const Icon(
-        Icons.navigation_rounded,
-        size: 84,
-        color: Colors.white,
-      ),
-    );
-  }
-
   Widget _buildWordmark() {
     final strings = AppStrings.of(context);
     return Column(
@@ -219,7 +183,7 @@ class _SplashScreenState extends State<SplashScreen>
         // Base colour is slightly dimmed so the passing sheen has contrast
         // to play against; shimmer on full-white text would be invisible.
         Text(
-          'GoDrive',
+          'Tempo',
           style: AppTokens.font(
             fontSize: 40,
             fontWeight: FontWeight.w900,
