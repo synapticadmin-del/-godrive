@@ -1,4 +1,4 @@
-/// Shared API client helpers for Synaptic Go Flutter apps.
+/// Shared API client helpers for the Tempo Flutter apps.
 /// Copy or path-depend this package when Flutter monorepo tooling is ready.
 library flutter_shared;
 
@@ -9,7 +9,8 @@ export 'services/fcm_service.dart';
 export 'theme/app_theme.dart';
 export 'l10n/app_strings.dart';
 export 'widgets/main_bottom_nav.dart';
-export 'widgets/godrive_wordmark.dart';
+export 'widgets/tempo_wordmark.dart';
+export 'widgets/tempo_splash.dart';
 export 'widgets/empty_state.dart';
 export 'widgets/error_state.dart';
 export 'widgets/skeleton_loader.dart';
