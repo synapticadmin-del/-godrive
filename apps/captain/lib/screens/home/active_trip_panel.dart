@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
-import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'package:tempo_captain/services/captain_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'trip_chat_screen.dart';
@@ -408,7 +408,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
 
     if (lat == null || lng == null) return const SizedBox.shrink();
 
-    // In-app navigation: keep the captain inside GoDrive with the route drawn
+    // In-app navigation: keep the captain inside Tempo with the route drawn
     // on the live map, instead of deep-linking out to Google Maps. The shell
     // switches to the map tab and starts a follow-me navigation mode.
     return NavigationButton(
