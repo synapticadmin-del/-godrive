@@ -49,7 +49,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Backgrounds — GoDrive Slate Dark base */
+  /* Backgrounds — Tempo Slate Dark base */
   --bg-primary: 13 17 23;         /* #0D1117 */
   --bg-secondary: 22 27 34;       /* #161B22 */
   --bg-tertiary: 33 38 45;        /* #21262D */
@@ -109,7 +109,7 @@
   }
 
   ::selection {
-    background-color: #6bb522;
+    background-color: #1472ed;
     color: white;
   }
 
@@ -131,9 +131,9 @@
     background: rgb(var(--scrollbar-thumb-hover));
   }
 
-  /* Focus visibility — GoDrive Green ring */
+  /* Focus visibility — Tempo Blue ring */
   :focus-visible {
-    outline: 2px solid #6bb522;
+    outline: 2px solid #1472ed;
     outline-offset: 2px;
   }
 
