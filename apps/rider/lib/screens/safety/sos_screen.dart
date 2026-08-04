@@ -42,7 +42,7 @@ class _SosScreenState extends State<SosScreen> {
         // emergency services, which is the single most dangerous thing this
         // product could get wrong.
         content: Text(
-          'هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك الحالي إلى فريق تشغيل GoDrive '
+          'هل أنت متأكد من تفعيل حالة الطوارئ؟ سيتم إرسال موقعك الحالي إلى فريق تشغيل Tempo '
           'لمتابعة رحلتك. التطبيق لا يتصل بالشرطة أو الإسعاف — لو في خطر مباشر اتصل بـ 122 أو 123 بنفسك.',
           style: AppTokens.font(color: go.text),
         ),
@@ -100,7 +100,7 @@ class _SosScreenState extends State<SosScreen> {
         'lng': pos.longitude,
       });
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('تم إبلاغ فريق تشغيل GoDrive وإرسال موقعك الحالي')));
+      messenger.showSnackBar(const SnackBar(content: Text('تم إبلاغ فريق تشغيل Tempo وإرسال موقعك الحالي')));
       navigator.pop();
     } catch (e) {
       if (!mounted) return;
@@ -120,7 +120,7 @@ class _SosScreenState extends State<SosScreen> {
       if (url == null || url.isEmpty) {
         throw Exception('تعذّر إنشاء رابط تتبع الرحلة');
       }
-      await Share.share('تتبع رحلتي على GoDrive عبر الرابط التالي:\n$url');
+      await Share.share('تتبع رحلتي على Tempo عبر الرابط التالي:\n$url');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
