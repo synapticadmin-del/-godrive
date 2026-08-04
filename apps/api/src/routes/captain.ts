@@ -450,7 +450,7 @@ captainRoutes.get("/nearby-requests", async (c) => {
       return {
         id: r.id,
         rider_id: r.rider_id,
-        rider_name: r.rider_name || "عميل GoDrive",
+        rider_name: r.rider_name || "عميل Tempo",
         rider_phone: r.rider_phone || "",
         rider_avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${r.rider_id}`,
         pickup_lat: r.pickup_lat,
