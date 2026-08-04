@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — publish the GoDrive Worker to an explicitly named environment.
+# deploy.sh — publish the Tempo Worker to an explicitly named environment.
 #
 # ---------------------------------------------------------------------------
 # Why this script was rewritten (task E01, launch-gate item 2)
