@@ -303,7 +303,7 @@ class _TripScreenState extends State<TripScreen> {
                       urlTemplate: MapTiles.urlForContext(context),
                       subdomains: MapTiles.subdomains,
                       retinaMode: RetinaMode.isHighDensity(context),
-                      userAgentPackageName: 'tech.synapticstudio.godrive.rider',
+                      userAgentPackageName: 'tech.synapticstudio.tempo.rider',
                     ),
                     // Casing beneath the route keeps it legible over busy tiles.
                     if (_routePoints.length >= 2)
