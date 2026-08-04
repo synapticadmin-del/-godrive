@@ -394,10 +394,10 @@ class _BalanceCard extends StatelessWidget {
                       ),
                       // Two-tone in white keeps the lockup's own hierarchy
                       // without competing with the balance.
-                      GoDriveWordmark(
+                      TempoWordmark(
                         fontSize: 13,
-                        goColor: Colors.white.withOpacity(0.92),
-                        driveColor: Colors.white.withOpacity(0.55),
+                        textColor: Colors.white.withOpacity(0.92),
+                        accentColor: Colors.white.withOpacity(0.55),
                       ),
                     ],
                   ),
