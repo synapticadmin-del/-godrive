@@ -72,9 +72,9 @@ export const colors = {
       contrastText: '#ffffff',
     },
     info: {
-      light: '#eff6ff',
-      main: '#1d4ed8',
-      dark: '#1e40af',
+      light: '#e8f7f8',
+      main: '#0e818e',
+      dark: '#09636d',
       contrastText: '#ffffff',
     },
   },
