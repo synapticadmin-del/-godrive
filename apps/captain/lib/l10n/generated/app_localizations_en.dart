@@ -5,7 +5,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'GoDrive Captain';
+  String get appTitle => 'Tempo Captain';
 
   @override
   String get appSlogan => 'Earn more, your road is green';
