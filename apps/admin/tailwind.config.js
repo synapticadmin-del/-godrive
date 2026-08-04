@@ -84,8 +84,8 @@ export default {
         },
         info: {
           light: v("--info-light"),
-          main: "#6bb522",
-          dark: "#457715",
+          main: "#0e818e",
+          dark: "#09636d",
         },
       },
       fontFamily: {
