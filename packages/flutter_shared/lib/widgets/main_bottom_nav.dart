@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
-import 'godrive_wordmark.dart';
+import 'tempo_wordmark.dart';
 
 /// Promotes the centre nav button from a shortcut to a real destination.
 ///
@@ -77,8 +77,8 @@ class NavFirstDestination {
 /// read as one continuous form — the crest floats *in* the bar rather than
 /// being a hard circle stuck on top of it.
 ///
-/// The crest carries the GoDrive wordmark as live text ([GoDriveWordmark]).
-/// It used to paint `assets/images/godrive_logo.png`, but that asset is the app
+/// The crest carries the Tempo wordmark as live text ([TempoWordmark]).
+/// It used to paint `assets/images/tempo_logo.png`, but that asset is the app
 /// icon — a white tile with the wordmark inside — so it covered the crest's own
 /// fill with an opaque white square and squeezed the wordmark down to roughly
 /// a third of the crest's width. Drawing the lockup as text gives it the full
@@ -142,7 +142,7 @@ class MainBottomNav extends StatelessWidget {
   /// Optional image to paint in the crest *instead of* the live wordmark.
   ///
   /// Only for white-label builds shipping their own mark. Leave it null for
-  /// GoDrive: the bundled `godrive_logo.png` is an app-icon tile and looks
+  /// Tempo: the bundled `tempo_logo.png` is an app-icon tile and looks
   /// wrong at this size (see the class doc).
   final String? centerLogoAsset;
 
@@ -409,14 +409,14 @@ class _CrestShell extends StatelessWidget {
             // would otherwise push it past the capsule's edge.
             ? const FittedBox(
                 fit: BoxFit.scaleDown,
-                child: GoDriveWordmark(fontSize: 17),
+                child: TempoWordmark(fontSize: 17),
               )
             : Image.asset(
                 asset,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => const FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: GoDriveWordmark(fontSize: 17),
+                  child: TempoWordmark(fontSize: 17),
                 ),
               ),
       ),
