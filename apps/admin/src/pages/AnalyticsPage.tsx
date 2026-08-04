@@ -54,8 +54,8 @@ interface AnalyticsData {
 }
 
 const BRAND_COLORS = {
-  primary: '#6bb522',       // GoDrive Green
-  charcoal: '#53585f',      // GoDrive Slate
+  primary: '#1472ed',       // Tempo Blue
+  charcoal: '#53585f',      // Tempo Slate
   accent: '#74c425',
   success: '#22c55e',
   warning: '#f59e0b',
@@ -64,7 +64,7 @@ const BRAND_COLORS = {
   cyan: '#06b6d4',
 };
 
-const PIE_COLORS = ['#6bb522', '#ef4444', '#f59e0b', '#3b82f6'];
+const PIE_COLORS = ['#1472ed', '#ef4444', '#f59e0b', '#3b82f6'];
 
 type DatePresetOption = 'today' | '7d' | '30d' | 'thisYear';
 
@@ -417,8 +417,8 @@ export default function AnalyticsPage() {
                   <AreaChart data={data.daily} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gmvGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6bb522" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#6bb522" stopOpacity={0.0} />
+                        <stop offset="5%" stopColor="#1472ed" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#1472ed" stopOpacity={0.0} />
                       </linearGradient>
                       <linearGradient id="commissionGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
@@ -443,9 +443,9 @@ export default function AnalyticsPage() {
                       type="monotone"
                       dataKey="gmv"
                       name="حجم المبيعات (GMV)"
-                      stroke="#6bb522"
+                      stroke="#1472ed"
                       strokeWidth={3}
-                      dot={{ r: 4, fill: '#6bb522', strokeWidth: 2, stroke: '#ffffff' }}
+                      dot={{ r: 4, fill: '#1472ed', strokeWidth: 2, stroke: '#ffffff' }}
                       activeDot={{ r: 6, strokeWidth: 0 }}
                       fill="url(#gmvGradient)"
                     />
@@ -554,7 +554,7 @@ export default function AnalyticsPage() {
                     <Bar
                       dataKey="completed"
                       name="المكتملة"
-                      fill="#6bb522"
+                      fill="#1472ed"
                       barSize={24}
                       radius={[6, 6, 0, 0]}
                     />
