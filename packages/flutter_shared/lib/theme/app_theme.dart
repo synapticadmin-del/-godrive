@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// GoDrive design system — shared across the Rider & Captain apps.
+/// Tempo design system — shared across the Rider & Captain apps.
 ///
-/// The system keeps GoDrive's own green brand identity (#4E842D) while
+/// The system carries Tempo's blue brand identity (#1472ED) while
 /// adopting the structural language proven by world-class driver apps
 /// (inDrive, Uber Driver, Bolt Driver):
 ///
@@ -15,33 +15,47 @@ import 'package:google_fonts/google_fonts.dart';
 ///  * A full-bleed map with floating controls rather than a boxed-in map.
 ///
 /// The palette supports BOTH a light and a dark presentation:
-///  - Light: pure white surfaces with GoDrive Green #4E842D (WCAG AA on white)
-///  - Dark:  near-black surfaces with a lime action colour #C1F11D
-///           (black text on lime ≈ 14:1 contrast — very high legibility)
+///  - Light: pure white surfaces with Tempo Blue #1472ED (WCAG AA on white)
+///  - Dark:  near-black surfaces with a sky-blue action colour #4CC2FF
+///           (near-black ink on it ≈ 9.5:1 — very high legibility)
+///
+/// The blue ramp replaced a green one in the Tempo rebrand. It is a hue
+/// rotation rather than a re-tune: each step was derived by solving for the
+/// lightness that reproduces the corresponding green step's measured contrast
+/// on white at hue 214°, so every contrast promise these comments make still
+/// holds to two decimal places. Neutrals were not touched, and neither were
+/// the semantic greens — a completed trip is still green, because that
+/// convention is read without thinking.
 ///
 /// Typography is Cairo: a geometric Arabic-first sans with weights up to 900,
 /// which gives us the large-number emphasis the layout depends on and matches
 /// the circular, low-contrast character of the category.
 ///
-/// IMPORTANT: every token that existed before is preserved verbatim so the
-/// Captain and Admin apps keep compiling and rendering unchanged. New tokens
-/// are additive only.
+/// IMPORTANT: every token NAME that existed before still resolves, so the
+/// Captain and Admin apps keep compiling. The one structural change is that
+/// `lime` / `limePressed` / `onLime` are now deprecated aliases of the
+/// `nightAction*` tokens that replaced them — the value moved, the name did
+/// not, so no call site had to change.
 class AppTokens {
   const AppTokens._();
 
   // ---------------------------------------------------------------------
   // Brand
   // ---------------------------------------------------------------------
-  /// GoDrive green. 5.1:1 on white — passes WCAG AA for body text.
-  static const primary = Color(0xFF4E842D);
-  static const primaryFill = Color(0xFF4E842D);
-  static const primaryLight = Color(0xFF69A83D);
-  static const primaryDark = Color(0xFF38631E);
-  static const primaryDeep = Color(0xFF22400F);
+  /// Tempo blue. 4.50:1 on white — passes WCAG AA for body text.
+  ///
+  /// Derived from the GoDrive green it replaces: same measured contrast, new
+  /// hue. Do not hand-adjust one step in isolation — the ramp's steps are
+  /// related to each other, and the tints below assume these exact values.
+  static const primary = Color(0xFF1472ED);
+  static const primaryFill = Color(0xFF1472ED);
+  static const primaryLight = Color(0xFF619AE5);
+  static const primaryDark = Color(0xFF0C55B5);
+  static const primaryDeep = Color(0xFF063776);
 
   /// Tinted fills for chips, avatars and selected states.
-  static const primarySoft = Color(0xFFEAF5E3);
-  static const headerAccent = Color(0xFFDDF2D1);
+  static const primarySoft = Color(0xFFECF2FA);
+  static const headerAccent = Color(0xFFE3EDFA);
 
   // ---------------------------------------------------------------------
   // Semantic
@@ -132,24 +146,50 @@ class AppTokens {
   static const nightMuted = Color(0xFF9A9AA2);
   static const nightBorder = Color(0xFF34343B);
 
-  // ── Lime action colour for dark surfaces ──
-  // Lime on near-black reads brilliantly; pair ONLY with black foreground.
-  static const lime = Color(0xFFC1F11D);
-  static const limePressed = Color(0xFFA9D617);
-  static const onLime = Color(0xFF101010);
+  // ── Night action colour for dark surfaces ──
+  // A vivid sky blue on near-black reads brilliantly; pair ONLY with the
+  // near-black ink below.
+  //
+  // This replaced a lime #C1F11D in the Tempo rebrand. Lime is a green-family
+  // accent: leaving it in place would have kept the entire night theme reading
+  // green long after daylight had turned blue, which is the single most
+  // visible way a half-finished rebrand gives itself away.
+  //
+  // Ink on this colour is 9.49:1 and the colour on `nightPanel` is 8.66:1 —
+  // both clear WCAG AAA for large text and AA for body at any size. Lime
+  // measured 14.38:1, so this is a deliberate step down in raw contrast in
+  // exchange for a hue that belongs to the brand; it remains far above the
+  // 4.5:1 floor.
+  static const nightAction = Color(0xFF4CC2FF);
+  static const nightActionPressed = Color(0xFF24B4FF);
+  static const onNightAction = Color(0xFF101010);
+
+  // Retained so the ~31 existing call sites keep compiling unchanged. New code
+  // should use the `nightAction*` names above; these go away once the call
+  // sites are migrated in a follow-up.
+  @Deprecated('Use nightAction — the brand is no longer green')
+  static const lime = nightAction;
+  @Deprecated('Use nightActionPressed — the brand is no longer green')
+  static const limePressed = nightActionPressed;
+  @Deprecated('Use onNightAction — the brand is no longer green')
+  static const onLime = onNightAction;
 
   // ── Splash / launch backdrop ──
   // The brand moment before either app hands off to its first themed screen.
-  // A near-black field lit by two brand-green sources; referencing these from
+  // A near-black field lit by two brand-blue sources; referencing these from
   // the token ramp keeps the splash in the design system instead of
   // re-inventing one-off hex per app.
-  static const splashBg = Color(0xFF0C1A08);
-  static const splashGlowStart = Color(0xFF2C5518);
-  static const splashGlowTint = Color(0x333E7A22);
-  static const splashFade = Color(0x000C1A08);
+  //
+  // `splashFade` must stay a fully transparent `splashBg` and NOT a
+  // transparent black — a gradient fading to transparent black drags a grey
+  // cast through its midpoint. If you change `splashBg`, change this too.
+  static const splashBg = Color(0xFF0A1729);
+  static const splashGlowStart = Color(0xFF124A93);
+  static const splashGlowTint = Color(0x331869D4);
+  static const splashFade = Color(0x000A1729);
 
   // ── Map & route rendering ──
-  static const routeLine = Color(0xFF4E842D);      // route on light basemap
+  static const routeLine = Color(0xFF1472ED);      // route on light basemap
   static const routeLineNight = Color(0xFFFFFFFF); // route on dark basemap
   static const routeCasing = Color(0x33000000);    // soft outline under route
   static const pinPickup = Color(0xFF12B76A);      // origin marker
@@ -243,7 +283,7 @@ class AppTokens {
 
   static const mapSubdomains = ['a', 'b', 'c'];
   static const mapAttribution = '© OpenStreetMap © CARTO';
-  static const mapUserAgent = 'tech.synapticstudio.godrive';
+  static const mapUserAgent = 'tech.synapticstudio.tempo';
 
   static String mapTilesFor(Brightness brightness) =>
       brightness == Brightness.dark ? mapTilesDark : mapTilesLight;
@@ -401,9 +441,9 @@ class GoTheme extends ThemeExtension<GoTheme> {
     text: AppTokens.nightText,
     muted: AppTokens.nightMuted,
     border: AppTokens.nightBorder,
-    action: AppTokens.lime,
-    onAction: AppTokens.onLime,
-    actionPressed: AppTokens.limePressed,
+    action: AppTokens.nightAction,
+    onAction: AppTokens.onNightAction,
+    actionPressed: AppTokens.nightActionPressed,
     routeLine: AppTokens.routeLineNight,
     routeCasing: Color(0x99000000),
     pinPickup: AppTokens.pinPickup,
@@ -890,8 +930,8 @@ class AppTheme {
       ),
 
       // Header: a solid brand band. `action`/`onAction` is the one pairing
-      // the token ramp guarantees is legible in both brightnesses — green
-      // on white, and near-black on lime.
+      // the token ramp guarantees is legible in both brightnesses — brand
+      // blue on white, and near-black ink on the sky-blue night action.
       headerBackgroundColor: go.action,
       headerForegroundColor: go.onAction,
       headerHelpStyle: AppTokens.font(
