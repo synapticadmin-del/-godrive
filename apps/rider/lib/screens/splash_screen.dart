@@ -6,33 +6,45 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// GoDrive Rider launch screen.
+/// Tempo Rider launch screen.
 ///
-/// Replaced the video-based splash with a static brand image. The old splash
-/// played a looping MP4 that was never framed for the screen — the aspect
-/// ratio didn't match, the decode took a visible moment, and on slow devices
-/// the rider saw a blank white gap before the video kicked in. This version
-/// paints the brand mark on the very first frame: a high-resolution splash
-/// image with choreographed entrance animations layered on top.
+/// ## What changed, and why
 ///
-/// Two things changed in the motion pass.
+/// This screen has now lost its raster brand image entirely. The previous pass
+/// had already replaced a looping MP4 with a static PNG — which fixed the
+/// aspect-ratio and decode problems the video had — but it left three costs in
+/// place:
 ///
-/// **The stage is no longer flat.** `AppTokens` has shipped `splashBg`,
-/// `splashGlowStart`, `splashGlowTint` and `splashFade` since the palette was
-/// laid down — four tokens that only make sense as a radial brand halo — but
-/// nothing ever referenced them and the splash painted a flat page colour.
-/// They now drive a halo behind the mark that breathes on a slow cycle, so the
-/// screen is alive during the hold instead of frozen.
+///  * a decode before the first meaningful frame, papered over with a fallback
+///    lockup and an [AnimatedSwitcher] that existed only to hide the gap;
+///  * an asset to re-cut for every density, and again for every brand change;
+///  * a mark that could not respond to the theme, so it carried its own
+///    baked-in colour into a screen that has two brightnesses.
 ///
-/// **The fallback no longer double-prints the brand.** `_FallbackLockup` used
-/// to carry its own wordmark, tagline and progress bar while `_WordmarkBlock`
-/// rendered the same three things underneath it, so for the length of the
-/// precache the rider saw "GoDrive" twice, the tagline twice and two progress
-/// bars. The fallback is now just the logo; the persistent block below owns
-/// the type.
+/// [TempoSplashMark] paints the mark instead. It is resolution-free, costs
+/// nothing to decode, recolours itself from the token ramp, and animates as
+/// one continuous gesture rather than a fade layered over a bitmap. The
+/// precache, the fallback lockup and the switcher are all gone with it —
+/// roughly a third of this file was machinery for a problem that no longer
+/// exists.
+///
+/// ## The choreography
+///
+/// The mark draws itself, the type arrives underneath it on an even beat, and
+/// the halo behind everything breathes for the length of the hold. The hold is
+/// 2600ms: long enough for the mark's 1500ms entrance to finish and for the
+/// pulse to land twice, so the rider sees a resolved mark keeping time rather
+/// than an animation cut off mid-gesture.
 ///
 /// The exit is handled one level up: `main.dart` cross-fades this screen into
 /// the first real route rather than swapping it out between two frames.
+///
+/// ## Reduce motion
+///
+/// `flutter_animate` does not consult the platform reduce-motion flag on its
+/// own, so every effect in this file is applied conditionally and the mark is
+/// told to paint its resolved state. The screen still composes identically —
+/// nothing moves.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.onCompleted});
 
@@ -44,7 +56,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  bool _imageReady = false;
   bool _completed = false;
   Timer? _holdTimer;
 
@@ -61,15 +72,15 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
     );
     _glow = CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut);
-    _precacheBrandImage();
+    // No asset to precache any more, so the hold starts on the first frame
+    // instead of waiting on a decode that might never succeed.
+    _holdTimer = Timer(const Duration(milliseconds: 2600), _finish);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // MediaQuery is not available in initState, so the ticker is gated here.
-    // flutter_animate does not consult the platform reduce-motion flag on its
-    // own, so every effect in this file is applied conditionally.
     if (_reduceMotion) {
       if (_glowCtrl.isAnimating) _glowCtrl.stop();
     } else if (!_glowCtrl.isAnimating) {
@@ -79,23 +90,6 @@ class _SplashScreenState extends State<SplashScreen>
 
   bool get _reduceMotion =>
       MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-
-  Future<void> _precacheBrandImage() async {
-    try {
-      await precacheImage(
-        const AssetImage('assets/images/splash_brand.png'),
-        context,
-      );
-      if (mounted) setState(() => _imageReady = true);
-    } catch (_) {
-      if (mounted) setState(() => _imageReady = false);
-    }
-    // Guarded: the precache is an async gap, so a screen torn down while it
-    // was in flight would otherwise arm a timer against a dead State and hold
-    // it alive until it fired.
-    if (!mounted) return;
-    _holdTimer = Timer(const Duration(milliseconds: 2400), _finish);
-  }
 
   void _finish() {
     if (_completed || !mounted) return;
@@ -124,11 +118,11 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Follow the rider's chosen theme instead of forcing light. Previously the
-    // splash pinned AppTheme.light() unconditionally, so a dark-mode rider saw
-    // a white flash on every cold start before their theme could paint.
+    // Follow the rider's chosen theme instead of forcing light, so a dark-mode
+    // rider does not get a white flash on every cold start.
     final brightness = Theme.of(context).brightness;
-    final themed = brightness == Brightness.dark ? AppTheme.dark() : AppTheme.light();
+    final themed =
+        brightness == Brightness.dark ? AppTheme.dark() : AppTheme.light();
     final go = GoTheme.forBrightness(brightness);
 
     return Theme(
@@ -138,8 +132,7 @@ class _SplashScreenState extends State<SplashScreen>
           statusBarColor: Colors.transparent,
           statusBarIconBrightness:
               go.isDark ? Brightness.light : Brightness.dark,
-          statusBarBrightness:
-              go.isDark ? Brightness.dark : Brightness.light,
+          statusBarBrightness: go.isDark ? Brightness.dark : Brightness.light,
         ),
         child: _buildSplash(go),
       ),
@@ -163,28 +156,10 @@ class _SplashScreenState extends State<SplashScreen>
             child: Stack(
               children: [
                 Center(
-                  child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: 340, maxHeight: 340),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: AnimatedSwitcher(
-                        duration: Duration(
-                          milliseconds: reduceMotion ? 0 : 500,
-                        ),
-                        switchInCurve: Curves.easeOut,
-                        child: _imageReady
-                            ? _BrandImage(
-                                key: const ValueKey('brand'),
-                                reduceMotion: reduceMotion,
-                              )
-                            : _FallbackLockup(
-                                key: const ValueKey('fallback'),
-                                go: go,
-                                reduceMotion: reduceMotion,
-                              ),
-                      ),
-                    ),
+                  child: TempoSplashMark(
+                    size: 148,
+                    reduceMotion: reduceMotion,
+                    color: go.isDark ? go.action : AppTokens.primary,
                   ),
                 ),
                 Positioned(
@@ -277,103 +252,11 @@ class _BrandGlow extends StatelessWidget {
   }
 }
 
-class _BrandImage extends StatelessWidget {
-  const _BrandImage({super.key, required this.reduceMotion});
-
-  final bool reduceMotion;
-
-  @override
-  Widget build(BuildContext context) {
-    final image = ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: Image.asset(
-        'assets/images/splash_brand.png',
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-      ),
-    );
-
-    if (reduceMotion) return image;
-
-    return image
-        .animate()
-        .fadeIn(duration: 480.ms)
-        .scale(
-          begin: const Offset(0.92, 0.92),
-          end: const Offset(1, 1),
-          duration: 680.ms,
-          curve: Curves.easeOutBack,
-        )
-        // A single sheen once the mark has settled, timed to land inside the
-        // 2400ms hold so it never gets cut off by the route change.
-        .shimmer(
-          delay: 820.ms,
-          duration: 1150.ms,
-          color: Colors.white.withOpacity(0.28),
-        );
-  }
-}
-
-/// Shown only while `splash_brand.png` is still decoding.
-///
-/// Logo only. The wordmark, tagline and progress bar live in
-/// `_WordmarkBlock`, which is always on screen — carrying them here as well
-/// printed the whole lockup twice during the precache.
-class _FallbackLockup extends StatelessWidget {
-  const _FallbackLockup({
-    super.key,
-    required this.go,
-    required this.reduceMotion,
-  });
-
-  final GoTheme go;
-  final bool reduceMotion;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = go.isDark ? go.action : AppTokens.primary;
-
-    final logo = Image.asset(
-      'assets/images/godrive_logo.png',
-      width: 148,
-      height: 148,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => Container(
-        width: 108,
-        height: 108,
-        decoration: BoxDecoration(
-          color: accent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Icon(
-          Icons.navigation_rounded,
-          size: 56,
-          color: go.isDark ? go.onAction : Colors.white,
-        ),
-      ),
-    );
-
-    if (reduceMotion) return Center(child: logo);
-
-    return Center(
-      child: logo
-          .animate()
-          .fadeIn(duration: 420.ms)
-          .scale(
-            begin: const Offset(0.88, 0.88),
-            end: const Offset(1, 1),
-            duration: 620.ms,
-            curve: Curves.easeOutBack,
-          ),
-    );
-  }
-}
-
 /// Persistent type block beneath the mark.
 ///
-/// The entrance runs on an even 110ms beat — wordmark, tagline, then the
-/// progress bar. The previous delays (180 / 320 / 460 / 500 / 560) were picked
-/// per-element and read as a slightly ragged cascade.
+/// The delays are deliberately late relative to the mark: the ring should be
+/// most of the way round before the type starts arriving, so the eye is led
+/// from the mark down to the word rather than splitting between the two.
 class _WordmarkBlock extends StatelessWidget {
   const _WordmarkBlock({required this.go, required this.reduceMotion});
 
@@ -385,14 +268,12 @@ class _WordmarkBlock extends StatelessWidget {
     final accent = go.isDark ? go.action : AppTokens.primary;
     final strings = AppStrings.of(context);
 
-    final wordmark = Text(
-      'GoDrive',
-      style: AppTokens.font(
-        fontSize: 28,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.5,
-        color: go.text,
-      ),
+    // The live lockup rather than a plain Text: the trailing "o" picks up the
+    // same accent the mark above is drawn in, which ties the two together.
+    final wordmark = TempoWordmark(
+      fontSize: 30,
+      textColor: go.text,
+      accentColor: accent,
     );
 
     final tagline = Text(
@@ -419,11 +300,11 @@ class _WordmarkBlock extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _step(wordmark, 240),
+        _step(wordmark, 620),
         const SizedBox(height: 6),
-        _step(tagline, 350),
+        _step(tagline, 730),
         const SizedBox(height: 28),
-        _step(progress, 460),
+        _step(progress, 840),
       ],
     );
   }
@@ -525,7 +406,7 @@ class _CreatedByBadge extends StatelessWidget {
     // Last beat in the sequence, after the progress bar.
     return badge
         .animate()
-        .fade(delay: 600.ms, duration: 560.ms)
-        .slideY(begin: 0.3, end: 0, delay: 600.ms, duration: 560.ms);
+        .fade(delay: 980.ms, duration: 560.ms)
+        .slideY(begin: 0.3, end: 0, delay: 980.ms, duration: 560.ms);
   }
 }
