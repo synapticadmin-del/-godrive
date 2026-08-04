@@ -14,11 +14,11 @@ import 'package:flutter_shared/flutter_shared.dart';
 // package's lib/ is importable as package:<name>/<path>.dart.
 import 'package:flutter_shared/motion/go_motion.dart';
 import 'package:flutter_shared/widgets/animated_vehicle_marker.dart';
-import 'package:synaptic_go_captain/services/captain_state.dart';
-import 'package:synaptic_go_captain/screens/onboarding/onboarding_screen.dart';
-import 'package:synaptic_go_captain/screens/earnings/earnings_screen.dart';
-import 'package:synaptic_go_captain/screens/profile/settings_screen.dart';
-import 'package:synaptic_go_captain/screens/safety/sos_screen.dart';
+import 'package:tempo_captain/services/captain_state.dart';
+import 'package:tempo_captain/screens/onboarding/onboarding_screen.dart';
+import 'package:tempo_captain/screens/earnings/earnings_screen.dart';
+import 'package:tempo_captain/screens/profile/settings_screen.dart';
+import 'package:tempo_captain/screens/safety/sos_screen.dart';
 import 'home_tab.dart';
 import 'nearby_requests_screen.dart';
 import 'trips_tab.dart';
