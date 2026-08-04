@@ -7,7 +7,7 @@ import 'package:flutter_shared/flutter_shared.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'package:tempo_captain/services/captain_state.dart';
 import 'document_status_screen.dart';
 import 'documents_onboarding_screen.dart';
 
