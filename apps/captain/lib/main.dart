@@ -46,7 +46,7 @@ class CaptainApp extends StatelessWidget {
       child: Consumer<CaptainState>(
         builder: (context, state, _) {
           return MaterialApp(
-            title: 'GoDrive Captain',
+            title: 'Tempo Captain',
             debugShowCheckedModeBanner: false,
             locale: state.locale,
             supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
