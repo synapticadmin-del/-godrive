@@ -77,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       await Share.share(
         const JsonEncoder.withIndent('  ').convert(data),
-        subject: _t(context, 'بياناتي على GoDrive', 'My GoDrive data'),
+        subject: _t(context, 'بياناتي على Tempo', 'My Tempo data'),
       );
     } catch (e) {
       if (!mounted) return;
@@ -288,7 +288,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () {
                 showAboutDialog(
                   context: context,
-                  applicationName: 'GoDrive',
+                  applicationName: 'Tempo',
                   applicationVersion: '1.0.0',
                   applicationIcon: const Icon(Icons.rocket_launch, size: 48, color: AppTokens.primary),
                 );
