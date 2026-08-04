@@ -1,40 +1,41 @@
 /**
- * GoDrive Admin - Design System Tokens
+ * Tempo Admin - Design System Tokens
  * Single source of truth for all design decisions.
- * Brand green extracted from GODRIVE.png logo (#80B445 family).
+ * Brand blue derived from the GoDrive green ramp it replaced: each step
+ * reproduces the old step's measured contrast on white at hue 214.
  */
 
 export const colors = {
   // Base neutrals
   neutral: {
     0: '#ffffff',
-    50: '#f8fafc',
-    100: '#f1f5f9',
-    200: '#e2e8f0',
-    300: '#cbd5e1',
-    400: '#94a3b8',
-    500: '#64748b',
-    600: '#475569',
-    700: '#334155',
-    800: '#1e293b',
-    900: '#0f172a',
-    950: '#020617',
+    50: '#f4f7fc',
+    100: '#e5eef9',
+    200: '#caddf6',
+    300: '#a9c8f1',
+    400: '#87b4f0',
+    500: '#1472ed',
+    600: '#0c5ac0',
+    700: '#0a489a',
+    800: '#063879',
+    900: '#052958',
+    950: '#031935',
   },
 
-  // Brand colors — GoDrive logo green & charcoal slate
+  // Brand colors — Tempo blue & charcoal slate
   brand: {
     primary: {
-      50: '#f3f9ec',
-      100: '#e2f2d3',
-      200: '#c5e5a6',
-      300: '#a2d473',
-      400: '#83c345',
-      500: '#4e842d',  // WCAG AA compliant GoDrive green (4.53:1 on white)
-      600: '#3d6923',  // hover
-      700: '#32541c',  // pressed
-      800: '#274116',
-      900: '#1c2f10',
-      950: '#101c09',
+      50: '#f4f7fc',
+      100: '#e5eef9',
+      200: '#caddf6',
+      300: '#a9c8f1',
+      400: '#87b4f0',
+      500: '#1472ed',  // WCAG AA compliant Tempo blue (4.50:1 on white)
+      600: '#0c5ac0',  // hover
+      700: '#0a489a',  // pressed
+      800: '#063879',
+      900: '#052958',
+      950: '#031935',
     },
     charcoal: {
       50: '#f7f8f9',
@@ -78,7 +79,7 @@ export const colors = {
     },
   },
 
-  // Dark mode surfaces (GoDrive Slate theme)
+  // Dark mode surfaces (Tempo Slate theme)
   dark: {
     bg: {
       primary: '#0d1117',
@@ -97,7 +98,7 @@ export const colors = {
     border: {
       primary: '#30363d',
       secondary: '#3c434c',
-      focus: '#6bb522',
+      focus: '#1472ed',
       error: '#ef4444',
     },
     text: {
@@ -106,7 +107,7 @@ export const colors = {
       tertiary: '#8b949e',
       inverse: '#0d1117',
       disabled: '#6e7681',
-      link: '#6bb522',
+      link: '#0c5ac0',
     },
   },
 };
