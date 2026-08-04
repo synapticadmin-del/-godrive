@@ -28,7 +28,7 @@ class VehicleMapMarker extends StatelessWidget {
   /// Degrees clockwise from north. Null draws the car pointing up.
   final double? heading;
 
-  /// Car body colour. Defaults to the GoDrive green; pass a muted colour for
+  /// Car body colour. Defaults to the Tempo green; pass a muted colour for
   /// an offline or stale vehicle.
   final Color? color;
 
