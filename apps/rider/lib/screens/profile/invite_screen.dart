@@ -31,10 +31,10 @@ class _InviteScreenState extends State<InviteScreen> {
   }
 
   void _share() {
-    final code = _referral?['referral_code'] ?? 'GODRIVE';
+    final code = _referral?['referral_code'] ?? 'TEMPO';
     Share.share(
-      'جرّب GoDrive — تطبيق التوصل في مصر! استخدم كودي $code واحصل على خصم على أول رحلة.\n'
-      'حمّل التطبيق الآن: https://godrive.app',
+      'جرّب Tempo — تطبيق التوصل في مصر! استخدم كودي $code واحصل على خصم على أول رحلة.\n'
+      'حمّل التطبيق الآن: https://tempo.app',
     );
   }
 
@@ -46,7 +46,7 @@ class _InviteScreenState extends State<InviteScreen> {
     final muted = go.muted;
     final border = go.border;
 
-    final code = _referral?['referral_code'] as String? ?? 'GODRIVE';
+    final code = _referral?['referral_code'] as String? ?? 'TEMPO';
     final credits = (_referral?['credits'] as num?)?.toDouble() ?? 0;
     final invited = (_referral?['invited_count'] as num?)?.toInt() ?? 0;
 
