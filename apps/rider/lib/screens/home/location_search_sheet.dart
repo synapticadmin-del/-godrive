@@ -4,7 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../services/location_service.dart';
 
-/// Destination search, backed by the GoDrive geocoding endpoint.
+/// Destination search, backed by the Tempo geocoding endpoint.
 ///
 /// Two things changed versus the previous implementation:
 ///  1. Queries go to our backend (`/geocode/search`) instead of hitting
