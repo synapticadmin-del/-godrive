@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Centralised, type-safe UI copy for the GoDrive apps.
+/// Centralised, type-safe UI copy for the Tempo apps.
 ///
 /// ## Why this exists instead of (for now) gen-l10n
 ///
@@ -1611,7 +1611,7 @@ abstract class AppStrings {
   String get onbHelpDismiss;
 
   // ── Splash / brand ───────────────────────────────────────────────
-  /// Badge under the GoDrive wordmark naming this the captain app.
+  /// Badge under the Tempo wordmark naming this the captain app.
   String get captainAppBadge;
 
   // ── Available trips tab / nearby requests ────────────────────────
@@ -2613,7 +2613,7 @@ class AppStringsAr extends AppStrings {
 
   /// Prefix of the share sheet message; the URL is appended.
   @override
-  String get shareTripMessage => 'تتبع رحلتي على GoDrive عبر الرابط التالي:\n';
+  String get shareTripMessage => 'تتبع رحلتي على Tempo عبر الرابط التالي:\n';
 
   /// Hint under the SOS panic button.
   @override
@@ -2715,7 +2715,7 @@ class AppStringsAr extends AppStrings {
 
   /// Fallback captain display name on a bid card when the API sends no name.
   @override
-  String get bidsCaptainFallback => 'كابتن GoDrive';
+  String get bidsCaptainFallback => 'كابتن Tempo';
 
   /// Bid-card chip showing how many minutes until the captain can arrive.
   @override
@@ -3354,7 +3354,7 @@ class AppStringsAr extends AppStrings {
 
   /// Share-sheet body on the invite screen; {code} is the referral code.
   @override
-  String inviteShareMessage(String code) => 'حمّل تطبيق GoDrive واستخدم كود الدعوة $code لتحصل على رصيد مجاني:\nhttps://go.synapticstudio.tech';
+  String inviteShareMessage(String code) => 'حمّل تطبيق Tempo واستخدم كود الدعوة $code لتحصل على رصيد مجاني:\nhttps://go.synapticstudio.tech';
 
   // ── Rider — Splash ──────────────────────────────────────────────
 
@@ -4562,7 +4562,7 @@ class AppStringsEn extends AppStrings {
 
   /// Prefix of the share sheet message; the URL is appended.
   @override
-  String get shareTripMessage => 'Track my trip on GoDrive via this link:\n';
+  String get shareTripMessage => 'Track my trip on Tempo via this link:\n';
 
   /// Hint under the SOS panic button.
   @override
@@ -4664,7 +4664,7 @@ class AppStringsEn extends AppStrings {
 
   /// Fallback captain display name on a bid card when the API sends no name.
   @override
-  String get bidsCaptainFallback => 'GoDrive Captain';
+  String get bidsCaptainFallback => 'Tempo Captain';
 
   /// Bid-card chip showing how many minutes until the captain can arrive.
   @override
@@ -5303,7 +5303,7 @@ class AppStringsEn extends AppStrings {
 
   /// Share-sheet body on the invite screen; {code} is the referral code.
   @override
-  String inviteShareMessage(String code) => 'Download the GoDrive app and use my invite code $code for free credit:\nhttps://go.synapticstudio.tech';
+  String inviteShareMessage(String code) => 'Download the Tempo app and use my invite code $code for free credit:\nhttps://go.synapticstudio.tech';
 
   // ── Rider — Splash ──────────────────────────────────────────────
 
