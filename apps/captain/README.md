@@ -1,4 +1,4 @@
-# synaptic_go_captain
+# tempo_captain
 
 A new Flutter project.
 
