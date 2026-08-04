@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_shared/flutter_shared.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:synaptic_go_captain/services/captain_state.dart';
+import 'package:tempo_captain/services/captain_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../documents/document_upload_screen.dart';
@@ -542,7 +542,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icons.info_rounded,
               iconColor: AppTokens.info,
               title: strings.aboutApp,
-              value: 'GoDrive v1.0.0',
+              value: 'Tempo v1.0.0',
               text: go.text,
               muted: go.muted,
             ),
@@ -667,7 +667,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       await Share.share(
         const JsonEncoder.withIndent('  ').convert(data),
-        subject: _t(context, 'بياناتي على GoDrive', 'My GoDrive data'),
+        subject: _t(context, 'بياناتي على Tempo', 'My Tempo data'),
       );
     } catch (e) {
       if (!mounted) return;
