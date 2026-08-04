@@ -643,7 +643,7 @@ class _HomeScreenState extends State<HomeScreen>
             urlTemplate: MapTiles.urlForContext(context),
             subdomains: MapTiles.subdomains,
             retinaMode: RetinaMode.isHighDensity(context),
-            userAgentPackageName: 'tech.synapticstudio.godrive.rider',
+            userAgentPackageName: 'tech.synapticstudio.tempo.rider',
             tileProvider: NetworkTileProvider(),
           ),
           _buildRouteLayer(go),
