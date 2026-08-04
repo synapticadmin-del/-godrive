@@ -2,7 +2,7 @@
 
 ```bash
 cd apps/captain
-flutter create . --project-name synaptic_go_captain
+flutter create . --project-name tempo_captain
 flutter pub get
 flutter run
 ```
