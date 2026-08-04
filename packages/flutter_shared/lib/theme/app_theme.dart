@@ -74,7 +74,27 @@ class AppTokens {
   static const warning = Color(0xFF947105); // 4.54:1 on white
   static const danger = Color(0xFFD92D20); // 4.53:1 on white
   static const sos = Color(0xFFDC2626); // 4.83:1 on white
-  static const info = Color(0xFF1D6DBE);
+  /// Informational accent — cyan-teal, hue 186.
+  ///
+  /// This used to be a blue, #1D6DBE, which was fine while the brand was
+  /// green. Once the brand turned blue the two sat 3.8° apart in hue and
+  /// dE2000 5.9 from each other — close enough that an info icon read as a
+  /// brand accent, and a brand accent read as an info state.
+  ///
+  /// Picking the replacement by WCAG contrast against the brand would have
+  /// been the wrong instrument: contrast is a luminance ratio, so two colours
+  /// of equal lightness score ~1.0 however far apart their hues are. The
+  /// choice was made on dE2000 instead — 25.4 from the brand, 27.8 from
+  /// `success`.
+  ///
+  /// A violet scored well on paper and was rejected: simulated under
+  /// deuteranopia it collapses back into the brand blue (dE 1.6). Cyan holds
+  /// at dE 15.1 deutan / 19.0 protan, because blue-versus-cyan is a
+  /// blue-yellow axis distinction that red-green deficiency leaves intact.
+  ///
+  /// 4.62:1 on white. On `nightPanel` it is 3.76:1 — better than the 3.29:1
+  /// the old value managed, so dark mode improves on the way past.
+  static const info = Color(0xFF0E818E);
 
   /// Full-bleed emergency backdrop — a near-black red that keeps the SOS
   /// screen unmistakable even in peripheral vision, day or night.
