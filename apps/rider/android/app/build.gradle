@@ -73,7 +73,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace = "tech.synapticstudio.synaptic_go_rider"
+    namespace = "tech.synapticstudio.tempo_rider"
     compileSdk = 35
     ndkVersion = "25.1.8937393"
 
@@ -88,7 +88,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "tech.synapticstudio.synaptic_go_rider"
+        applicationId = "tech.synapticstudio.tempo_rider"
         minSdk = 23
         // Play's floor is API 35; at 34 the upload is rejected before review.
         // The floor moves to API 36 on 31 Aug 2026, which needs compileSdk 36
