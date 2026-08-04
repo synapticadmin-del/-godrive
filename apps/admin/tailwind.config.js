@@ -30,7 +30,7 @@ export default {
         border: {
           primary: v("--border-primary"),
           secondary: v("--border-secondary"),
-          focus: "#6bb522",
+          focus: "#1472ed",
           error: "#ef4444",
         },
         text: {
@@ -39,20 +39,20 @@ export default {
           tertiary: v("--text-tertiary"),
           inverse: v("--text-inverse"),
           disabled: v("--text-disabled"),
-          link: "#579619",
+          link: "#0c5ac0",
         },
         primary: {
-          50: "#f3f9ec",
-          100: "#e2f2d3",
-          200: "#c5e5a6",
-          300: "#a2d473",
-          400: "#83c345",
-          500: "#6bb522", // GoDrive Green
-          600: "#579619",
-          700: "#457715",
-          800: "#385f14",
-          900: "#2f4f13",
-          950: "#172c08",
+          50: "#f4f7fc",
+          100: "#e5eef9",
+          200: "#caddf6",
+          300: "#a9c8f1",
+          400: "#87b4f0",
+          500: "#1472ed", // Tempo Blue
+          600: "#0c5ac0",
+          700: "#0a489a",
+          800: "#063879",
+          900: "#052958",
+          950: "#031935",
         },
         brandCharcoal: {
           50: "#f7f8f9",
