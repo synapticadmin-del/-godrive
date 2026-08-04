@@ -96,7 +96,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In ar, this message translates to:
-  /// **'GoDrive Captain'**
+  /// **'Tempo Captain'**
   String get appTitle;
 
   /// No description provided for @appSlogan.
