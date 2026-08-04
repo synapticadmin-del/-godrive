@@ -235,11 +235,68 @@ Deletions and renames confirmed by status code: `godrive_wordmark.dart`,
    run in the authoring sandbox — no Flutter SDK, no `node_modules`. The four
    Python check scripts (l10n parity, repo hygiene, migrations, migrations
    apply) all passed locally. Watch the CI run on this commit.
-2. **`info #1D6DBE`** now sits 3.8° from the brand hue. Real collision, left
-   alone because it is a semantic that was out of scope.
+2. ~~**`info #1D6DBE`** collision~~ — **RESOLVED**, see the addendum below.
 3. **`@synaptic-go/*` npm scope unchanged** — see above; renaming it needs a
    human to edit `.github/workflows/ci.yml`.
 4. **Stale comments.** Roughly 15 files still say "green" or "lime" in prose.
    Cosmetic, no behaviour attached.
 5. **Orphaned binaries.** `splash_brand.png`, `godrive_logo.png`, `GODRIVE.png`
    (4MB) and `splash.mp4` (875KB) are now unreferenced and can be deleted.
+
+---
+
+# Addendum — the `info` collision, resolved
+
+`AppTokens.info` moved from **`#1D6DBE` to `#0E818E`**, a cyan-teal at hue 186.
+
+## Why contrast was the wrong instrument
+
+The obvious check — WCAG contrast between `info` and the brand — is misleading
+here. Contrast is a pure luminance ratio, so two colours of equal lightness
+score ~1.0 no matter how far apart their hues are. Measured that way the new
+teal scores **1.02:1** against the brand, *worse* than the 1.17:1 it replaced,
+while being obviously more distinguishable to the eye.
+
+The right instrument for side-by-side distinguishability is **CIEDE2000**:
+
+| Pair | dE2000 | Reading |
+|---|---|---|
+| old `#1D6DBE` vs brand | **5.9** | a related shade — the collision |
+| new `#0E818E` vs brand | **25.4** | clearly a different colour |
+| new `#0E818E` vs `success` | 27.8 | no second collision introduced |
+
+## Why not violet
+
+Violet scored well on paper (dE 17–23) and was rejected on a colour-vision
+check. Simulated under deuteranopia it collapses back into the brand blue:
+
+| Candidate | dE normal | dE protan | dE deutan |
+|---|---|---|---|
+| violet hue 258 | 17.0 | 3.3 | **1.6** — invisible |
+| violet hue 274 | 23.3 | 5.1 | **3.0** — invisible |
+| cyan hue 186 | 25.4 | 19.0 | **15.1** — holds |
+
+Blue-versus-cyan is a distinction on the blue-yellow axis, which red-green
+deficiency leaves intact. Blue-versus-violet is not.
+
+## Contrast, for completeness
+
+| Surface | old `#1D6DBE` | new `#0E818E` |
+|---|---|---|
+| on white | 5.27:1 | 4.62:1 — AA |
+| on `nightPanel` | 3.29:1 | **3.76:1** |
+
+Dark mode improves on the way past: the old value sat under the 3:1 floor for
+graphical objects by a hair in some pairings.
+
+No `infoNight` token was added. It would need a brightness-aware accessor and
+edits at all eight call sites, and an unwired token is exactly the dead weight
+the splash tokens once carried before anything referenced them.
+
+## The admin had a worse version of the same bug
+
+`--color-info-*` and `--color-success-*` were **byte-identical** (`#6bb522`), so
+an info state and a success state were indistinguishable — and `tokens.ts`
+carried a third value, `#1d4ed8`, a blue that collided with the new brand
+directly. All three files now point `info` at the same teal ramp
+(`#e8f7f8` / `#0e818e` / `#09636d`) while `success` stays green.
