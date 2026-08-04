@@ -438,7 +438,7 @@ class _BidCard extends StatelessWidget {
     final price = (bid['counter_price'] as num?)?.toDouble() ?? 0;
     final name = (bid['captain_name'] as String?)?.trim().isNotEmpty == true
         ? bid['captain_name'] as String
-        : 'كابتن GoDrive';
+        : 'كابتن Tempo';
     final rating = (bid['rating_avg'] as num?)?.toDouble() ?? 5.0;
     final ratingCount = (bid['rating_count'] as num?)?.toInt() ?? 0;
     final make = (bid['vehicle_make'] as String?) ?? '';
