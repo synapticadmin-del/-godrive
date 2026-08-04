@@ -53,8 +53,8 @@ Do this when the app is first created in the Play Console, before the first uplo
    the *upload key* — replaceable, which is the entire point.
 
 Record which alias belongs to which app in the password manager entry. The two apps are
-separate Play listings: `tech.synapticstudio.synaptic_go_rider` and
-`tech.synapticstudio.synaptic_go_captain`.
+separate Play listings: `tech.synapticstudio.tempo_rider` and
+`tech.synapticstudio.tempo_captain`.
 
 ## 3. Add the repository secrets
 
