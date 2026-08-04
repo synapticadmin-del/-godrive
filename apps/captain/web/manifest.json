@@ -1,6 +1,6 @@
 {
-    "name": "synaptic_go_captain",
-    "short_name": "synaptic_go_captain",
+    "name": "tempo_captain",
+    "short_name": "tempo_captain",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
