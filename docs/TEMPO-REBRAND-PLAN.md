@@ -194,3 +194,52 @@ separate decision rather than moved unilaterally.
 **Bundle identifiers changed.** `tech.synapticstudio.tempo_*` is a new store
 identity: existing installs will not upgrade in place. This was explicitly
 requested.
+
+---
+
+# Outcome
+
+**Status: shipped.** `main` moved `3c9641b → da8424f7` — 88 commits, one per file,
+the plan itself first.
+
+## What landed
+
+| | |
+|---|---|
+| Commits | 88 (one per file, dependency-ordered) |
+| Files changed | 88 · +979 / −539 |
+| Base at push | `3c9641b` — re-checked immediately before pushing, unmoved |
+
+## Verification after the push
+
+Read back through the **contents API**, never `raw.githubusercontent.com`,
+which is CDN-cached and will happily serve pre-write content:
+
+| Path | Result |
+|---|---|
+| `packages/flutter_shared/lib/theme/app_theme.dart` | PASS — byte-for-byte |
+| `packages/flutter_shared/lib/widgets/tempo_splash.dart` | PASS — byte-for-byte |
+| `packages/flutter_shared/lib/widgets/tempo_wordmark.dart` | PASS — byte-for-byte |
+| `apps/rider/lib/screens/splash_screen.dart` | PASS — byte-for-byte |
+| `apps/captain/lib/screens/splash_screen.dart` | PASS — byte-for-byte |
+| `apps/admin/src/design/tokens.ts` | PASS — byte-for-byte |
+| `docs/TEMPO-REBRAND-PLAN.md` | PASS — byte-for-byte |
+
+Deletions and renames confirmed by status code: `godrive_wordmark.dart`,
+`GoDriveLogo.tsx` and the old Kotlin `MainActivity.kt` path all return 404;
+`TempoLogo.tsx` and the new Kotlin path both return 200.
+
+## Still open
+
+1. **CI is the real gate.** `flutter analyze` and the Node typechecks could not
+   run in the authoring sandbox — no Flutter SDK, no `node_modules`. The four
+   Python check scripts (l10n parity, repo hygiene, migrations, migrations
+   apply) all passed locally. Watch the CI run on this commit.
+2. **`info #1D6DBE`** now sits 3.8° from the brand hue. Real collision, left
+   alone because it is a semantic that was out of scope.
+3. **`@synaptic-go/*` npm scope unchanged** — see above; renaming it needs a
+   human to edit `.github/workflows/ci.yml`.
+4. **Stale comments.** Roughly 15 files still say "green" or "lime" in prose.
+   Cosmetic, no behaviour attached.
+5. **Orphaned binaries.** `splash_brand.png`, `godrive_logo.png`, `GODRIVE.png`
+   (4MB) and `splash.mp4` (875KB) are now unreferenced and can be deleted.
