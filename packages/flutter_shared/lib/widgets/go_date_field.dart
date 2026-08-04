@@ -127,7 +127,7 @@ DateTime _clamp(DateTime value, DateTime first, DateTime last) {
   return value;
 }
 
-/// Opens the GoDrive calendar.
+/// Opens the Tempo calendar.
 ///
 /// Wraps [showDatePicker] with three things the bare call was missing:
 ///
