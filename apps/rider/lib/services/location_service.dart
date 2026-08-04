@@ -175,7 +175,7 @@ class PlaceResult {
   }
 }
 
-/// Geocoding and routing, routed through the GoDrive backend.
+/// Geocoding and routing, routed through the Tempo backend.
 ///
 /// Why the backend and not Nominatim directly:
 ///  * Nominatim's usage policy forbids calling it straight from end-user apps.
