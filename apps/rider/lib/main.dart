@@ -92,7 +92,7 @@ class _RiderAppState extends State<RiderApp> {
         builder: (context, state, _) {
           _maybeRecoverActiveTrip(state);
           return MaterialApp(
-            title: 'GoDrive',
+            title: 'Tempo',
             navigatorKey: _navigatorKey,
             debugShowCheckedModeBanner: false,
             locale: state.locale,
