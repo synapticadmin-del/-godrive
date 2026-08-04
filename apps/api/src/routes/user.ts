@@ -556,7 +556,7 @@ userRoutes.get("/export", async (c) => {
     userAgent: c.req.header("user-agent") ?? null,
   });
 
-  const filename = `godrive-data-${user.id}-${nowIso().slice(0, 10)}.json`;
+  const filename = `tempo-data-${user.id}-${nowIso().slice(0, 10)}.json`;
   // Content-Disposition so the apps and a browser both land a file rather than
   // rendering a wall of JSON.
   c.header("Content-Disposition", `attachment; filename="${filename}"`);
@@ -853,7 +853,7 @@ const DELETION_PAGE_HTML = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>حذف حساب GoDrive · Delete your GoDrive account</title>
+<title>حذف حساب Tempo · Delete your Tempo account</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin:0; padding:2rem 1.25rem; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
@@ -875,7 +875,7 @@ const DELETION_PAGE_HTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="card">
-  <h1>حذف حساب GoDrive</h1>
+  <h1>حذف حساب Tempo</h1>
   <p class="muted">يمكنك أيضًا الحذف من داخل التطبيق: الإعدادات ← الخصوصية والبيانات ← حذف الحساب.</p>
 
   <h2>ما الذي يُحذف</h2>
@@ -902,7 +902,7 @@ const DELETION_PAGE_HTML = `<!DOCTYPE html>
   <p class="muted">سنؤكد الطلب على البريد المسجَّل قبل التنفيذ. لا تكشف هذه الصفحة ما إذا كان البريد مسجَّلًا لدينا.</p>
 
   <div class="en">
-    <h1>Delete your GoDrive account</h1>
+    <h1>Delete your Tempo account</h1>
     <p class="muted">You can also delete in-app: Settings → Privacy &amp; data → Delete account.</p>
     <p><strong>Deleted:</strong> name, phone, email, photo, saved places, payment methods, device
        notification tokens, and (for captains) document images and national ID number.</p>
