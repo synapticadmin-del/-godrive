@@ -6,7 +6,7 @@ import {
   BarChart3, DollarSign, User as UserIcon, ShieldAlert, Settings as CogIcon,
   LogOut, X, AlertCircle, Send,
 } from 'lucide-react';
-import GoDriveLogo from '../common/GoDriveLogo';
+import TempoLogo from '../common/TempoLogo';
 
 interface NavItem {
   path: string;
@@ -82,7 +82,7 @@ export const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
           {/* Brand */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-border-primary flex-shrink-0">
             <NavLink to="/" className="flex items-center gap-2.5">
-              <GoDriveLogo size="md" />
+              <TempoLogo size="md" />
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary-500/10 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400 font-bold border border-primary-500/30 flex-shrink-0">
                 لوحة التحكم
               </span>
