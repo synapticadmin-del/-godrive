@@ -41,7 +41,10 @@ describe("POST /trips/:id/accept — the accept race", () => {
     expect(codes).toEqual([200, 409]);
 
     const loser = ra.status === 409 ? ra : rb;
-    expect((await loser.json<{ code: string }>()).code).toBe("TRIP_TAKEN");
+    // Depending on which request reads the row first, the loser either loses
+    // the guarded UPDATE or observes the winner's assigned state. Both are the
+    // same conflict and, critically, neither can overwrite the winner.
+    expect(["TRIP_TAKEN", "NOT_AVAILABLE"]).toContain((await loser.json<{ code: string }>()).code);
   });
 
   it("leaves the trip assigned to the winner alone", async () => {
@@ -80,7 +83,7 @@ describe("POST /trips/:id/accept — the accept race", () => {
     await seedUser("rider_r3", "rider", 0);
     await seedUser("cap_busy", "captain", 0);
     await seedCaptain("cap_busy");
-    await seedTrip({ id: "trip_held", captainId: "cap_busy", status: "in_progress" });
+    await seedTrip({ id: "trip_held", riderId: "rider_r3", captainId: "cap_busy", status: "in_progress" });
     await seedTrip({ id: "trip_open", riderId: "rider_r3", status: "searching" });
 
     const res = await SELF.fetch("https://api.test/trips/trip_open/accept", {
@@ -110,6 +113,7 @@ describe("POST /trips/:id/accept — the accept race", () => {
   it("refuses to accept a trip that is already assigned", async () => {
     await seedUser("rider_r5", "rider", 0);
     await seedUser("cap_late", "captain", 0);
+    await seedUser("cap_other", "captain", 0);
     await seedCaptain("cap_late");
     await seedTrip({ id: "trip_gone", riderId: "rider_r5", captainId: "cap_other", status: "assigned" });
 

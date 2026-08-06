@@ -1185,6 +1185,12 @@ tripRoutes.post("/:id/complete", requireRole("captain", "admin"), async (c) => {
   if (trip.captain_id !== user.id && user.role !== "admin") {
     return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
   }
+  if (trip.status === "completed") {
+    // A retry is a state conflict, not a malformed transition. Returning 409
+    // makes the idempotent client path explicit and avoids suggesting that the
+    // captain can repair the request body and try again.
+    return c.json({ error: "Trip is already completed", code: "CONFLICT" }, 409);
+  }
   if (!canTransition(trip.status as TripStatus, "completed")) {
     return c.json(
       { error: `Cannot complete from ${trip.status}`, code: "INVALID_TRANSITION" },

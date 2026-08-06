@@ -91,7 +91,7 @@ describe("the money guard — idempotency independent of the row guard", () => {
     // defence, and it has to hold on its own.
     await seedUser("rider_c3", "rider", 0);
     await seedUser("cap_c3", "captain", 100);
-    await seedTrip({ id: "trip_c3", captainId: "cap_c3", commission: 20 });
+    await seedTrip({ id: "trip_c3", riderId: "rider_c3", captainId: "cap_c3", commission: 20 });
 
     const trip = await env.DB.prepare(`SELECT * FROM trips WHERE id = ?`)
       .bind("trip_c3")
