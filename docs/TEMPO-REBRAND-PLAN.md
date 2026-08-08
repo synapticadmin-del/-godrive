@@ -238,10 +238,15 @@ Deletions and renames confirmed by status code: `godrive_wordmark.dart`,
 2. ~~**`info #1D6DBE`** collision~~ — **RESOLVED**, see the addendum below.
 3. **`@synaptic-go/*` npm scope unchanged** — see above; renaming it needs a
    human to edit `.github/workflows/ci.yml`.
-4. **Stale comments.** Roughly 15 files still say "green" or "lime" in prose.
-   Cosmetic, no behaviour attached.
-5. **Orphaned binaries.** `splash_brand.png`, `godrive_logo.png`, `GODRIVE.png`
-   (4MB) and `splash.mp4` (875KB) are now unreferenced and can be deleted.
+4. ~~**Stale comments.**~~ — **RESOLVED.** Every present-tense green/lime
+   reference in Dart, TSX and CSS prose now reads blue/cyan. The deliberately
+   historical passages (the rebrand narrative in `app_theme.dart`, the
+   `@Deprecated` lime aliases, "old/previous revision" stories) stay as
+   written, because they describe the green era accurately.
+5. ~~**Orphaned binaries.**~~ — **RESOLVED.** `GODRIVE.png`, root `splash.mp4`,
+   both apps' `assets/videos/splash.mp4` (and their `assets/videos/` pubspec
+   entries), plus `godrive_logo.png` / `splash_brand.png` in both apps are
+   deleted; `generate_tempo_assets.py` no longer recreates the last two.
 
 ---
 
