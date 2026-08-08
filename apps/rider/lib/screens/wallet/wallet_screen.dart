@@ -430,9 +430,9 @@ class _BalanceCard extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: onTopUp,
                       icon: const Icon(Icons.add_rounded, size: 20),
-                      // White on the green card. The previous revision let
+                      // White on the blue card. The previous revision let
                       // this inherit the themed action colour, so it was
-                      // brand green sitting on brand green.
+                      // brand blue sitting on brand blue.
                       label: Text(
                         strings.topUpTitle,
                         style: AppTokens.font(

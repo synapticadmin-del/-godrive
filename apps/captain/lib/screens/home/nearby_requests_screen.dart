@@ -341,7 +341,7 @@ class _NearbyRequestsScreenState extends State<NearbyRequestsScreen> {
                     labelStyle: AppTokens.font(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
-                      // go.onAction: black on lime in dark mode — white-on-lime
+                      // go.onAction: black on cyan in dark mode — white-on-cyan
                       // is ~1.8:1 contrast (near-illegible).
                       color: selected ? go.onAction : go.text,
                     ),

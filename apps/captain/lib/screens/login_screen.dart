@@ -24,7 +24,7 @@ import '../services/captain_state.dart';
 ///
 ///  * commits to a **dark canvas** end to end — matching the category
 ///    standard set by inDrive, where the auth screen is a dark stage and the
-///    lime action is the only bright thing on it;
+///    cyan action is the only bright thing on it;
 ///  * declares `filled`, `fillColor`, all four border states, `hintStyle`
 ///    and `errorStyle` **inline on every field**, so nothing is inherited
 ///    and the render is identical whether the phone is in light or dark

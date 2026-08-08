@@ -177,7 +177,7 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               // The spinner is an interactive affordance, so it follows the
-              // action ramp ΓÇö lime at night, green in daylight.
+              // action ramp — cyan at night, blue in daylight.
               color: go.action,
               backgroundColor: go.panel,
               child: ListView(
@@ -493,9 +493,9 @@ class _DocumentStatusScreenState extends State<DocumentStatusScreen> {
                     icon: Icon(
                       Icons.upload_rounded,
                       size: 16,
-                      // `AppTokens.primary` here was brand green on a
-                      // near-black card at night ΓÇö about 2.6:1. The action ramp
-                      // resolves to lime instead.
+                      // `AppTokens.primary` here would be brand blue on a
+                      // near-black card at night — under the 3:1 floor. The
+                      // action ramp resolves to cyan instead.
                       color: status == 'rejected'
                           ? AppTokens.danger
                           : go.action,

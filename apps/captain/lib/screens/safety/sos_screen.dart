@@ -18,7 +18,7 @@ import 'package:tempo_captain/services/captain_state.dart';
 ///     interfere with each other.
 ///  3. The danger/SOS color palette from AppTokens is used throughout so the
 ///     captain's nervous system immediately reads "this is serious" — there is
-///     no ambient green anywhere on this screen.
+///     no ambient brand colour anywhere on this screen.
 ///
 /// All behavior (GPS fix, fallback chain, POST /safety/sos, navigator pop) is
 /// preserved exactly from the previous implementation.

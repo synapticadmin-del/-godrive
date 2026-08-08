@@ -498,8 +498,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 value: state.themeMode == ThemeMode.dark ||
                     (state.themeMode == ThemeMode.system && go.isDark),
-                // go.action resolves lime in dark mode; AppTokens.primary would stay
-                // green on a near-black surface where lime is the expected action colour.
+                // go.action resolves cyan in dark mode; AppTokens.primary would stay
+                // blue on a near-black surface where cyan is the expected action colour.
                 activeColor: GoTheme.of(context).action,
                 onChanged: (val) =>
                     state.setThemeMode(val ? ThemeMode.dark : ThemeMode.light),
@@ -813,7 +813,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) {
         // Read GoTheme inside the dialog builder so the cancel label resolves
-        // lime in dark mode instead of staying green (rule 3 — interactive label).
+        // cyan in dark mode instead of staying blue (rule 3 — interactive label).
         final dialogGo = GoTheme.of(ctx);
         return AlertDialog(
           title: Text(

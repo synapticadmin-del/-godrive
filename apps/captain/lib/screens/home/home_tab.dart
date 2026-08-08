@@ -355,7 +355,7 @@ class _SearchingPulse extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // go.action so the pulse tracks the brightness-aware action colour
-    // (lime on dark, brand-green on light) instead of always being green.
+    // (cyan on dark, brand-blue on light) instead of a fixed hue.
     final go = GoTheme.of(context);
     return SizedBox(
       width: 54,

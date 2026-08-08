@@ -260,7 +260,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                                     MediaQuery.of(context).size.width * 0.74,
                               ),
                               decoration: BoxDecoration(
-                                // go.action: lime in dark mode — white-on-lime
+                                // go.action: cyan in dark mode — white-on-cyan
                                 // is ~1.8:1 (near-illegible); go.onAction fixes this.
                                 color: isMine ? go.action : go.surface,
                                 borderRadius: BorderRadius.circular(
@@ -326,7 +326,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius:
                               BorderRadius.circular(AppTokens.radiusMd),
-                          // go.action for the focus ring — lime in dark mode
+                          // go.action for the focus ring — cyan in dark mode
                           // so the outline is visible on near-black surfaces.
                           borderSide: BorderSide(color: go.action),
                         ),
@@ -335,7 +335,7 @@ class _CaptainTripChatScreenState extends State<CaptainTripChatScreen> {
                   ),
                   const SizedBox(width: AppTokens.spaceXs),
                   Material(
-                    // go.action: lime in dark mode — white-on-lime is ~1.8:1.
+                    // go.action: cyan in dark mode — white-on-cyan is ~1.8:1.
                     color: go.action,
                     shape: const CircleBorder(),
                     clipBehavior: Clip.antiAlias,

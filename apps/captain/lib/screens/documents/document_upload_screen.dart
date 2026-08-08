@@ -222,9 +222,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
             InputDecoration(
               labelText: label,
               hintText: hint,
-              // `go.action` rather than `primary`: brand green on the night
-              // input fill is about 3.34:1, which only just clears the 3:1
-              // floor for a non-text glyph.
+              // `go.action` rather than `primary`: brand blue on the night
+              // input fill sits near the 3:1 floor for a non-text glyph.
               prefixIcon: Icon(icon, color: go.action, size: 20),
               filled: true,
               fillColor: go.surface,
@@ -447,8 +446,8 @@ class _DocumentUploadScreenState extends State<DocumentUploadScreen> {
                                 });
                               },
                               // Colours come from the token ramp, not from
-                              // `primary`/white: at night the action is lime
-                              // with near-black text, and white-on-lime was
+                              // `primary`/white: at night the action is cyan
+                              // with near-black text, and white-on-cyan was
                               // close to illegible.
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: go.action,

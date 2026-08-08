@@ -868,7 +868,7 @@ class AppTheme {
   ///
   /// Every colour resolves from tokens rather than from the seeded
   /// [ColorScheme]. That matters: `ColorScheme.fromSeed` derives a tonal
-  /// palette from the brand green, and those tones are what Material hands
+  /// palette from the brand blue, and those tones are what Material hands
   /// the calendar by default — a lilac-tinted selection chip in light mode,
   /// and in dark mode a header that lands within a few percent luminance of
   /// its own text. Neither is recoverable by nudging the seed, so the

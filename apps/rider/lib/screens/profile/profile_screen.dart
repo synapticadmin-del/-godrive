@@ -24,7 +24,7 @@ import 'settings_screen.dart';
 /// scannable clusters instead of ten competing boxes.
 ///
 /// Colour restraint is the point here. The old screen carried a green→sky-blue
-/// gradient card with a coloured drop shadow, which fought the green brand it
+/// gradient card with a coloured drop shadow, which fought the brand it
 /// sat inside. Brand colour now appears in exactly two places — the header
 /// field and the top-up pill — and every row icon is neutral ink.
 class ProfileScreen extends StatefulWidget {
@@ -719,7 +719,7 @@ class _BalanceStrip extends StatelessWidget {
                   style: AppTokens.font(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    // 7:1 on white — the lighter brand green would not clear AA.
+                    // 7:1 on white — the lighter brand blue would not clear AA.
                     color: AppTokens.primaryDark,
                   ),
                 ),
@@ -788,7 +788,7 @@ class _SettingsRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLg, vertical: 15),
         child: Row(
           children: [
-            // Neutral ink, not brand green: six saturated icons stacked down the
+            // Neutral ink, not brand blue: six saturated icons stacked down the
             // page is the kind of colour noise this redesign is removing.
             Icon(icon, size: 21, color: go.text),
             const SizedBox(width: AppTokens.spaceMd),

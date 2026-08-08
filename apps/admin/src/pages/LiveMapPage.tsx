@@ -89,7 +89,7 @@ export default function LiveMapPage() {
     layerRef.current.clearLayers();
     const bounds: any[] = [];
 
-    // Show online captains as green car markers
+    // Show online captains as brand-blue car markers
     if (view === 'all' || view === 'captains') {
       for (const cap of captainsData) {
         if (cap.last_lat == null || cap.last_lng == null) continue;

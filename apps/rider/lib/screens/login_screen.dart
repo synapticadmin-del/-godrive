@@ -11,7 +11,7 @@ import '../services/app_state.dart';
 ///
 /// Redesigned from the plain light form to match the inDrive reference: a
 /// dark stage with a hero carousel up top (two illustrated slides the rider
-/// swipes between), then a rounded-top auth panel below. The rider's green
+/// swipes between), then a rounded-top auth panel below. The rider's blue
 /// brand colour is the action accent on the dark canvas.
 ///
 /// The hero illustrations are friendly character artwork (generated assets),
@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Color get _border => _isDark ? AppTokens.nightBorder : AppTokens.lightBorder;
   Color get _text => _isDark ? AppTokens.nightText : AppTokens.lightText;
   Color get _muted => _isDark ? AppTokens.nightMuted : AppTokens.lightMuted;
-  Color get _action => AppTokens.primary; // rider green
+  Color get _action => AppTokens.primary; // rider blue
   Color get _onAction => Colors.white;
 
   /// Riders who asked the platform to limit animation get the page as it was:

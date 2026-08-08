@@ -53,7 +53,7 @@ class ErrorState extends StatelessWidget {
                 icon: const Icon(Icons.refresh, size: 18),
                 label: Text(strings.retryAction),
                 style: OutlinedButton.styleFrom(
-                  // `go.action` is lime at night, green in daylight — the
+                  // `go.action` is cyan at night, blue in daylight — the
                   // token ramp's job is exactly this.
                   foregroundColor: go.action,
                   side: BorderSide(color: go.action),

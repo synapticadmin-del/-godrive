@@ -353,7 +353,7 @@ class _NavSurfacePainter extends CustomPainter {
 ///
 /// Deliberately *not* a circle with a contrasting ring. It is a soft capsule
 /// carrying the bar's own surface colour, separated from it only by a brand
-/// rim, a whisper of green in the fill and a soft glow underneath. That is
+/// rim, a whisper of blue in the fill and a soft glow underneath. That is
 /// what makes it look like it is floating in the bar instead of bolted to it.
 class _CrestShell extends StatelessWidget {
   const _CrestShell({
@@ -506,7 +506,7 @@ class _CrestDestination extends StatelessWidget {
     final go = GoTheme.of(context);
     // The selected label used to be brand green on the legacy dark panel —
     // #4E842D on #121A2B is about 3.86:1, under the 4.5:1 floor for an 11px
-    // label. On the GoTheme ramp the dark action is lime, which clears 13:1.
+    // label. On the GoTheme ramp the dark action is cyan, which clears ~9.5:1.
     final labelColor = active ? go.action : go.muted;
     final count = destination.badgeCount;
     final haloColor = go.panel;

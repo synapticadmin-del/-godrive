@@ -262,7 +262,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: action.color,
                     // go.onAction is guaranteed legible on the action surface
-                    // (black on lime in dark mode — white-on-lime ≈ 1.8:1).
+                    // (black on cyan in dark mode — white-on-cyan ≈ 1.8:1).
                     foregroundColor: go.onAction,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppTokens.radiusMd),
@@ -377,7 +377,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
             // is wrong, so it gets a real 48dp target rather than a text link.
             Material(
               // go.action used here so the call button matches the primary CTA
-              // surface; go.onAction ensures legibility (black on lime in dark).
+              // surface; go.onAction ensures legibility (black on cyan in dark).
               color: go.action,
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
@@ -445,7 +445,7 @@ class _ActiveTripPanelState extends State<ActiveTripPanel> {
         return _TripAction(
           label: strings.arrivedAtPickupAction,
           icon: Icons.place_rounded,
-          // go.action so the CTA uses lime in dark mode instead of green,
+          // go.action so the CTA uses cyan in dark mode instead of blue,
           // which would produce near-1:1 contrast on a near-black surface.
           color: go.action,
           onPressed: () => _runAction(state.arrived),

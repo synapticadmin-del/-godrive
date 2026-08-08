@@ -6,7 +6,7 @@ import '../theme/app_theme.dart';
 ///
 /// Every category leader gives this its own large, unmistakable pill rather
 /// than burying it in a menu or a nav-bar gesture. Offline reads as heavy
-/// neutral ink; online reads as brand green with a live pulse and a soft
+/// neutral ink; online reads as brand blue with a live pulse and a soft
 /// halo, so the captain can confirm their state from a glance at a phone
 /// mounted on the dashboard.
 class GoOnlineButton extends StatefulWidget {
@@ -86,7 +86,7 @@ class _GoOnlineButtonState extends State<GoOnlineButton>
 
     // Fill and foreground are picked as a pair, never independently. The
     // offline pill is deliberately fixed ink in both presentations; the online
-    // pill follows the ramp — and after dark the ramp's action is lime, on
+    // pill follows the ramp — and after dark the ramp's action is cyan, on
     // which the old hardcoded white sat at roughly 1.8:1.
     final Color background;
     final Color foreground;
@@ -138,8 +138,8 @@ class _GoOnlineButtonState extends State<GoOnlineButton>
               color: background,
               borderRadius: BorderRadius.circular(AppTokens.radiusPill),
               boxShadow: widget.online && widget.enabled
-                  // Halo the colour actually on screen — a green glow bled out
-                  // from under a lime pill after dark.
+                  // Halo the colour actually on screen — a hardcoded glow
+                  // bled out from under the action pill after dark.
                   ? AppTokens.glow(go.action)
                   : AppTokens.shadowFloating,
             ),
@@ -193,7 +193,7 @@ class _LivePulse extends StatelessWidget {
   final Animation<double> animation;
 
   /// Matches the pill's foreground. This was hardcoded white, which vanished
-  /// against the lime night action — the one state where the dot has to be
+  /// against the cyan night action — the one state where the dot has to be
   /// visible is precisely when the captain is online.
   final Color color;
 

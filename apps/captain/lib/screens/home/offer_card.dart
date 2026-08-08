@@ -289,7 +289,7 @@ class _OfferCardState extends State<OfferCard>
         final urgent =
             widget.showCountdown && _secondsLeft <= 5 && !_expired;
         // go.action for the normal accent so the ring/avatar tint is
-        // brightness-aware (lime on dark, green on light); danger overrides
+        // brightness-aware (cyan on dark, blue on light); danger overrides
         // at urgency regardless of brightness.
         final accent = urgent ? AppTokens.danger : go.action;
 
@@ -364,7 +364,7 @@ class _OfferCardState extends State<OfferCard>
       ),
       decoration: BoxDecoration(
         // go.action tint so the header gradient uses the brightness-aware
-        // colour (lime on dark, green on light) instead of always being green.
+        // colour (cyan on dark, blue on light) instead of a fixed hue.
         gradient: LinearGradient(
           begin: AlignmentDirectional.topStart,
           end: AlignmentDirectional.bottomEnd,

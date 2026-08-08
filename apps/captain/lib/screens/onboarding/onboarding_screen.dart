@@ -20,7 +20,7 @@ import '../documents/document_status_screen.dart';
 ///
 /// Design language follows the screenshots exactly: a near-black canvas, dark
 /// rounded input fields and upload tiles, an "اختياري" badge on optional
-/// tiles, a small "×" to clear a picked photo, a lime "التالي" button with a
+/// tiles, a small "×" to clear a picked photo, a cyan "التالي" button with a
 /// back chevron, and a "X من 4" progress bar pinned to the footer.
 ///
 /// Every piece of data is saved the moment it is produced — photos upload to

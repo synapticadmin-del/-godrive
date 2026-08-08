@@ -703,8 +703,8 @@ class _BalanceCard extends StatelessWidget {
                         Icons.account_balance_wallet_rounded,
                         size: 20,
                       ),
-                      // White on the green card, so the action does not read
-                      // brand green sitting on brand green.
+                      // White on the blue card, so the action does not read
+                      // brand blue sitting on brand blue.
                       label: Text(
                         strings.withdrawNowAction,
                         style: AppTokens.font(

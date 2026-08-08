@@ -24,7 +24,7 @@ import 'package:tempo_captain/services/captain_state.dart';
 ///  * uploads straight to R2 + registers the document the moment a photo is
 ///    picked, so state survives app restarts.
 ///
-/// The bottom bar mirrors the onboarding mocks: a lime "التالي" button, a
+/// The bottom bar mirrors the onboarding mocks: a cyan "التالي" button, a
 /// back chevron, and a progress indicator. It validates that every required
 /// type has at least one upload before moving on.
 class DocumentsOnboardingScreen extends StatefulWidget {
@@ -442,7 +442,7 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
                 ),
               ),
 
-            // ── Footer: lime next button, back chevron, step progress
+            // ── Footer: cyan next button, back chevron, step progress
             _buildFooter(strings, text, muted),
           ],
         ),
@@ -613,7 +613,7 @@ class _DocumentsOnboardingScreenState extends State<DocumentsOnboardingScreen> {
         children: [
           Row(
             children: [
-              // Lime next button — the single dominant action, like the mocks.
+              // Cyan next button — the single dominant action, like the mocks.
               SizedBox(
                 height: 52,
                 child: ElevatedButton.icon(
