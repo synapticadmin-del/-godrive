@@ -1,16 +1,32 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import { api } from "./api";
+import { isStaffRole, type StaffRole } from "./staff";
 
 type User = {
   id: string;
   email: string;
   name: string | null;
   role: string;
+  /**
+   * Migration 0024 RBAC scope (owner/admin/assistant/support/finance).
+   * Present on every dashboard account; null only on legacy sessions stored
+   * before the feature shipped — those resolve to owner below, matching the
+   * API's own fallback for pre-RBAC admins.
+   */
+  dashboardRole?: StaffRole | null;
 };
+
+/** Normalise a stored/returned user so callers always get a usable role. */
+export function resolveDashboardRole(user: User | null): StaffRole | null {
+  if (!user || user.role !== "admin") return null;
+  return isStaffRole(user.dashboardRole) ? user.dashboardRole : "owner";
+}
 
 type AuthState = {
   token: string | null;
   user: User | null;
+  /** The effective dashboard role for the signed-in account (RBAC). */
+  dashboardRole: StaffRole | null;
   loginWithPassword: (email: string, password: string) => Promise<void>;
   requestOtp: (email: string) => Promise<{ devCode?: string; message: string }>;
   verifyOtp: (email: string, code: string) => Promise<void>;
@@ -33,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       token,
       user,
+      dashboardRole: resolveDashboardRole(user),
       async loginWithPassword(email: string, password: string) {
         const res = await api<{ token?: string; accessToken?: string; refreshToken?: string; user: User }>("/auth/login", {
           method: "POST",

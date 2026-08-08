@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import type { ZodSchema, ZodTypeDef } from "zod";
 import { TRIP_TRANSITIONS, type TripStatus } from "@synaptic-go/shared";
 import { id, nowIso } from "../lib/utils";
-import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
+import { authMiddleware, requireStaff, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody, rateLimit } from "../middleware/rateLimit";
 import { sosSchema, tripShareSchema } from "../lib/schemas";
 import { pushToUser } from "../lib/notifications";
@@ -430,7 +430,7 @@ const SOS_COLUMNS = `id, user_id, trip_id, lat, lng, reason, status,
 // (status, created_at) composite: neither idx_sos_status nor idx_sos_created
 // alone can filter and order in one pass. History reads newest-first instead;
 // SQLite walks the same index backwards.
-safetyRoutes.get("/sos", requireRole("admin"), async (c) => {
+safetyRoutes.get("/sos", requireStaff("safety:view"), async (c) => {
   const status = c.req.query("status") ?? "open";
   if (!["open", "resolved", "false_alarm", "all"].includes(status)) {
     return c.json({ error: "Unknown status filter", code: "VALIDATION_ERROR" }, 400);
@@ -462,7 +462,7 @@ safetyRoutes.get("/sos", requireRole("admin"), async (c) => {
 });
 
 // GET /safety/sos/:id — one alert and its whole trail, oldest first.
-safetyRoutes.get("/sos/:id", requireRole("admin"), async (c) => {
+safetyRoutes.get("/sos/:id", requireStaff("safety:view"), async (c) => {
   const alertId = c.req.param("id") ?? "";
   const alert = await c.env.DB.prepare(`SELECT ${SOS_COLUMNS} FROM sos_alerts WHERE id = ?`)
     .bind(alertId)
@@ -507,7 +507,7 @@ safetyRoutes.get("/sos/:id", requireRole("admin"), async (c) => {
 //
 // Guarded by `acknowledged_at IS NULL`, so a double click does not overwrite
 // who got there first and does not append a second 'acknowledged' row.
-safetyRoutes.post("/sos/:id/ack", requireRole("admin"), async (c) => {
+safetyRoutes.post("/sos/:id/ack", requireStaff("safety:view"), async (c) => {
   const user = c.get("user");
   const alertId = c.req.param("id") ?? "";
   const body = await parseOptionalBody(c, sosAckSchema);
@@ -563,7 +563,7 @@ safetyRoutes.post("/sos/:id/ack", requireRole("admin"), async (c) => {
 
 // POST /safety/sos/:id/events — escalate, record contact, or leave a note.
 // Changes no state; this is how the trail gets the detail a review needs.
-safetyRoutes.post("/sos/:id/events", requireRole("admin"), async (c) => {
+safetyRoutes.post("/sos/:id/events", requireStaff("safety:view"), async (c) => {
   const user = c.get("user");
   const alertId = c.req.param("id") ?? "";
   const body = await parseBody(c, sosNoteSchema);
@@ -595,7 +595,7 @@ safetyRoutes.post("/sos/:id/events", requireRole("admin"), async (c) => {
 });
 
 // POST /safety/sos/:id/resolve — close it out. A reason is mandatory.
-safetyRoutes.post("/sos/:id/resolve", requireRole("admin"), async (c) => {
+safetyRoutes.post("/sos/:id/resolve", requireStaff("safety:view"), async (c) => {
   const user = c.get("user");
   const alertId = c.req.param("id") ?? "";
   const body = await parseBody(c, sosResolveSchema);

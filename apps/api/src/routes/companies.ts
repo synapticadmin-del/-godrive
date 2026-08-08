@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { id, nowIso } from "../lib/utils";
-import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
+import { authMiddleware, requireStaff, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody } from "../middleware/rateLimit";
 import { companySchema, companyEmployeeSchema } from "../lib/schemas";
 import { logAudit } from "../lib/audit";
@@ -98,7 +98,7 @@ companyRoutes.post("/trip", async (c) => {
 });
 
 // ---- Admin-facing company management ----
-companyRoutes.use("/admin/*", requireRole("admin"));
+companyRoutes.use("/admin/*", requireStaff("config:manage"));
 
 companyRoutes.post("/admin", async (c) => {
   const body = await parseBody(c, companySchema);

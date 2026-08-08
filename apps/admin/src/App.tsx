@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from './lib/auth';
+import { canAccess, firstAllowedPath } from './lib/staff';
 import Layout from './components/layout/Layout';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
@@ -23,6 +24,8 @@ const CaptainVerificationPage = lazy(() => import('./pages/CaptainVerificationPa
 // E14 — the operator console's two queues. Both are lazy like every other page.
 const SafetyPage = lazy(() => import('./pages/SafetyPage'));
 const PayoutsPage = lazy(() => import('./pages/PayoutsPage'));
+// Migration 0024 RBAC — the owner's staff/role management console.
+const StaffPage = lazy(() => import('./pages/StaffPage'));
 
 function PageFallback() {
   return (
@@ -38,6 +41,19 @@ function ProtectedLayout() {
   return <Layout />;
 }
 
+/**
+ * RBAC route guard (migration 0024). The API's requireStaff is the real
+ * enforcement — this only decides what a role gets to SEE. A forbidden path
+ * redirects to the first page the role may open instead of a dead screen.
+ */
+function Gated({ path, children }: { path: string; children: React.ReactElement }) {
+  const { dashboardRole } = useAuth();
+  if (!canAccess(dashboardRole, path)) {
+    return <Navigate to={firstAllowedPath(dashboardRole)} replace />;
+  }
+  return children;
+}
+
 export default function App() {
   // Keyed on the pathname so that navigating away from a page that threw clears
   // the boundary — otherwise a single crash would pin the admin to the error
@@ -50,18 +66,19 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedLayout />}>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/live" element={<LiveMapPage />} />
-            <Route path="/captains" element={<CaptainsPage />} />
-            <Route path="/verification" element={<CaptainVerificationPage />} />
-            <Route path="/safety" element={<SafetyPage />} />
-            <Route path="/trips" element={<TripsPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/payouts" element={<PayoutsPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/audit" element={<AuditLogPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/" element={<Gated path="/"><DashboardPage /></Gated>} />
+            <Route path="/live" element={<Gated path="/live"><LiveMapPage /></Gated>} />
+            <Route path="/captains" element={<Gated path="/captains"><CaptainsPage /></Gated>} />
+            <Route path="/verification" element={<Gated path="/verification"><CaptainVerificationPage /></Gated>} />
+            <Route path="/safety" element={<Gated path="/safety"><SafetyPage /></Gated>} />
+            <Route path="/trips" element={<Gated path="/trips"><TripsPage /></Gated>} />
+            <Route path="/analytics" element={<Gated path="/analytics"><AnalyticsPage /></Gated>} />
+            <Route path="/pricing" element={<Gated path="/pricing"><PricingPage /></Gated>} />
+            <Route path="/payouts" element={<Gated path="/payouts"><PayoutsPage /></Gated>} />
+            <Route path="/users" element={<Gated path="/users"><UsersPage /></Gated>} />
+            <Route path="/audit" element={<Gated path="/audit"><AuditLogPage /></Gated>} />
+            <Route path="/settings" element={<Gated path="/settings"><SettingsPage /></Gated>} />
+            <Route path="/staff" element={<Gated path="/staff"><StaffPage /></Gated>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

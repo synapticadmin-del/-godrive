@@ -11,15 +11,23 @@ import {
 } from "./wallet";
 import { pricingUpdateSchema, systemConfigUpdateSchema } from "../lib/schemas";
 import { logAudit } from "../lib/audit";
-import { intParam, jsonError, nowIso, pctDelta, previousPeriod } from "../lib/utils";
-import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
+import { hashPassword, id, intParam, jsonError, nowIso, pctDelta, previousPeriod } from "../lib/utils";
+import { permissionsFor, STAFF_ROLES, type StaffRole } from "../lib/staff";
+import { authMiddleware, requireStaff, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody } from "../middleware/rateLimit";
 
 export const adminRoutes = new Hono<AppEnv>();
 
-adminRoutes.use("*", authMiddleware, requireRole("admin"));
+// Authentication is global to the router; authorisation is per-route. The
+// old flat requireRole("admin") gave every dashboard account every knob —
+// migration 0024 + lib/staff.ts split that into permissions, and each route
+// below declares the one it needs. A route registered without a requireStaff
+// line is reachable by every dashboard role, which is the reviewable failure
+// mode: adding a guard is a one-line diff, forgetting one shows up as an
+// assistant seeing a page they shouldn't — not as an open endpoint.
+adminRoutes.use("*", authMiddleware);
 
-adminRoutes.get("/stats", async (c) => {
+adminRoutes.get("/stats", requireStaff("stats:view"), async (c) => {
   const users = await c.env.DB.prepare(
     `SELECT role, COUNT(*) as count FROM users GROUP BY role`,
   ).all<{ role: string; count: number }>();
@@ -58,7 +66,7 @@ adminRoutes.get("/stats", async (c) => {
   });
 });
 
-adminRoutes.get("/live-trips", async (c) => {
+adminRoutes.get("/live-trips", requireStaff("stats:view"), async (c) => {
   const res = await c.env.DB.prepare(
     `SELECT id, status, city, rider_id, captain_id,
             pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
@@ -70,7 +78,7 @@ adminRoutes.get("/live-trips", async (c) => {
   return c.json({ trips: res.results ?? [] });
 });
 
-adminRoutes.get("/analytics", async (c) => {
+adminRoutes.get("/analytics", requireStaff("analytics:view"), async (c) => {
   const from = c.req.query("from") || new Date(Date.now() - 30 * 864e5).toISOString();
   const to = c.req.query("to") || nowIso();
 
@@ -225,7 +233,7 @@ adminRoutes.get("/analytics", async (c) => {
   });
 });
 
-adminRoutes.get("/audit-log", async (c) => {
+adminRoutes.get("/audit-log", requireStaff("audit:view"), async (c) => {
   const limit = Math.min(Number(c.req.query("limit") || 100), 500);
   const res = await c.env.DB.prepare(
     `SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ?`,
@@ -235,7 +243,7 @@ adminRoutes.get("/audit-log", async (c) => {
   return c.json({ logs: res.results ?? [] });
 });
 
-adminRoutes.get("/captains", async (c) => {
+adminRoutes.get("/captains", requireStaff("captains:view"), async (c) => {
   const status = c.req.query("status");
   // Clean stale online sessions older than 5 minutes.
   // last_seen_at is written via nowIso() ("2026-07-25T21:00:00.000Z") while
@@ -267,7 +275,7 @@ adminRoutes.get("/captains", async (c) => {
   return c.json({ captains: res.results ?? [] });
 });
 
-adminRoutes.post("/captains/:id/approve", async (c) => {
+adminRoutes.post("/captains/:id/approve", requireStaff("captains:manage"), async (c) => {
   const user = c.get("user");
   const userId = c.req.param("id");
   await c.env.DB.prepare(
@@ -295,7 +303,7 @@ adminRoutes.post("/captains/:id/approve", async (c) => {
   return c.json({ captain });
 });
 
-adminRoutes.post("/captains/:id/suspend", async (c) => {
+adminRoutes.post("/captains/:id/suspend", requireStaff("captains:manage"), async (c) => {
   const user = c.get("user");
   const userId = c.req.param("id");
   await c.env.DB.prepare(
@@ -318,7 +326,7 @@ adminRoutes.post("/captains/:id/suspend", async (c) => {
   return c.json({ ok: true });
 });
 
-adminRoutes.get("/trips", async (c) => {
+adminRoutes.get("/trips", requireStaff("trips:view"), async (c) => {
   const status = c.req.query("status");
   let sql = `SELECT * FROM trips`;
   const binds: string[] = [];
@@ -332,14 +340,14 @@ adminRoutes.get("/trips", async (c) => {
   return c.json({ trips: res.results ?? [] });
 });
 
-adminRoutes.get("/users", async (c) => {
+adminRoutes.get("/users", requireStaff("users:view"), async (c) => {
   const res = await c.env.DB.prepare(
     `SELECT id, email, name, phone, role, status, avatar_url, created_at FROM users ORDER BY created_at DESC LIMIT 200`,
   ).all<DbUser>();
   return c.json({ users: res.results ?? [] });
 });
 
-adminRoutes.get("/pricing", async (c) => {
+adminRoutes.get("/pricing", requireStaff("pricing:manage"), async (c) => {
   const res = await c.env.DB.prepare(`SELECT * FROM pricing_rules ORDER BY city`).all<DbPricing>();
   return c.json({ pricing: res.results ?? [] });
 });
@@ -348,16 +356,19 @@ adminRoutes.get("/pricing", async (c) => {
 // to hard-code a three-way economy/standard/comfort toggle that matched neither
 // this table (economy/comfort/xl) nor any request it sent. Exposing the real
 // rows lets that screen show the categories that actually affect fares.
-adminRoutes.get("/vehicle-types", async (c) => {
+adminRoutes.get("/vehicle-types", requireStaff("pricing:manage"), async (c) => {
   const res = await c.env.DB.prepare(
     `SELECT id, name, multiplier, active FROM vehicle_types WHERE active = 1 ORDER BY multiplier`,
   ).all<{ id: string; name: string; multiplier: number; active: number }>();
   return c.json({ vehicleTypes: res.results ?? [] });
 });
 
-adminRoutes.put("/pricing/:city", async (c) => {
+adminRoutes.put("/pricing/:city", requireStaff("pricing:manage"), async (c) => {
   const user = c.get("user");
-  const city = c.req.param("city").toLowerCase();
+  // Hono cannot infer the :city literal through the middleware overload, so
+  // param() widens to string | undefined — narrow it explicitly.
+  const city = (c.req.param("city") ?? "").toLowerCase();
+  if (!city) return jsonError("city is required", 400);
   const body = await parseBody(c, pricingUpdateSchema);
   if (isResponse(body)) return body;
 
@@ -469,7 +480,7 @@ function serialiseConfigValue(value: string | number | boolean): string {
   return typeof value === "boolean" ? String(value) : String(value);
 }
 
-adminRoutes.get("/system-config", async (c) => {
+adminRoutes.get("/system-config", requireStaff("config:manage"), async (c) => {
   const res = await c.env.DB.prepare(
     `SELECT key, value, type, description, updated_by, updated_at FROM system_config`,
   ).all<DbSystemConfig>();
@@ -494,7 +505,7 @@ adminRoutes.get("/system-config", async (c) => {
   return c.json({ config, meta });
 });
 
-adminRoutes.put("/system-config", async (c) => {
+adminRoutes.put("/system-config", requireStaff("config:manage"), async (c) => {
   const user = c.get("user");
   const body = await parseBody(c, systemConfigUpdateSchema);
   if (isResponse(body)) return body;
@@ -557,7 +568,7 @@ adminRoutes.put("/system-config", async (c) => {
 // but the endpoint was never implemented and the modal was never rendered, so
 // the whole feature was dead on both ends. Implemented here to match the shape
 // the existing component already expects: { results: { captains, riders, trips } }.
-adminRoutes.get("/search", async (c) => {
+adminRoutes.get("/search", requireStaff("users:view", "trips:view"), async (c) => {
   const q = (c.req.query("q") ?? "").trim();
 
   // Two characters is the floor where a LIKE scan is worth running at all; below
@@ -626,7 +637,7 @@ adminRoutes.get("/search", async (c) => {
  *
  *  The previous implementation returned a flat `LIMIT 200` with no offset, so
  *  no document past the first 200 was reachable from the dashboard at all.  */
-adminRoutes.get("/documents", async (c) => {
+adminRoutes.get("/documents", requireStaff("documents:view"), async (c) => {
   const status = c.req.query("status");
 
   const page = Math.max(1, Number.parseInt(c.req.query("page") ?? "1", 10) || 1);
@@ -697,14 +708,14 @@ adminRoutes.get("/documents", async (c) => {
 /*  type hides it from new uploads but keeps every historical row.     */
 /* ------------------------------------------------------------------ */
 
-adminRoutes.get("/document-types", async (c) => {
+adminRoutes.get("/document-types", requireStaff("documents:view"), async (c) => {
   const rows = await c.env.DB.prepare(
     `SELECT * FROM document_types ORDER BY sort_order ASC, id ASC`,
   ).all();
   return c.json({ types: rows.results ?? [] });
 });
 
-adminRoutes.post("/document-types", async (c) => {
+adminRoutes.post("/document-types", requireStaff("config:manage"), async (c) => {
   const user = c.get("user");
   const body = await c.req.json().catch(() => ({}));
 
@@ -755,7 +766,7 @@ adminRoutes.post("/document-types", async (c) => {
   return c.json({ type: row });
 });
 
-adminRoutes.put("/document-types/:id", async (c) => {
+adminRoutes.put("/document-types/:id", requireStaff("config:manage"), async (c) => {
   const user = c.get("user");
   const typeId = c.req.param("id");
   const body = await c.req.json().catch(() => ({}));
@@ -803,7 +814,7 @@ adminRoutes.put("/document-types/:id", async (c) => {
 
 // Deletion is a soft delete: driver_documents rows reference the type id, so a
 // hard delete would orphan history. Active=0 removes it from every client.
-adminRoutes.delete("/document-types/:id", async (c) => {
+adminRoutes.delete("/document-types/:id", requireStaff("config:manage"), async (c) => {
   const user = c.get("user");
   const typeId = c.req.param("id");
 
@@ -827,7 +838,7 @@ adminRoutes.delete("/document-types/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-adminRoutes.post("/documents/:id/review", async (c) => {
+adminRoutes.post("/documents/:id/review", requireStaff("documents:review"), async (c) => {
   const user = c.get("user");
   const docId = c.req.param("id");
   const body = await c.req.json().catch(() => ({}));
@@ -873,7 +884,7 @@ adminRoutes.post("/documents/:id/review", async (c) => {
 });
 
 // POST /admin/captains/:id/documents/:docId/reject - Reject a document with a reason payload
-adminRoutes.post("/captains/:id/documents/:docId/reject", async (c) => {
+adminRoutes.post("/captains/:id/documents/:docId/reject", requireStaff("documents:review"), async (c) => {
   const user = c.get("user");
   const captainId = c.req.param("id");
   const docId = c.req.param("docId");
@@ -900,7 +911,7 @@ adminRoutes.post("/captains/:id/documents/:docId/reject", async (c) => {
 
 
 // GET /admin/documents/:id/file — serve the document file from R2 for admin review
-adminRoutes.get("/documents/:id/file", async (c) => {
+adminRoutes.get("/documents/:id/file", requireStaff("documents:view"), async (c) => {
   const docId = c.req.param("id");
   const doc = await c.env.DB.prepare(`SELECT r2_key FROM driver_documents WHERE id = ?`)
     .bind(docId)
@@ -931,7 +942,7 @@ adminRoutes.get("/documents/:id/file", async (c) => {
 });
 
 // GET /admin/online-captains — list online captains with live locations
-adminRoutes.get("/online-captains", async (c) => {
+adminRoutes.get("/online-captains", requireStaff("captains:view"), async (c) => {
   const res = await c.env.DB.prepare(
     `SELECT u.id, u.name, u.email, u.phone, u.avatar_url as avatar_url, c.is_online, c.last_lat, c.last_lng,
             c.vehicle_make, c.vehicle_model, c.vehicle_plate, c.rating_avg, c.approval_status,
@@ -1016,7 +1027,7 @@ const PAYOUT_QUEUE_SELECT = `SELECT pr.id, pr.user_id, pr.amount, pr.amount_pias
 // GET /admin/payouts — the queue. Open requests oldest-first, which is the
 // order they should be worked; history newest-first. `idx_payout_requests_queue`
 // covers the filtered ordering.
-adminRoutes.get("/payouts", async (c) => {
+adminRoutes.get("/payouts", requireStaff("payouts:manage"), async (c) => {
   const status = c.req.query("status") ?? "requested";
   if (!["requested", "paid", "rejected", "all"].includes(status)) {
     return c.json({ error: "Unknown status filter", code: "VALIDATION_ERROR" }, 400);
@@ -1046,7 +1057,7 @@ adminRoutes.get("/payouts", async (c) => {
 });
 
 // GET /admin/payouts/:id — one request, through E06's reader.
-adminRoutes.get("/payouts/:id", async (c) => {
+adminRoutes.get("/payouts/:id", requireStaff("payouts:manage"), async (c) => {
   const request = await getPayoutRequest(c.env.DB, c.req.param("id") ?? "");
   if (!request) return c.json({ error: "طلب السحب غير موجود", code: "NOT_FOUND" }, 404);
   return c.json({ request });
@@ -1115,12 +1126,265 @@ async function applyPayoutDecision(
 
 // POST /admin/payouts/:id/approve — marks paid AND debits, atomically, in E06's
 // batch. The captain's balance moves here and nowhere else.
-adminRoutes.post("/payouts/:id/approve", (c) =>
+adminRoutes.post("/payouts/:id/approve", requireStaff("payouts:manage"), (c) =>
   applyPayoutDecision(c, "approve", settlePayoutRequest),
 );
 
 // POST /admin/payouts/:id/reject — returns the request with a reason. Moves no
 // money, because none was ever taken.
-adminRoutes.post("/payouts/:id/reject", (c) =>
+adminRoutes.post("/payouts/:id/reject", requireStaff("payouts:manage"), (c) =>
   applyPayoutDecision(c, "reject", rejectPayoutRequest),
 );
+
+// ---------------------------------------------------------------------------
+// Dashboard staff management — the owner's half of migration 0024.
+//
+// Every dashboard account is users.role = 'admin' (the CHECK constraint on
+// that column predates RBAC); users.dashboard_role is the scope. These
+// endpoints are the ONLY writers of that column, and they sit behind
+// staff:manage so no role can mint or promote its own access.
+//
+// Hard rules encoded below:
+//  * an actor can never edit or remove their own account (no self-lockout,
+//    no self-escalation);
+//  * the last ACTIVE owner can never be demoted or suspended — a platform
+//    with nobody able to manage staff is a platform that needs a database
+//    edit to recover;
+//  * removal is a suspension, never a row delete: audit_log rows reference
+//    actor ids forever, and a deleted staff member would take their trail
+//    with them.
+// ---------------------------------------------------------------------------
+
+/** The catalog endpoint the StaffPage renders its dropdowns from. */
+adminRoutes.get("/staff/roles", requireStaff("staff:manage"), async (c) => {
+  return c.json({
+    roles: STAFF_ROLES.map((role) => ({
+      role,
+      permissions: permissionsFor(role as StaffRole),
+    })),
+  });
+});
+
+adminRoutes.get("/staff", requireStaff("staff:manage"), async (c) => {
+  const res = await c.env.DB.prepare(
+    `SELECT id, email, name, dashboard_role, status, created_at
+     FROM users
+     WHERE role = 'admin'
+     ORDER BY created_at ASC`,
+  ).all<{
+    id: string;
+    email: string;
+    name: string | null;
+    dashboard_role: string | null;
+    status: string;
+    created_at: string;
+  }>();
+
+  // NULL is the pre-RBAC owner (see effectiveStaffRole) — surface it as such
+  // so the UI never shows the platform principal as "no role".
+  const staff = (res.results ?? []).map((r) => ({
+    ...r,
+    dashboard_role: r.dashboard_role ?? "owner",
+  }));
+  return c.json({ staff });
+});
+
+adminRoutes.post("/staff", requireStaff("staff:manage"), async (c) => {
+  const actor = c.get("user");
+  const body = await c.req.json().catch(() => ({})) as {
+    email?: string;
+    name?: string;
+    password?: string;
+    dashboardRole?: string;
+  };
+
+  const email = body.email?.trim().toLowerCase();
+  if (!email || !body.password) {
+    return jsonError("email and password are required", 400);
+  }
+  if (body.password.length < 8) {
+    return jsonError("password must be at least 8 characters", 400);
+  }
+  const dashboardRole = body.dashboardRole ?? "assistant";
+  if (!(STAFF_ROLES as readonly string[]).includes(dashboardRole)) {
+    return jsonError(`dashboardRole must be one of: ${STAFF_ROLES.join(", ")}`, 400);
+  }
+
+  const existing = await c.env.DB.prepare(`SELECT id FROM users WHERE email = ?`)
+    .bind(email)
+    .first();
+  if (existing) {
+    return c.json({ error: "Email already exists", code: "EMAIL_EXISTS" }, 409);
+  }
+
+  const staffId = id("stf");
+  await c.env.DB.prepare(
+    `INSERT INTO users (id, email, password_hash, name, role, status, dashboard_role, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'admin', 'active', ?, datetime('now'), datetime('now'))`,
+  )
+    .bind(staffId, email, await hashPassword(body.password), body.name?.trim() || null, dashboardRole)
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: actor.id,
+    action: "staff.create",
+    entityType: "user",
+    entityId: staffId,
+    payload: { email, dashboardRole },
+    critical: true,
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  const row = await c.env.DB.prepare(
+    `SELECT id, email, name, dashboard_role, status, created_at FROM users WHERE id = ?`,
+  )
+    .bind(staffId)
+    .first();
+  return c.json({ ok: true, staff: row });
+});
+
+adminRoutes.patch("/staff/:id", requireStaff("staff:manage"), async (c) => {
+  const actor = c.get("user");
+  const targetId = c.req.param("id") ?? "";
+  const body = await c.req.json().catch(() => ({})) as {
+    dashboardRole?: string;
+    status?: string;
+    name?: string;
+  };
+
+  if (targetId === actor.id) {
+    return jsonError("you cannot modify your own account", 400);
+  }
+
+  const target = await c.env.DB.prepare(
+    `SELECT id, role, status, dashboard_role FROM users WHERE id = ?`,
+  )
+    .bind(targetId)
+    .first<{ id: string; role: string; status: string; dashboard_role: string | null }>();
+  if (!target || target.role !== "admin") {
+    return c.json({ error: "Staff member not found", code: "NOT_FOUND" }, 404);
+  }
+
+  // NULL resolves to owner (pre-RBAC account), so the last-owner guard below
+  // must see the effective role, not the raw column.
+  const effectiveCurrent = target.dashboard_role ?? "owner";
+
+  if (body.dashboardRole !== undefined) {
+    if (!(STAFF_ROLES as readonly string[]).includes(body.dashboardRole)) {
+      return jsonError(`dashboardRole must be one of: ${STAFF_ROLES.join(", ")}`, 400);
+    }
+  }
+  if (body.status !== undefined && body.status !== "active" && body.status !== "suspended") {
+    return jsonError("status must be 'active' or 'suspended'", 400);
+  }
+
+  // Losing owner means demotion OR suspension of an owner. Either way the
+  // platform must keep at least one active owner afterwards.
+  const losesOwner =
+    effectiveCurrent === "owner" &&
+    ((body.dashboardRole !== undefined && body.dashboardRole !== "owner") ||
+      body.status === "suspended");
+
+  if (losesOwner) {
+    const otherOwners = await c.env.DB.prepare(
+      `SELECT COUNT(*) as count FROM users
+       WHERE role = 'admin' AND status = 'active'
+         AND COALESCE(dashboard_role, 'owner') = 'owner'
+         AND id != ?`,
+    )
+      .bind(targetId)
+      .first<{ count: number }>();
+    if ((otherOwners?.count ?? 0) === 0) {
+      return jsonError("cannot demote or suspend the last active owner", 409);
+    }
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE users SET
+       dashboard_role = COALESCE(?, dashboard_role),
+       status = COALESCE(?, status),
+       name = COALESCE(?, name),
+       updated_at = ?
+     WHERE id = ?`,
+  )
+    .bind(
+      body.dashboardRole ?? null,
+      body.status ?? null,
+      typeof body.name === "string" ? body.name.trim() : null,
+      nowIso(),
+      targetId,
+    )
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: actor.id,
+    action: "staff.update",
+    entityType: "user",
+    entityId: targetId,
+    payload: {
+      dashboardRole: body.dashboardRole,
+      status: body.status,
+      name: body.name,
+    },
+    critical: true,
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  const row = await c.env.DB.prepare(
+    `SELECT id, email, name, dashboard_role, status, created_at FROM users WHERE id = ?`,
+  )
+    .bind(targetId)
+    .first();
+  return c.json({ ok: true, staff: row });
+});
+
+// DELETE is a soft removal: suspend, keeping the row and every audit trail it
+// anchors. Demoting to "no dashboard access" is impossible by design — a NULL
+// dashboard_role on role=admin resolves to owner, so the only safe off-switch
+// is status='suspended', which every requireStaff call re-checks.
+adminRoutes.delete("/staff/:id", requireStaff("staff:manage"), async (c) => {
+  const actor = c.get("user");
+  const targetId = c.req.param("id") ?? "";
+
+  if (targetId === actor.id) {
+    return jsonError("you cannot remove your own account", 400);
+  }
+
+  const target = await c.env.DB.prepare(
+    `SELECT id, role, status, dashboard_role FROM users WHERE id = ?`,
+  )
+    .bind(targetId)
+    .first<{ id: string; role: string; status: string; dashboard_role: string | null }>();
+  if (!target || target.role !== "admin") {
+    return c.json({ error: "Staff member not found", code: "NOT_FOUND" }, 404);
+  }
+
+  if ((target.dashboard_role ?? "owner") === "owner") {
+    const otherOwners = await c.env.DB.prepare(
+      `SELECT COUNT(*) as count FROM users
+       WHERE role = 'admin' AND status = 'active'
+         AND COALESCE(dashboard_role, 'owner') = 'owner'
+         AND id != ?`,
+    )
+      .bind(targetId)
+      .first<{ count: number }>();
+    if ((otherOwners?.count ?? 0) === 0) {
+      return jsonError("cannot remove the last active owner", 409);
+    }
+  }
+
+  await c.env.DB.prepare(`UPDATE users SET status = 'suspended', updated_at = ? WHERE id = ?`)
+    .bind(nowIso(), targetId)
+    .run();
+
+  await logAudit(c.env.DB, {
+    actorId: actor.id,
+    action: "staff.remove",
+    entityType: "user",
+    entityId: targetId,
+    critical: true,
+    ip: c.req.header("cf-connecting-ip"),
+  });
+
+  return c.json({ ok: true });
+});

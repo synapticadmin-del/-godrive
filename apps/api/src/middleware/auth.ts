@@ -1,11 +1,14 @@
 import type { Context, Next } from "hono";
 import { verifyToken } from "../lib/jwt";
+import { effectiveStaffRole, hasPermission, type StaffPermission, type StaffRole } from "../lib/staff";
 import type { AuthUser } from "../lib/types";
 
 export type AppEnv = {
   Bindings: Env;
   Variables: {
     user: AuthUser;
+    /** Set by requireStaff once the dashboard role has been resolved. */
+    staffRole?: StaffRole;
   };
 };
 
@@ -70,6 +73,57 @@ export function requireRole(...roles: AuthUser["role"][]) {
     if (!roles.includes(user.role)) {
       return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
     }
+    await next();
+  };
+}
+
+/**
+ * Dashboard RBAC gate (migration 0024 + lib/staff.ts).
+ *
+ * Replaces the old flat requireRole("admin") on operator endpoints: every
+ * dashboard account is still role='admin', but users.dashboard_role decides
+ * which permissions it carries. The role is re-read from D1 on every request
+ * rather than trusted from the JWT — one cheap SELECT — so an owner can
+ * demote or suspend a member of staff and the change lands on their very
+ * next call, not when their token expires in fifteen minutes.
+ *
+ * The caller must hold EVERY listed permission; endpoints that offer several
+ * capabilities list them all.
+ */
+export function requireStaff(...permissions: StaffPermission[]) {
+  return async (c: Context<AppEnv>, next: Next) => {
+    const user = c.get("user");
+    if (user.role !== "admin") {
+      return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+    }
+
+    const row = await c.env.DB.prepare(
+      `SELECT role, status, dashboard_role FROM users WHERE id = ?`,
+    )
+      .bind(user.id)
+      .first<{ role: string; status: string; dashboard_role: string | null }>();
+
+    // A suspended account keeps a valid access token for up to fifteen
+    // minutes; this is where that window is closed for the dashboard.
+    if (!row || row.status === "suspended") {
+      return c.json({ error: "Account suspended", code: "SUSPENDED" }, 403);
+    }
+
+    const staffRole = effectiveStaffRole(row);
+    if (!staffRole) {
+      return c.json({ error: "Forbidden", code: "FORBIDDEN" }, 403);
+    }
+
+    for (const permission of permissions) {
+      if (!hasPermission(staffRole, permission)) {
+        return c.json(
+          { error: "Insufficient dashboard permissions", code: "PERMISSION_DENIED", required: permissions },
+          403,
+        );
+      }
+    }
+
+    c.set("staffRole", staffRole);
     await next();
   };
 }

@@ -1,10 +1,11 @@
 import React, { forwardRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
+import { hasPermission, ROLE_LABELS_AR, type StaffPermission } from '../../lib/staff';
 import {
   LayoutDashboard, MapPin, Users, ShieldCheck, Route as RouteIcon,
   BarChart3, DollarSign, User as UserIcon, ShieldAlert, Settings as CogIcon,
-  LogOut, X, AlertCircle, Send,
+  LogOut, X, AlertCircle, Send, UserCog,
 } from 'lucide-react';
 import TempoLogo from '../common/TempoLogo';
 
@@ -12,6 +13,11 @@ interface NavItem {
   path: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  /**
+   * RBAC (migration 0024): the permission a dashboard role needs to see this
+   * item. Items without one are visible to every staff role.
+   */
+  permission?: StaffPermission;
   badge?: string;
   end?: boolean;
 }
@@ -25,28 +31,29 @@ const navGroups: NavGroup[] = [
   {
     category: 'الرئيسية',
     items: [
-      { path: '/', label: 'نظرة عامة', icon: LayoutDashboard, end: true },
-      { path: '/live', label: 'خريطة حية', icon: MapPin },
+      { path: '/', label: 'نظرة عامة', icon: LayoutDashboard, permission: 'stats:view', end: true },
+      { path: '/live', label: 'خريطة حية', icon: MapPin, permission: 'stats:view' },
     ],
   },
   {
     category: 'العمليات',
     items: [
-      { path: '/safety', label: 'الاستغاثات', icon: AlertCircle },
-      { path: '/captains', label: 'الكباتن', icon: Users },
-      { path: '/verification', label: 'توثيق المستندات', icon: ShieldCheck, badge: 'جديد' },
-      { path: '/trips', label: 'الرحلات', icon: RouteIcon },
-      { path: '/users', label: 'الركاب', icon: UserIcon },
+      { path: '/safety', label: 'الاستغاثات', icon: AlertCircle, permission: 'safety:view' },
+      { path: '/captains', label: 'الكباتن', icon: Users, permission: 'captains:view' },
+      { path: '/verification', label: 'توثيق المستندات', icon: ShieldCheck, permission: 'documents:view', badge: 'جديد' },
+      { path: '/trips', label: 'الرحلات', icon: RouteIcon, permission: 'trips:view' },
+      { path: '/users', label: 'الركاب', icon: UserIcon, permission: 'users:view' },
     ],
   },
   {
     category: 'المالية والحوكمة',
     items: [
-      { path: '/analytics', label: 'التحليلات', icon: BarChart3 },
-      { path: '/pricing', label: 'التسعير', icon: DollarSign },
-      { path: '/payouts', label: 'طلبات السحب', icon: Send },
-      { path: '/audit', label: 'سجل التدقيق', icon: ShieldAlert },
-      { path: '/settings', label: 'الإعدادات', icon: CogIcon },
+      { path: '/analytics', label: 'التحليلات', icon: BarChart3, permission: 'analytics:view' },
+      { path: '/pricing', label: 'التسعير', icon: DollarSign, permission: 'pricing:manage' },
+      { path: '/payouts', label: 'طلبات السحب', icon: Send, permission: 'payouts:manage' },
+      { path: '/audit', label: 'سجل التدقيق', icon: ShieldAlert, permission: 'audit:view' },
+      { path: '/settings', label: 'الإعدادات', icon: CogIcon, permission: 'config:manage' },
+      { path: '/staff', label: 'الموظفون والأدوار', icon: UserCog, permission: 'staff:manage' },
     ],
   },
 ];
@@ -59,13 +66,22 @@ export interface SidebarProps {
 
 export const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
   ({ isOpen = false, onClose, className = '' }, ref) => {
-    const { user, logout } = useAuth();
+    const { user, dashboardRole, logout } = useAuth();
     const location = useLocation();
 
     const isActive = (path: string) => {
       if (path === '/') return location.pathname === '/';
       return location.pathname.startsWith(path);
     };
+
+    // RBAC: hide what the role cannot open. Groups whose items are all hidden
+    // disappear too, so a limited role never stares at an empty heading.
+    const visibleGroups = navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !item.permission || hasPermission(dashboardRole, item.permission)),
+      }))
+      .filter((group) => group.items.length > 0);
 
     return (
       <>
@@ -94,7 +110,7 @@ export const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
 
           {/* Navigation */}
           <nav className="flex-1 p-3 overflow-y-auto">
-            {navGroups.map((group, idx) => (
+            {visibleGroups.map((group, idx) => (
               <div key={idx} className="mb-4">
                 <h3 className="px-3 mb-1 text-xs font-semibold text-text-tertiary uppercase tracking-wider">{group.category}</h3>
                 <div className="space-y-1">
@@ -130,7 +146,7 @@ export const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-text-primary truncate">{user?.name || user?.email || 'المستخدم'}</p>
-                <p className="text-xs text-text-tertiary">{user?.role || ''}</p>
+                <p className="text-xs text-text-tertiary">{dashboardRole ? ROLE_LABELS_AR[dashboardRole] : user?.role || ''}</p>
               </div>
             </div>
             <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-error-main hover:bg-error-main/10 transition-colors text-sm font-medium">

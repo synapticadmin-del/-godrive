@@ -251,6 +251,9 @@ authRoutes.post(
         phone: user.phone,
         role: user.role,
         status: user.status,
+        // Migration 0024: the dashboard scope an admin carries. Riders and
+        // captains never have one; the UI reads this to gate its pages.
+        dashboardRole: user.role === "admin" ? user.dashboard_role ?? "owner" : null,
       },
       captain,
     });
@@ -312,6 +315,7 @@ authRoutes.post(
         phone: user.phone,
         role: user.role,
         status: user.status,
+        dashboardRole: user.role === "admin" ? user.dashboard_role ?? "owner" : null,
       },
     });
   },
@@ -417,7 +421,7 @@ authRoutes.post("/login", rateLimit({ prefix: "login", limit: 15, windowSec: 60 
   if (user.role === "captain") {
     captain = (await c.env.DB.prepare(`SELECT * FROM captains WHERE user_id = ?`).bind(user.id).first<DbCaptain>()) ?? null;
   }
-  return c.json({ accessToken, refreshToken, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role, status: user.status }, captain, token: accessToken });
+  return c.json({ accessToken, refreshToken, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role, status: user.status, dashboardRole: user.role === "admin" ? user.dashboard_role ?? "owner" : null }, captain, token: accessToken });
 });
 
 // POST /auth/admin/setup — one-time admin creation (only when no admin exists).
@@ -448,7 +452,7 @@ authRoutes.post("/admin/setup", rateLimit({ prefix: "admin-setup", limit: 3, win
   const pwHash = await hashPassword(body.password);
   const adminId = id("adm");
   await c.env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, name, role, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'admin', 'active', datetime('now'), datetime('now'))`,
+    `INSERT INTO users (id, email, password_hash, name, role, status, dashboard_role, created_at, updated_at) VALUES (?, ?, ?, ?, 'admin', 'active', 'owner', datetime('now'), datetime('now'))`,
   )
     .bind(adminId, body.email.trim().toLowerCase(), pwHash, body.name ?? "Administrator")
     .run();

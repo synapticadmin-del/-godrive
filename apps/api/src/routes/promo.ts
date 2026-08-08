@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { createPromoSchema, validatePromoSchema } from "../lib/schemas";
 import { logAudit } from "../lib/audit";
 import { nowIso } from "../lib/utils";
-import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
+import { authMiddleware, requireStaff, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody } from "../middleware/rateLimit";
 
 export const promoRoutes = new Hono<AppEnv>();
@@ -50,14 +50,14 @@ promoRoutes.post("/validate", authMiddleware, async (c) => {
   });
 });
 
-promoRoutes.get("/", authMiddleware, requireRole("admin"), async (c) => {
+promoRoutes.get("/", authMiddleware, requireStaff("config:manage"), async (c) => {
   const res = await c.env.DB.prepare(
     `SELECT * FROM promo_codes ORDER BY created_at DESC LIMIT 200`,
   ).all();
   return c.json({ promos: res.results ?? [] });
 });
 
-promoRoutes.post("/", authMiddleware, requireRole("admin"), async (c) => {
+promoRoutes.post("/", authMiddleware, requireStaff("config:manage"), async (c) => {
   const body = await parseBody(c, createPromoSchema);
   if (isResponse(body)) return body;
   const user = c.get("user");
@@ -91,7 +91,7 @@ promoRoutes.post("/", authMiddleware, requireRole("admin"), async (c) => {
   return c.json({ ok: true, code: body.code }, 201);
 });
 
-promoRoutes.post("/:code/deactivate", authMiddleware, requireRole("admin"), async (c) => {
+promoRoutes.post("/:code/deactivate", authMiddleware, requireStaff("config:manage"), async (c) => {
   const codeParam = c.req.param("code") ?? "";
   const code = codeParam.toUpperCase();
   if (!code) return c.json({ error: "code required", code: "MISSING_CODE" }, 400);

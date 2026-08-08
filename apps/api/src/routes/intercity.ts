@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { id, nowIso } from "../lib/utils";
-import { authMiddleware, requireRole, type AppEnv } from "../middleware/auth";
+import { authMiddleware, requireRole, requireStaff, type AppEnv } from "../middleware/auth";
 import { isResponse, parseBody } from "../middleware/rateLimit";
 import {
   intercityRouteSchema,
@@ -424,7 +424,7 @@ intercityRoutes.post("/captain/board/:bookingId", authMiddleware, requireRole("c
 });
 
 // ---- Admin — manage routes + schedules ----
-intercityRoutes.use("/admin/*", authMiddleware, requireRole("admin"));
+intercityRoutes.use("/admin/*", authMiddleware, requireStaff("config:manage"));
 
 intercityRoutes.post("/admin/routes", async (c) => {
   const body = await parseBody(c, intercityRouteSchema);

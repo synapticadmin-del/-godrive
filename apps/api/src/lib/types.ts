@@ -15,6 +15,13 @@ export type DbUser = {
   phone: string | null;
   role: UserRole;
   status: string;
+  /**
+   * Dashboard operator scope (migration 0024). Only meaningful when
+   * role = 'admin': 'owner' | 'admin' | 'assistant' | 'support' | 'finance'.
+   * NULL on a role=admin account resolves to 'owner' (pre-RBAC admin);
+   * NULL on riders/captains means "not dashboard staff".
+   */
+  dashboard_role?: string | null;
   /** API-relative path to the user's photo (`/user/avatar/<id>/<file>`), or
    * null when they have not set one. Written only by POST /user/avatar. */
   avatar_url?: string | null;
